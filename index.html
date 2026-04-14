@@ -200,6 +200,7 @@
             ];
 
             // --- Auto-Load Local Files on Init ---
+            // Replaced spaces with %20 to avoid malformed URL errors in strict browsers
             useEffect(() => {
                 const autoLoadFiles = async () => {
                     try {
@@ -217,6 +218,7 @@
                             if(parsedBud && parsedBud.length > 0) setRawBudget(parsedBud);
                         }
                     } catch (e) {
+                        // Normally happens when opened via file:/// due to CORS
                         console.log("Could not auto-load files from root. Manual upload required.", e);
                         if (window.location.protocol === 'file:') {
                             setLoadError("Local file fetch blocked by browser. Please upload files manually or run a local web server.");
@@ -621,6 +623,26 @@
             // --- TABS ---
             const renderDataTab = () => (
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
+                    {/* GitHub Configuration Form (MOVED TO TOP) */}
+                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub API Configuration</h3>
+                        <p className="text-xs text-slate-400 mb-4 max-w-2xl">Enter your credentials to allow the dashboard to fetch data from and push finalized forecasts directly back to your repository. Ensure your Personal Access Token has 'repo' level permissions.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
+                                <input type="password" value={githubConfig.token} onChange={e=>setGithubConfig(p=>({...p, token: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Owner</label>
+                                <input type="text" value={githubConfig.owner} onChange={e=>setGithubConfig(p=>({...p, owner: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. JohnDoe" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Name</label>
+                                <input type="text" value={githubConfig.repo} onChange={e=>setGithubConfig(p=>({...p, repo: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
                         <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data to Engine</h2>
@@ -678,26 +700,6 @@
                                     <p className="text-[10px] text-slate-500 mt-0.5">Grosses up Oct-Dec 2025 volumes for true business-as-usual seasonality.</p>
                                 </div>
                             </label>
-                        </div>
-                    </div>
-
-                    {/* GitHub Configuration Form */}
-                    <div className="max-w-5xl mx-auto mt-4 bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
-                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub API Configuration</h3>
-                        <p className="text-xs text-slate-400 mb-4 max-w-2xl">Enter your credentials to allow the dashboard to push finalized forecasts directly back to your repository. Ensure your Personal Access Token has 'repo' level permissions.</p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
-                                <input type="password" value={githubConfig.token} onChange={e=>setGithubConfig(p=>({...p, token: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Owner</label>
-                                <input type="text" value={githubConfig.owner} onChange={e=>setGithubConfig(p=>({...p, owner: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. JohnDoe" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Name</label>
-                                <input type="text" value={githubConfig.repo} onChange={e=>setGithubConfig(p=>({...p, repo: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
-                            </div>
                         </div>
                     </div>
                 </div>
