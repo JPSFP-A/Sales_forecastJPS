@@ -50,7 +50,9 @@
             Save: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
             History: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
             Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
-            X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Eye: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+            EyeOff: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
         };
 
         // --- Utils ---
@@ -128,6 +130,21 @@
             // Version Manager
             const [savedVersions, setSavedVersions] = useState([]);
             const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+
+            // Graph Toggles
+            const [graphToggles, setGraphToggles] = useState({
+                act25: true, bud26: true, act26: true, marchLE: true, leCust: true, leRc: true, leMgmt: true
+            });
+
+            const toggleConfig = [
+                { key: 'act25', label: '2025 Actuals', activeClass: 'bg-slate-100 text-slate-700 border-slate-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'bud26', label: '2026 Budget', activeClass: 'bg-blue-50 text-blue-700 border-blue-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'act26', label: '2026 Actuals', activeClass: 'bg-purple-50 text-purple-700 border-purple-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'marchLE', label: 'March LE', activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leCust', label: 'LE Cust Vol', activeClass: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leRc', label: 'LE RC Vol', activeClass: 'bg-sky-50 text-sky-700 border-sky-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leMgmt', label: 'LE Management', activeClass: 'bg-amber-50 text-amber-700 border-amber-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+            ];
 
             // Engine
             const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, dimensions } = useMemo(() => {
@@ -301,6 +318,22 @@
                 });
             }, [actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, getFiltered]);
 
+            // --- UI Components ---
+            const renderGraphToggles = () => (
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Icons.Eye className="w-3 h-3"/> View:</span>
+                    {toggleConfig.map(t => (
+                        <label key={t.key} className={`cursor-pointer px-3 py-1.5 rounded border text-xs font-bold flex items-center gap-2 transition select-none ${graphToggles[t.key] ? t.activeClass : t.inactiveClass}`}>
+                            <input type="checkbox" className="hidden" checked={graphToggles[t.key]} onChange={() => setGraphToggles(p => ({...p, [t.key]: !p[t.key]}))} />
+                            <div className={`w-2 h-2 rounded-full ${graphToggles[t.key] ? 'bg-current' : 'bg-slate-300'}`}></div>
+                            {t.label}
+                        </label>
+                    ))}
+                    <button className="text-xs text-blue-500 hover:underline ml-auto font-medium" onClick={() => setGraphToggles({act25:true, bud26:true, act26:true, marchLE:true, leCust:true, leRc:true, leMgmt:true})}>Show All</button>
+                    <button className="text-xs text-slate-500 hover:underline font-medium" onClick={() => setGraphToggles({act25:false, bud26:false, act26:false, marchLE:false, leCust:false, leRc:false, leMgmt:false})}>Hide All</button>
+                </div>
+            );
+
             // --- TABS ---
             const renderDataTab = () => (
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
@@ -342,24 +375,27 @@
                             </div>
                         )}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 bg-white rounded-xl border p-5 h-[400px]">
+                            <div className="lg:col-span-2 bg-white rounded-xl border p-5 flex flex-col min-h-[500px]">
                                 <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Overlay Trend across Scenarios (kWh)</div>
-                                <ResponsiveContainer width="100%" height="90%">
-                                    <LineChart data={monthlyAggregates}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                        <XAxis dataKey="month" tick={{fontSize: 11}} />
-                                        <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
-                                        <Tooltip formatter={(v) => formatNum(v)} />
-                                        <Legend />
-                                        <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />
-                                        <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                                        <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />
-                                        <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />
-                                        <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                                        <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                                        <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />
-                                    </LineChart>
-                                </ResponsiveContainer>
+                                {renderGraphToggles()}
+                                <div className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={monthlyAggregates}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                            <XAxis dataKey="month" tick={{fontSize: 11}} />
+                                            <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
+                                            <Tooltip formatter={(v) => formatNum(v)} />
+                                            <Legend />
+                                            {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
+                                            {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
+                                            {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
+                                            {graphToggles.marchLE && <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />}
+                                            {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                            {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                            {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                             <div className="bg-white rounded-xl border p-5 space-y-6">
                                 <h3 className="font-bold text-slate-800 border-b pb-2">Fiscal Year Outlook</h3>
@@ -390,24 +426,27 @@
 
                 return (
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
-                        <div className="bg-white rounded-xl border p-5 h-[400px] shrink-0 shadow-sm">
+                        <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[500px] shrink-0 shadow-sm">
                             <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Monthly Trend & Scenarios (kWh)</div>
-                            <ResponsiveContainer width="100%" height="90%">
-                                <LineChart data={monthlyAggregates}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                    <XAxis dataKey="month" tick={{fontSize: 11}} />
-                                    <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
-                                    <Tooltip formatter={(v) => formatNum(v)} />
-                                    <Legend />
-                                    <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />
-                                    <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                                    <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />
-                                    <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />
-                                    <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                                    <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                                    <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />
-                                </LineChart>
-                            </ResponsiveContainer>
+                            {renderGraphToggles()}
+                            <div className="flex-1 min-h-0 mt-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={monthlyAggregates}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <XAxis dataKey="month" tick={{fontSize: 11}} />
+                                        <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
+                                        <Tooltip formatter={(v) => formatNum(v)} />
+                                        <Legend />
+                                        {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
+                                        {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
+                                        {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
+                                        {graphToggles.marchLE && <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />}
+                                        {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                        {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                        {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                         <div className="bg-white rounded-xl border shadow-sm flex flex-col">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
@@ -551,7 +590,7 @@
                     <div className="p-6 h-full flex flex-col">
                         <div className="bg-white rounded-xl border shadow-sm flex-1 flex flex-col overflow-hidden">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                                <h3 className="font-bold text-slate-800">Deep-Dive Variance Matrix</h3>
+                                <h3 className="font-bold text-slate-800">Deep-Dive Variance Matrix (All Scenarios vs Budget & PY)</h3>
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => exportCSV([...fAct, ...fBud], `Variance_Base_Level_Data.csv`)} className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded border border-blue-100"><Icons.Download/> Base Data</button>
                                     <select value={varianceDim} onChange={e=>setVarianceDim(e.target.value)} className="border rounded px-3 py-1 font-bold text-blue-700 bg-white">
