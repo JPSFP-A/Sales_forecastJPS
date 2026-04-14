@@ -177,6 +177,8 @@
             const [rcGrowthOverrides, setRcGrowthOverrides] = useState({});
             const [allocationResults, setAllocationResults] = useState([]);
             const [varianceDim, setVarianceDim] = useState('rc');
+            const [drillDownDim, setDrillDownDim] = useState('name');
+            const [expandedRow, setExpandedRow] = useState(null);
             const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
 
             // Version Manager
@@ -934,19 +936,41 @@
 
                 const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
                 const matrix = {};
-                const fAct = getFiltered(actuals).filter(d => d.month <= ytdLimit); const fBud = getFiltered(budget).filter(d => d.month <= ytdLimit);
-                const fMarchLE = getFiltered(marchLE).filter(d => d.month <= ytdLimit); const fLeCust = getFiltered(leCustGrowth).filter(d => d.month <= ytdLimit);
-                const fLeRC = getFiltered(leRCGrowth).filter(d => d.month <= ytdLimit); const fLeMgmt = getFiltered(leMgmtGrowth).filter(d => d.month <= ytdLimit);
-                const fLeCustom = getFiltered(leCustomGrowth).filter(d => d.month <= ytdLimit);
 
-                const initMatrix = (dim) => { if(!matrix[dim]) matrix[dim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0, leCustom:0 }; };
-                fAct.forEach(d => { initMatrix(d[varianceDim]); if(d.year === 2025) matrix[d[varianceDim]].a25 += d.kwh; if(d.year === 2026) matrix[d[varianceDim]].a26 += d.kwh; });
-                fBud.forEach(d => { initMatrix(d[varianceDim]); if(d.year === 2026) matrix[d[varianceDim]].b26 += d.kwh; });
-                fMarchLE.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].mle += d.kwh; });
-                fLeCust.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leCust += d.kwh; });
-                fLeRC.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leRc += d.kwh; });
-                fLeMgmt.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leMgmt += d.kwh; });
-                fLeCustom.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leCustom += d.kwh; });
+                const initMatrix = (dim) => { 
+                    if(!matrix[dim]) matrix[dim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0, leCustom:0, sub: {} }; 
+                };
+                const initSubMatrix = (dim, subDim) => { 
+                    if(!matrix[dim].sub[subDim]) matrix[dim].sub[subDim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0, leCustom:0 }; 
+                };
+
+                const datasets = [
+                    { data: actuals, year: 2025, field: 'a25' },
+                    { data: actuals, year: 2026, field: 'a26' },
+                    { data: budget, year: 2026, field: 'b26' },
+                    { data: marchLE, year: null, field: 'mle' },
+                    { data: leCustGrowth, year: null, field: 'leCust' },
+                    { data: leRCGrowth, year: null, field: 'leRc' },
+                    { data: leMgmtGrowth, year: null, field: 'leMgmt' },
+                    { data: leCustomGrowth, year: null, field: 'leCustom' },
+                ];
+
+                datasets.forEach(({ data, year, field }) => {
+                    data.forEach(d => {
+                        if (d.month > ytdLimit) return;
+                        if (year && d.year !== year) return;
+                        
+                        const dimVal = d[varianceDim] || 'Unassigned';
+                        initMatrix(dimVal);
+                        matrix[dimVal][field] += d.kwh;
+
+                        if (drillDownDim !== 'none') {
+                            const subDimVal = d[drillDownDim] || 'Unassigned';
+                            initSubMatrix(dimVal, subDimVal);
+                            matrix[dimVal].sub[subDimVal][field] += d.kwh;
+                        }
+                    });
+                });
 
                 const totA25 = Object.values(matrix).reduce((s,v)=>s+v.a25,0); const totB26 = Object.values(matrix).reduce((s,v)=>s+v.b26,0); const totA26 = Object.values(matrix).reduce((s,v)=>s+v.a26,0);
                 const totMle = Object.values(matrix).reduce((s,v)=>s+v.mle,0); const totLeCust = Object.values(matrix).reduce((s,v)=>s+v.leCust,0); const totLeRc = Object.values(matrix).reduce((s,v)=>s+v.leRc,0); 
@@ -955,16 +979,70 @@
                 const renderVarPct = (val, base) => formatPct(base ? (val - base) / base : 0);
                 const colorPct = (val, base) => { const pct = base ? (val - base) / base : 0; return pct >= 0 ? 'text-emerald-600' : 'text-red-500'; };
 
+                const renderVarRowCells = (v, isSub = false) => (
+                    <React.Fragment>
+                        <td className={`p-2 text-right text-slate-500 ${isSub ? 'text-xs' : ''}`}>{formatNum(v.a25)}</td>
+                        <td className={`p-2 text-right text-blue-700 ${isSub ? 'text-xs opacity-80' : ''}`}>{formatNum(v.b26)}</td>
+                        
+                        <td className={`p-2 text-right text-slate-800 border-l border-slate-200 ${isSub ? 'text-xs' : ''}`}>{formatNum(v.a26)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${colorPct(v.a26, v.b26)}`}>{renderVarPct(v.a26, v.b26)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${colorPct(v.a26, v.a25)}`}>{renderVarPct(v.a26, v.a25)}</td>
+                        
+                        <td className={`p-2 text-right border-l border-slate-200 bg-emerald-50/20 ${isSub ? 'text-emerald-600 text-xs opacity-80' : 'text-emerald-700'}`}>{formatNum(v.mle)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-emerald-50/20 ${colorPct(v.mle, v.b26)}`}>{renderVarPct(v.mle, v.b26)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-emerald-50/20 ${colorPct(v.mle, v.a25)}`}>{renderVarPct(v.mle, v.a25)}</td>
+                        
+                        <td className={`p-2 text-right border-l border-slate-200 bg-purple-50/20 ${isSub ? 'text-purple-600 text-xs opacity-80' : 'text-purple-700'}`}>{formatNum(v.leCust)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-purple-50/20 ${colorPct(v.leCust, v.b26)}`}>{renderVarPct(v.leCust, v.b26)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-purple-50/20 ${colorPct(v.leCust, v.a25)}`}>{renderVarPct(v.leCust, v.a25)}</td>
+                        
+                        <td className={`p-2 text-right border-l border-slate-200 bg-blue-50/20 ${isSub ? 'text-blue-600 text-xs opacity-80' : 'text-blue-700'}`}>{formatNum(v.leRc)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-blue-50/20 ${colorPct(v.leRc, v.b26)}`}>{renderVarPct(v.leRc, v.b26)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-blue-50/20 ${colorPct(v.leRc, v.a25)}`}>{renderVarPct(v.leRc, v.a25)}</td>
+                        
+                        <td className={`p-2 text-right border-l border-slate-200 bg-orange-50/20 ${isSub ? 'text-orange-600 text-xs opacity-80' : 'text-orange-700'}`}>{formatNum(v.leMgmt)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-orange-50/20 ${colorPct(v.leMgmt, v.b26)}`}>{renderVarPct(v.leMgmt, v.b26)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-orange-50/20 ${colorPct(v.leMgmt, v.a25)}`}>{renderVarPct(v.leMgmt, v.a25)}</td>
+                        
+                        <td className={`p-2 text-right border-l border-slate-200 bg-indigo-50/20 ${isSub ? 'text-indigo-600 text-xs opacity-80' : 'text-indigo-700'}`}>{formatNum(v.leCustom)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-indigo-50/20 ${colorPct(v.leCustom, v.b26)}`}>{renderVarPct(v.leCustom, v.b26)}</td>
+                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-indigo-50/20 ${colorPct(v.leCustom, v.a25)}`}>{renderVarPct(v.leCustom, v.a25)}</td>
+                    </React.Fragment>
+                );
+
+                const totalsObj = { a25: totA25, b26: totB26, a26: totA26, mle: totMle, leCust: totLeCust, leRc: totLeRc, leMgmt: totLeMgmt, leCustom: totLeCustom };
+
                 return (
                     <div className="p-6 h-full flex flex-col">
                         <div className="bg-white rounded-xl border shadow-sm flex-1 flex flex-col overflow-hidden">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
                                 <h3 className="font-bold text-slate-800">Deep-Dive Variance Matrix (All Scenarios vs Budget & PY)</h3>
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => exportCSV([...fAct, ...fBud], `Variance_Base_Level_Data.csv`)} className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded border border-blue-100"><Icons.Download/> Base Data</button>
-                                    <select value={varianceDim} onChange={e=>setVarianceDim(e.target.value)} className="border rounded px-3 py-1 font-bold text-blue-700 bg-white">
-                                        <option value="rc">Rate Category</option><option value="parish">Parish</option><option value="industry">Industry</option><option value="name">Customer</option>
-                                    </select>
+                                <div className="flex items-center gap-4">
+                                    <button onClick={() => exportCSV([...getFiltered(actuals).filter(d=>d.month<=ytdLimit), ...getFiltered(budget).filter(d=>d.month<=ytdLimit)], `Variance_Base_Level_Data.csv`)} className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 shadow-sm transition"><Icons.Download/> Base Data</button>
+                                    
+                                    <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-3 shadow-sm text-sm h-9">
+                                        <span className="text-slate-500 font-bold px-1">View:</span>
+                                        <select value={varianceDim} onChange={e=>{
+                                            const val = e.target.value;
+                                            setVarianceDim(val);
+                                            setExpandedRow(null);
+                                            if (drillDownDim === val) setDrillDownDim('none');
+                                        }} className="bg-transparent font-bold text-blue-700 outline-none pr-1">
+                                            <option value="rc">Rate Category</option>
+                                            <option value="parish">Parish</option>
+                                            <option value="industry">Industry</option>
+                                            <option value="name">Customer</option>
+                                        </select>
+                                        <span className="text-slate-300 mx-1">|</span>
+                                        <span className="text-slate-500 font-bold px-1">Drill:</span>
+                                        <select value={drillDownDim} onChange={e=>{setDrillDownDim(e.target.value); setExpandedRow(null);}} className="bg-transparent font-bold text-purple-700 outline-none pr-1">
+                                            <option value="none">None</option>
+                                            {varianceDim !== 'rc' && <option value="rc">Rate Category</option>}
+                                            {varianceDim !== 'parish' && <option value="parish">Parish</option>}
+                                            {varianceDim !== 'industry' && <option value="industry">Industry</option>}
+                                            {varianceDim !== 'name' && <option value="name">Customer</option>}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex-1 overflow-auto custom-scroll relative">
@@ -995,55 +1073,42 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {Object.entries(matrix).sort((a,b) => b[1].a26 - a[1].a26).map(([dim, v]) => (
-                                            <tr key={dim} className="border-b hover:bg-slate-50">
-                                                <td className="p-2 font-bold border-r table-pin-col bg-white truncate max-w-[150px]">{dim}</td>
-                                                <td className="p-2 text-right text-slate-500">{formatNum(v.a25)}</td>
-                                                <td className="p-2 text-right text-blue-700">{formatNum(v.b26)}</td>
-                                                <td className="p-2 text-right text-slate-800 border-l border-slate-200">{formatNum(v.a26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold ${colorPct(v.a26, v.b26)}`}>{renderVarPct(v.a26, v.b26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold ${colorPct(v.a26, v.a25)}`}>{renderVarPct(v.a26, v.a25)}</td>
-                                                <td className="p-2 text-right text-emerald-700 border-l border-slate-200 bg-emerald-50/20">{formatNum(v.mle)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-emerald-50/20 ${colorPct(v.mle, v.b26)}`}>{renderVarPct(v.mle, v.b26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-emerald-50/20 ${colorPct(v.mle, v.a25)}`}>{renderVarPct(v.mle, v.a25)}</td>
-                                                <td className="p-2 text-right text-purple-700 border-l border-slate-200 bg-purple-50/20">{formatNum(v.leCust)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-purple-50/20 ${colorPct(v.leCust, v.b26)}`}>{renderVarPct(v.leCust, v.b26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-purple-50/20 ${colorPct(v.leCust, v.a25)}`}>{renderVarPct(v.leCust, v.a25)}</td>
-                                                <td className="p-2 text-right text-blue-700 border-l border-slate-200 bg-blue-50/20">{formatNum(v.leRc)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-blue-50/20 ${colorPct(v.leRc, v.b26)}`}>{renderVarPct(v.leRc, v.b26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-blue-50/20 ${colorPct(v.leRc, v.a25)}`}>{renderVarPct(v.leRc, v.a25)}</td>
-                                                <td className="p-2 text-right text-orange-700 border-l border-slate-200 bg-orange-50/20">{formatNum(v.leMgmt)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-orange-50/20 ${colorPct(v.leMgmt, v.b26)}`}>{renderVarPct(v.leMgmt, v.b26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-orange-50/20 ${colorPct(v.leMgmt, v.a25)}`}>{renderVarPct(v.leMgmt, v.a25)}</td>
-                                                <td className="p-2 text-right text-indigo-700 border-l border-slate-200 bg-indigo-50/20">{formatNum(v.leCustom)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-indigo-50/20 ${colorPct(v.leCustom, v.b26)}`}>{renderVarPct(v.leCustom, v.b26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-indigo-50/20 ${colorPct(v.leCustom, v.a25)}`}>{renderVarPct(v.leCustom, v.a25)}</td>
-                                            </tr>
-                                        ))}
+                                        {Object.entries(matrix).sort((a,b) => b[1].a26 - a[1].a26).map(([dim, v]) => {
+                                            const isExpanded = expandedRow === dim;
+                                            const hasSub = drillDownDim !== 'none' && Object.keys(v.sub).length > 0;
+                                            
+                                            return (
+                                                <React.Fragment key={dim}>
+                                                    <tr className={`border-b hover:bg-slate-50 transition ${hasSub ? 'cursor-pointer' : ''}`} onClick={() => hasSub && setExpandedRow(isExpanded ? null : dim)}>
+                                                        <td className="p-2 font-bold border-r table-pin-col bg-white whitespace-nowrap z-20">
+                                                            <div className="flex items-center gap-2 max-w-[200px]">
+                                                                {drillDownDim !== 'none' ? (
+                                                                    <span className="w-4 text-center text-[10px] text-slate-400 hover:text-blue-600 transition flex-shrink-0">{isExpanded ? '▼' : '▶'}</span>
+                                                                ) : <span className="w-4"></span>}
+                                                                <span className="truncate" title={dim}>{dim}</span>
+                                                            </div>
+                                                        </td>
+                                                        {renderVarRowCells(v, false)}
+                                                    </tr>
+                                                    {isExpanded && Object.entries(v.sub).sort((a,b) => b[1].a26 - a[1].a26).slice(0, 100).map(([subDim, sv]) => (
+                                                        <tr key={`${dim}-${subDim}`} className="border-b bg-slate-50/80 hover:bg-slate-100 text-xs transition">
+                                                            <td className="p-2 font-medium border-r table-pin-col bg-slate-50/95 whitespace-nowrap text-slate-600 z-10">
+                                                                <div className="flex items-center gap-2 pl-5 max-w-[200px]">
+                                                                    <span className="w-2 h-2 border-l-2 border-b-2 border-slate-300 inline-block mb-1 opacity-60 flex-shrink-0"></span>
+                                                                    <span className="truncate" title={subDim}>{subDim}</span>
+                                                                </div>
+                                                            </td>
+                                                            {renderVarRowCells(sv, true)}
+                                                        </tr>
+                                                    ))}
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </tbody>
-                                    <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-20">
+                                    <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-30">
                                         <tr>
-                                            <td className="p-2 border-r table-pin-col bg-slate-200 z-30">TOTAL</td>
-                                            <td className="p-2 text-right text-slate-600">{formatNum(totA25)}</td>
-                                            <td className="p-2 text-right text-blue-800">{formatNum(totB26)}</td>
-                                            <td className="p-2 text-right text-slate-900 border-l border-slate-300">{formatNum(totA26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totA26, totB26)}`}>{renderVarPct(totA26, totB26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totA26, totA25)}`}>{renderVarPct(totA26, totA25)}</td>
-                                            <td className="p-2 text-right text-emerald-800 border-l border-slate-300">{formatNum(totMle)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totMle, totB26)}`}>{renderVarPct(totMle, totB26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totMle, totA25)}`}>{renderVarPct(totMle, totA25)}</td>
-                                            <td className="p-2 text-right text-purple-800 border-l border-slate-300">{formatNum(totLeCust)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCust, totB26)}`}>{renderVarPct(totLeCust, totB26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCust, totA25)}`}>{renderVarPct(totLeCust, totA25)}</td>
-                                            <td className="p-2 text-right text-blue-800 border-l border-slate-300">{formatNum(totLeRc)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeRc, totB26)}`}>{renderVarPct(totLeRc, totB26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeRc, totA25)}`}>{renderVarPct(totLeRc, totA25)}</td>
-                                            <td className="p-2 text-right text-orange-800 border-l border-slate-300">{formatNum(totLeMgmt)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeMgmt, totB26)}`}>{renderVarPct(totLeMgmt, totB26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeMgmt, totA25)}`}>{renderVarPct(totLeMgmt, totA25)}</td>
-                                            <td className="p-2 text-right text-indigo-800 border-l border-slate-300">{formatNum(totLeCustom)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCustom, totB26)}`}>{renderVarPct(totLeCustom, totB26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCustom, totA25)}`}>{renderVarPct(totLeCustom, totA25)}</td>
+                                            <td className="p-2 border-r table-pin-col bg-slate-200 z-40 pl-8 uppercase tracking-wider text-slate-700">TOTAL YTD/FY</td>
+                                            {renderVarRowCells(totalsObj, false)}
                                         </tr>
                                     </tfoot>
                                 </table>
