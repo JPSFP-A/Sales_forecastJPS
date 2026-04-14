@@ -52,9 +52,7 @@
             Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
             X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
             Eye: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-            EyeOff: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
-            Link: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
-            Sliders: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+            EyeOff: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
         };
 
         // --- Utils ---
@@ -116,11 +114,6 @@
             const [rawBudget, setRawBudget] = useState([]);
             const [isBudgetCommitted, setIsBudgetCommitted] = useState(false);
             
-            // GitHub Fetch State
-            const [budgetUrl, setBudgetUrl] = useState('');
-            const [actualsUrl, setActualsUrl] = useState('');
-            const [isLoadingUrl, setIsLoadingUrl] = useState({ budget: false, actuals: false });
-
             const [ytdMonth, setYtdMonth] = useState('All');
             const [fMonth, setFMonth] = useState('All');
             const [fYear, setFYear] = useState('All');
@@ -130,7 +123,6 @@
 
             const [monthMapping, setMonthMapping] = useState({});
             const [allocOverrides, setAllocOverrides] = useState({});
-            const [rcGrowthOverrides, setRcGrowthOverrides] = useState({});
             const [allocationResults, setAllocationResults] = useState([]);
             const [varianceDim, setVarianceDim] = useState('rc');
             const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
@@ -141,7 +133,7 @@
 
             // Graph Toggles
             const [graphToggles, setGraphToggles] = useState({
-                act25: true, bud26: true, act26: true, marchLE: true, leCust: true, leRc: true, leMgmt: true, leCustom: true
+                act25: true, bud26: true, act26: true, marchLE: true, leCust: true, leRc: true, leMgmt: true
             });
 
             const toggleConfig = [
@@ -152,35 +144,10 @@
                 { key: 'leCust', label: 'LE Cust Vol', activeClass: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
                 { key: 'leRc', label: 'LE RC Vol', activeClass: 'bg-sky-50 text-sky-700 border-sky-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
                 { key: 'leMgmt', label: 'LE Management', activeClass: 'bg-amber-50 text-amber-700 border-amber-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'leCustom', label: 'LE Custom %', activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' }
             ];
 
-            // --- Auto-Load Local Files on Init ---
-            useEffect(() => {
-                const autoLoadFiles = async () => {
-                    try {
-                        const actRes = await fetch('./JPS Actuals data.csv');
-                        if (actRes.ok) {
-                            const actText = await actRes.text();
-                            const parsedAct = parseCSV(actText);
-                            if(parsedAct && parsedAct.length > 0) setRawActuals(parsedAct);
-                        }
-                        
-                        const budRes = await fetch('./JPS Budget 2026 data.csv');
-                        if (budRes.ok) {
-                            const budText = await budRes.text();
-                            const parsedBud = parseCSV(budText);
-                            if(parsedBud && parsedBud.length > 0) setRawBudget(parsedBud);
-                        }
-                    } catch (e) {
-                        console.log("Could not auto-load files from root. Manual upload required.", e);
-                    }
-                };
-                autoLoadFiles();
-            }, []);
-
-            // --- Engine ---
-            const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
+            // Engine
+            const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, dimensions } = useMemo(() => {
                 const normA = rawActuals.map(d => ({ source: d['Source'] || 'Postpaid', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unassigned', name: d['Name'] || 'Unassigned', industry: d['Industry'] || 'Unassigned', kwh: cleanVal(d['Sum of net_kwh_billed_consump']), ...parseTimeStr(d['Month']) }));
                 const normB = rawBudget.map(d => ({ source: d['Source'] || 'Budget', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unallocated', name: d['Name'] || 'Unallocated', industry: d['Industry'] || 'Unallocated', kwh: cleanVal(d['Sum of Budget']), ...parseTimeStr(d['Month']) }));
 
@@ -215,7 +182,7 @@
                 });
 
                 const q1Actuals26 = normA.filter(d => d.year === 2026 && d.month <= 3).map(d => ({...d, source: 'LE Forecast', type: 'Actual'}));
-                const leCustData = [...q1Actuals26]; const leRCData = [...q1Actuals26]; const leMgmtData = [...q1Actuals26]; const leCustomData = [...q1Actuals26];
+                const leCustData = [...q1Actuals26]; const leRCData = [...q1Actuals26]; const leMgmtData = [...q1Actuals26];
 
                 const bRcTotal = {}; const bCustTotal = {};
                 normB.filter(d => d.year === 2026 && d.month >= 4).forEach(b => {
@@ -237,11 +204,6 @@
                     
                     const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
                     leMgmtData.push({ ...b, source: 'LE - Management', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
-
-                    // Custom RC % Override Scenario
-                    const customPct = rcGrowthOverrides[b.rc] || 0;
-                    const customKwh = Math.max(0, b.kwh * (1 + customPct / 100));
-                    leCustomData.push({ ...b, source: 'LE - Custom RC %', type: 'Forecast', kwh: customKwh });
                 });
 
                 const rcs = [...new Set([...normA, ...normB].map(d => d.rc))].sort((a,b) => getRcWeight(a) - getRcWeight(b));
@@ -249,8 +211,8 @@
                 const inds = [...new Set(normA.map(d => d.industry))].sort();
                 const years = [...new Set([...normA, ...normB].map(d => d.year))].filter(y=>y>0).sort();
 
-                return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years } };
-            }, [rawActuals, rawBudget, isNormalizeHurricane, rcGrowthOverrides]);
+                return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, dimensions: { rcs, parishes, inds, years } };
+            }, [rawActuals, rawBudget, isNormalizeHurricane]);
 
             // Allocation Engine
             useEffect(() => {
@@ -311,23 +273,6 @@
                 reader.readAsText(e.target.files[0]);
             };
 
-            const handleFetchUrl = async (url, isBudget) => {
-                if(!url) return;
-                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const text = await response.text();
-                    const data = parseCSV(text);
-                    if (isBudget) { setRawBudget(data); setIsBudgetCommitted(false); } 
-                    else { setRawActuals(data); }
-                } catch (e) {
-                    alert('Error fetching file: ' + e.message + '\nMake sure you are using the "Raw" GitHub URL.');
-                } finally {
-                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
-                }
-            };
-
             const commitAllocation = () => {
                 if (allocationResults.length === 0) return;
                 setRawBudget(allocationResults.map(r => ({ 'Source': 'Model Allocation', 'Rate category': r.rc, 'Updated Parish': r.parish, 'Month': r.targetMonth, 'Sum of Budget': (r.finalA || 0).toFixed(6), 'JPS A/c': r.acct, 'Name': r.name, 'Industry': r.industry })));
@@ -337,15 +282,14 @@
             const handleSaveVersion = () => {
                 const name = prompt("Enter a name for this scenario version:");
                 if (!name) return;
-                const newVersion = { id: Date.now(), name, timestamp: new Date().toLocaleString(), rawBudget: [...rawBudget], isBudgetCommitted, monthMapping: { ...monthMapping }, allocOverrides: { ...allocOverrides }, rcGrowthOverrides: { ...rcGrowthOverrides }, isNormalizeHurricane };
+                const newVersion = { id: Date.now(), name, timestamp: new Date().toLocaleString(), rawBudget: [...rawBudget], isBudgetCommitted, monthMapping: { ...monthMapping }, allocOverrides: { ...allocOverrides }, isNormalizeHurricane };
                 setSavedVersions(prev => [...prev, newVersion]);
                 alert(`Version "${name}" saved successfully!`);
             };
 
             const handleRestoreVersion = (version) => {
                 if(!confirm(`Are you sure you want to restore "${version.name}"? Any unsaved changes in your current view will be lost.`)) return;
-                setRawBudget([...version.rawBudget]); setIsBudgetCommitted(version.isBudgetCommitted); setMonthMapping({ ...version.monthMapping }); setAllocOverrides({ ...version.allocOverrides }); 
-                setRcGrowthOverrides(version.rcGrowthOverrides || {}); setIsNormalizeHurricane(version.isNormalizeHurricane); setIsVersionModalOpen(false);
+                setRawBudget([...version.rawBudget]); setIsBudgetCommitted(version.isBudgetCommitted); setMonthMapping({ ...version.monthMapping }); setAllocOverrides({ ...version.allocOverrides }); setIsNormalizeHurricane(version.isNormalizeHurricane); setIsVersionModalOpen(false);
             };
 
             const getFiltered = useCallback((data) => {
@@ -360,7 +304,7 @@
             }, [fYear, fMonth, fRC, fParish, fInd]);
 
             const monthlyAggregates = useMemo(() => {
-                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth); const fLeCustom = getFiltered(leCustomGrowth);
+                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth);
                 return monthNames.map((m, idx) => {
                     const mNum = idx + 1;
                     const a25 = fAct.filter(d => d.year === 2025 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
@@ -370,54 +314,23 @@
                     const leCust26 = fLeCust.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
                     const leRC26 = fLeRC.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
                     const leMgmt26 = fLeMgmt.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
-                    const leCustom26 = fLeCustom.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
-                    return { month: m.substring(0,3), monthFull: m, Act25: a25, Bud26: b26, Act26: a26 > 0 ? a26 : null, MarchLE: le26, LeCust: leCust26, LeRC: leRC26, LeMgmt: leMgmt26, LeCustom: leCustom26 };
+                    return { month: m.substring(0,3), monthFull: m, Act25: a25, Bud26: b26, Act26: a26 > 0 ? a26 : null, MarchLE: le26, LeCust: leCust26, LeRC: leRC26, LeMgmt: leMgmt26 };
                 });
-            }, [actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, getFiltered]);
+            }, [actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, getFiltered]);
 
             // --- UI Components ---
             const renderGraphToggles = () => (
-                <div className="flex flex-wrap items-center gap-3 mb-4 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 ml-2"><Icons.Eye className="w-3 h-3"/> Map Scenarios:</span>
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Icons.Eye className="w-3 h-3"/> View:</span>
                     {toggleConfig.map(t => (
-                        <label key={t.key} className={`cursor-pointer px-3 py-1.5 rounded-md border text-xs font-bold flex items-center gap-2 transition select-none shadow-sm ${graphToggles[t.key] ? t.activeClass : t.inactiveClass}`}>
+                        <label key={t.key} className={`cursor-pointer px-3 py-1.5 rounded border text-xs font-bold flex items-center gap-2 transition select-none ${graphToggles[t.key] ? t.activeClass : t.inactiveClass}`}>
                             <input type="checkbox" className="hidden" checked={graphToggles[t.key]} onChange={() => setGraphToggles(p => ({...p, [t.key]: !p[t.key]}))} />
-                            <div className={`w-2 h-2 rounded-full ${graphToggles[t.key] ? 'bg-current shadow-sm' : 'bg-slate-300'}`}></div>
+                            <div className={`w-2 h-2 rounded-full ${graphToggles[t.key] ? 'bg-current' : 'bg-slate-300'}`}></div>
                             {t.label}
                         </label>
                     ))}
-                    <div className="flex gap-2 ml-auto pr-2">
-                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-blue-600 transition" onClick={() => setGraphToggles({act25:true, bud26:true, act26:true, marchLE:true, leCust:true, leRc:true, leMgmt:true, leCustom:true})}>All On</button>
-                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-red-500 transition" onClick={() => setGraphToggles({act25:false, bud26:false, act26:false, marchLE:false, leCust:false, leRc:false, leMgmt:false, leCustom:false})}>All Off</button>
-                    </div>
-                </div>
-            );
-
-            const customRcControls = (
-                <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 shadow-sm mb-6">
-                    <h4 className="font-bold mb-4 flex items-center gap-2 text-indigo-800"><Icons.Sliders/> Set Custom % Growth vs Base Budget</h4>
-                    <p className="text-xs text-slate-500 mb-4 max-w-xl">Apply specific percentage increases or decreases to individual rate classes. E.g., Use this to simulate a +5% growth in Residential (RT10) due to warmer temperature projections.</p>
-                    <div className="flex gap-2 mb-4 max-w-md">
-                        <select id="rc-override-sel" className="flex-1 border border-indigo-200 rounded px-3 py-2 text-sm bg-white outline-none focus:border-indigo-400">
-                            {dimensions.rcs.map(r => <option key={r}>{r}</option>)}
-                        </select>
-                        <input id="rc-override-val" type="number" placeholder="%" className="w-20 border border-indigo-200 rounded px-3 py-2 text-sm outline-none focus:border-indigo-400" />
-                        <button onClick={() => {
-                            const r = document.getElementById('rc-override-sel').value;
-                            const v = document.getElementById('rc-override-val').value;
-                            if(r && v) setRcGrowthOverrides(p => ({...p, [r]: parseFloat(v)}));
-                        }} className="bg-indigo-600 text-white px-4 rounded font-bold hover:bg-indigo-700 shadow-sm transition">+</button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 min-h-[36px]">
-                        {Object.keys(rcGrowthOverrides).length === 0 && <span className="text-sm text-slate-400 italic flex items-center">No overrides applied. Baseline budget is active.</span>}
-                        {Object.entries(rcGrowthOverrides).map(([rc, val]) => (
-                            <div key={rc} className="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded-full border border-indigo-200 shadow-sm">
-                                <span className="font-bold text-slate-700">{rc}</span>
-                                <span className={`font-bold ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</span>
-                                <button onClick={() => { const c = {...rcGrowthOverrides}; delete c[rc]; setRcGrowthOverrides(c); }} className="text-slate-400 hover:text-red-500 ml-1 transition"><Icons.X /></button>
-                            </div>
-                        ))}
-                    </div>
+                    <button className="text-xs text-blue-500 hover:underline ml-auto font-medium" onClick={() => setGraphToggles({act25:true, bud26:true, act26:true, marchLE:true, leCust:true, leRc:true, leMgmt:true})}>Show All</button>
+                    <button className="text-xs text-slate-500 hover:underline font-medium" onClick={() => setGraphToggles({act25:false, bud26:false, act26:false, marchLE:false, leCust:false, leRc:false, leMgmt:false})}>Hide All</button>
                 </div>
             );
 
@@ -426,54 +339,24 @@
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
                     <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
-                        <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data to Engine</h2>
-                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files or fetch directly from GitHub Raw URLs.</p>
-                        <p className="text-xs text-blue-500 font-bold mb-8 bg-blue-50 py-1.5 px-4 rounded-full inline-block">The engine will auto-load files from the root directory if found.</p>
-                        
+                        <h2 className="text-3xl font-bold text-slate-800 mb-3">Load JPS Sales Data</h2>
+                        <p className="text-slate-500 mb-8 max-w-lg mx-auto">Upload Actuals and high-level Budget. The engine will allocate the budget based on actual customer weights.</p>
                         <div className="grid grid-cols-2 gap-8 mb-8 text-left">
-                            <div className="bg-blue-50/30 p-6 rounded-xl border border-blue-100 flex flex-col justify-between">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Activity/> 1. High-Level Budget</h3>
-                                    <p className="text-xs text-slate-500 mb-4">Required format: JPS Budget 2026 data.csv</p>
-                                    <input type="file" accept=".csv" onChange={e => handleFileUpload(e, true)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer w-full text-slate-600 mb-4" />
-                                </div>
-                                <div className="mt-4 pt-4 border-t border-blue-200">
-                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
-                                    <div className="flex gap-2">
-                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={budgetUrl} onChange={e=>setBudgetUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-blue-400"/>
-                                        <button onClick={()=>handleFetchUrl(budgetUrl, true)} disabled={!budgetUrl || isLoadingUrl.budget} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
-                                            {isLoadingUrl.budget ? 'Fetching...' : 'Fetch'}
-                                        </button>
-                                    </div>
-                                    {rawBudget.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Budget Loaded ({rawBudget.length} rows)</p>}
-                                </div>
+                            <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100">
+                                <h3 className="font-bold text-slate-700 mb-4">1. High-Level Budget</h3>
+                                <input type="file" accept=".csv" onChange={e => handleFileUpload(e, true)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer w-full text-slate-600" />
                             </div>
-                            
-                            <div className="bg-purple-50/30 p-6 rounded-xl border border-purple-100 flex flex-col justify-between">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> 2. Detailed Actuals</h3>
-                                    <p className="text-xs text-slate-500 mb-4">Required format: JPS Actuals data.csv</p>
-                                    <input type="file" accept=".csv" onChange={e => handleFileUpload(e, false)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer w-full text-slate-600 mb-4" />
-                                </div>
-                                <div className="mt-4 pt-4 border-t border-purple-200">
-                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
-                                    <div className="flex gap-2">
-                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={actualsUrl} onChange={e=>setActualsUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-purple-400"/>
-                                        <button onClick={()=>handleFetchUrl(actualsUrl, false)} disabled={!actualsUrl || isLoadingUrl.actuals} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
-                                            {isLoadingUrl.actuals ? 'Fetching...' : 'Fetch'}
-                                        </button>
-                                    </div>
-                                    {rawActuals.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Actuals Loaded ({rawActuals.length} rows)</p>}
-                                </div>
+                            <div className="bg-purple-50/50 p-6 rounded-xl border border-purple-100">
+                                <h3 className="font-bold text-slate-700 mb-4">2. Detailed Actuals</h3>
+                                <input type="file" accept=".csv" onChange={e => handleFileUpload(e, false)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer w-full text-slate-600" />
                             </div>
                         </div>
-
                         <div className="flex items-center justify-center gap-4 border-t border-slate-100 pt-8">
-                            <label className="flex items-center gap-3 cursor-pointer group bg-slate-50 p-4 rounded-xl border border-slate-200 hover:border-blue-300 transition w-full max-w-lg">
+                            <label className="flex items-center gap-3 cursor-pointer group">
                                 <input type="checkbox" checked={isNormalizeHurricane} onChange={e => setIsNormalizeHurricane(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                                 <div className="text-left">
                                     <span className="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Enable Hurricane Normalization (2025 History)</span>
-                                    <p className="text-[10px] text-slate-500 mt-0.5">Grosses up Oct-Dec 2025 volumes for true business-as-usual seasonality.</p>
+                                    <p className="text-[10px] text-slate-500">Grosses up Oct-Dec 2025 volumes for true business-as-usual seasonality.</p>
                                 </div>
                             </label>
                         </div>
@@ -488,21 +371,21 @@
                         {!isBudgetCommitted && (
                             <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded flex items-center justify-between">
                                 <div className="text-orange-800 text-sm font-bold">Warning: Budget is unallocated. Granular tracking disabled until committed in Allocation Engine.</div>
-                                <button onClick={()=>setActiveTab('allocation')} className="bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow-sm">Go to Engine</button>
+                                <button onClick={()=>setActiveTab('allocation')} className="bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold">Go to Engine</button>
                             </div>
                         )}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 bg-white rounded-xl border p-5 flex flex-col min-h-[500px] shadow-sm">
-                                <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Scenario Trend Overlay (kWh)</div>
+                            <div className="lg:col-span-2 bg-white rounded-xl border p-5 flex flex-col min-h-[500px]">
+                                <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Overlay Trend across Scenarios (kWh)</div>
                                 {renderGraphToggles()}
-                                <div className="flex-1 min-h-0 mt-2">
+                                <div className="flex-1 min-h-0">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <LineChart data={monthlyAggregates}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                             <XAxis dataKey="month" tick={{fontSize: 11}} />
                                             <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
-                                            <Tooltip formatter={(v) => formatNum(v)} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                            <Legend wrapperStyle={{paddingTop: '10px'}} />
+                                            <Tooltip formatter={(v) => formatNum(v)} />
+                                            <Legend />
                                             {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
                                             {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
                                             {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
@@ -510,12 +393,11 @@
                                             {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                             {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                             {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
-                                            {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Custom %" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
                                         </LineChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
-                            <div className="bg-white rounded-xl border p-5 space-y-6 shadow-sm">
+                            <div className="bg-white rounded-xl border p-5 space-y-6">
                                 <h3 className="font-bold text-slate-800 border-b pb-2">Fiscal Year Outlook</h3>
                                 <div className="space-y-4">
                                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -539,12 +421,12 @@
 
             const renderMonthlyTab = () => {
                 const totA25 = monthlyAggregates.reduce((s,d)=>s+d.Act25,0); const totB26 = monthlyAggregates.reduce((s,d)=>s+d.Bud26,0); const totA26 = monthlyAggregates.reduce((s,d)=>s+(d.Act26||0),0);
-                const totMarchLE = monthlyAggregates.reduce((s,d)=>s+d.MarchLE,0); const totLeCust = monthlyAggregates.reduce((s,d)=>s+d.LeCust,0); const totLeRC = monthlyAggregates.reduce((s,d)=>s+d.LeRC,0); 
-                const totLeMgmt = monthlyAggregates.reduce((s,d)=>s+d.LeMgmt,0); const totLeCustom = monthlyAggregates.reduce((s,d)=>s+d.LeCustom,0);
+                const totMarchLE = monthlyAggregates.reduce((s,d)=>s+d.MarchLE,0); const totLeCust = monthlyAggregates.reduce((s,d)=>s+d.LeCust,0); const totLeRC = monthlyAggregates.reduce((s,d)=>s+d.LeRC,0); const totLeMgmt = monthlyAggregates.reduce((s,d)=>s+d.LeMgmt,0);
+                const totMgmtVsBud = totB26 ? (totLeMgmt - totB26)/totB26 : 0; const totMgmtVsPY = totA25 ? (totLeMgmt - totA25)/totA25 : 0;
 
                 return (
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
-                        <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[450px] shrink-0 shadow-sm">
+                        <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[500px] shrink-0 shadow-sm">
                             <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Monthly Trend & Scenarios (kWh)</div>
                             {renderGraphToggles()}
                             <div className="flex-1 min-h-0 mt-2">
@@ -553,8 +435,8 @@
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis dataKey="month" tick={{fontSize: 11}} />
                                         <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
-                                        <Tooltip formatter={(v) => formatNum(v)} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                        <Legend wrapperStyle={{paddingTop: '10px'}} />
+                                        <Tooltip formatter={(v) => formatNum(v)} />
+                                        <Legend />
                                         {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
                                         {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
                                         {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
@@ -562,7 +444,6 @@
                                         {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                         {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                         {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
-                                        {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Custom %" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
@@ -585,12 +466,15 @@
                                             <th className="p-3 text-right text-emerald-700">March LE</th>
                                             <th className="p-3 text-right text-purple-700">LE Cust Vol</th>
                                             <th className="p-3 text-right text-blue-700">LE RC Vol</th>
-                                            <th className="p-3 text-right text-orange-700">LE Mgmt</th>
-                                            <th className="p-3 text-right text-indigo-700 bg-indigo-50">LE Custom %</th>
+                                            <th className="p-3 text-right text-orange-700 bg-orange-50">LE Mgmt</th>
+                                            <th className="p-3 text-right bg-blue-50 text-blue-800">Mgmt vs Bud %</th>
+                                            <th className="p-3 text-right bg-emerald-50 text-emerald-800">Mgmt vs PY %</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {monthlyAggregates.map(row => {
+                                            const bva = row.Bud26 ? (row.LeMgmt - row.Bud26) / row.Bud26 : 0;
+                                            const yoy = row.Act25 ? (row.LeMgmt - row.Act25) / row.Act25 : 0;
                                             return (
                                                 <tr key={row.monthFull} className="border-b hover:bg-slate-50">
                                                     <td className="p-3 font-bold border-r table-pin-col bg-white">{row.monthFull}</td>
@@ -600,8 +484,9 @@
                                                     <td className="p-3 text-right font-medium text-emerald-600">{formatNum(row.MarchLE)}</td>
                                                     <td className="p-3 text-right font-medium text-purple-600">{formatNum(row.LeCust)}</td>
                                                     <td className="p-3 text-right font-medium text-blue-600">{formatNum(row.LeRC)}</td>
-                                                    <td className="p-3 text-right font-bold text-orange-600">{formatNum(row.LeMgmt)}</td>
-                                                    <td className="p-3 text-right font-bold text-indigo-600 bg-indigo-50/50">{formatNum(row.LeCustom)}</td>
+                                                    <td className="p-3 text-right font-bold text-orange-600 bg-orange-50/50">{formatNum(row.LeMgmt)}</td>
+                                                    <td className={`p-3 text-right font-bold ${bva>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(bva)}</td>
+                                                    <td className={`p-3 text-right font-bold ${yoy>=0?'text-blue-600':'text-red-500'}`}>{formatPct(yoy)}</td>
                                                 </tr>
                                             );
                                         })}
@@ -615,8 +500,9 @@
                                             <td className="p-3 text-right text-emerald-800">{formatNum(totMarchLE)}</td>
                                             <td className="p-3 text-right text-purple-800">{formatNum(totLeCust)}</td>
                                             <td className="p-3 text-right text-blue-800">{formatNum(totLeRC)}</td>
-                                            <td className="p-3 text-right text-orange-800">{formatNum(totLeMgmt)}</td>
-                                            <td className="p-3 text-right text-indigo-800 bg-indigo-100">{formatNum(totLeCustom)}</td>
+                                            <td className="p-3 text-right text-orange-800 bg-orange-100">{formatNum(totLeMgmt)}</td>
+                                            <td className={`p-3 text-right ${totMgmtVsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(totMgmtVsBud)}</td>
+                                            <td className={`p-3 text-right ${totMgmtVsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(totMgmtVsPY)}</td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -685,20 +571,17 @@
                 const fAct = getFiltered(actuals).filter(d => d.month <= ytdLimit); const fBud = getFiltered(budget).filter(d => d.month <= ytdLimit);
                 const fMarchLE = getFiltered(marchLE).filter(d => d.month <= ytdLimit); const fLeCust = getFiltered(leCustGrowth).filter(d => d.month <= ytdLimit);
                 const fLeRC = getFiltered(leRCGrowth).filter(d => d.month <= ytdLimit); const fLeMgmt = getFiltered(leMgmtGrowth).filter(d => d.month <= ytdLimit);
-                const fLeCustom = getFiltered(leCustomGrowth).filter(d => d.month <= ytdLimit);
 
-                const initMatrix = (dim) => { if(!matrix[dim]) matrix[dim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0, leCustom:0 }; };
+                const initMatrix = (dim) => { if(!matrix[dim]) matrix[dim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0 }; };
                 fAct.forEach(d => { initMatrix(d[varianceDim]); if(d.year === 2025) matrix[d[varianceDim]].a25 += d.kwh; if(d.year === 2026) matrix[d[varianceDim]].a26 += d.kwh; });
                 fBud.forEach(d => { initMatrix(d[varianceDim]); if(d.year === 2026) matrix[d[varianceDim]].b26 += d.kwh; });
                 fMarchLE.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].mle += d.kwh; });
                 fLeCust.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leCust += d.kwh; });
                 fLeRC.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leRc += d.kwh; });
                 fLeMgmt.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leMgmt += d.kwh; });
-                fLeCustom.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leCustom += d.kwh; });
 
                 const totA25 = Object.values(matrix).reduce((s,v)=>s+v.a25,0); const totB26 = Object.values(matrix).reduce((s,v)=>s+v.b26,0); const totA26 = Object.values(matrix).reduce((s,v)=>s+v.a26,0);
-                const totMle = Object.values(matrix).reduce((s,v)=>s+v.mle,0); const totLeCust = Object.values(matrix).reduce((s,v)=>s+v.leCust,0); const totLeRc = Object.values(matrix).reduce((s,v)=>s+v.leRc,0); 
-                const totLeMgmt = Object.values(matrix).reduce((s,v)=>s+v.leMgmt,0); const totLeCustom = Object.values(matrix).reduce((s,v)=>s+v.leCustom,0);
+                const totMle = Object.values(matrix).reduce((s,v)=>s+v.mle,0); const totLeCust = Object.values(matrix).reduce((s,v)=>s+v.leCust,0); const totLeRc = Object.values(matrix).reduce((s,v)=>s+v.leRc,0); const totLeMgmt = Object.values(matrix).reduce((s,v)=>s+v.leMgmt,0);
 
                 const renderVarPct = (val, base) => formatPct(base ? (val - base) / base : 0);
                 const colorPct = (val, base) => { const pct = base ? (val - base) / base : 0; return pct >= 0 ? 'text-emerald-600' : 'text-red-500'; };
@@ -737,9 +620,6 @@
                                             <th className="p-2 text-right border-l border-slate-300 text-orange-700 bg-orange-50">LE Mgmt</th>
                                             <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs Bud</th>
                                             <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs PY</th>
-                                            <th className="p-2 text-right border-l border-slate-300 text-indigo-700 bg-indigo-50">LE Custom %</th>
-                                            <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs Bud</th>
-                                            <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs PY</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -763,9 +643,6 @@
                                                 <td className="p-2 text-right text-orange-700 border-l border-slate-200 bg-orange-50/20">{formatNum(v.leMgmt)}</td>
                                                 <td className={`p-2 text-right text-xs font-bold bg-orange-50/20 ${colorPct(v.leMgmt, v.b26)}`}>{renderVarPct(v.leMgmt, v.b26)}</td>
                                                 <td className={`p-2 text-right text-xs font-bold bg-orange-50/20 ${colorPct(v.leMgmt, v.a25)}`}>{renderVarPct(v.leMgmt, v.a25)}</td>
-                                                <td className="p-2 text-right text-indigo-700 border-l border-slate-200 bg-indigo-50/20">{formatNum(v.leCustom)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-indigo-50/20 ${colorPct(v.leCustom, v.b26)}`}>{renderVarPct(v.leCustom, v.b26)}</td>
-                                                <td className={`p-2 text-right text-xs font-bold bg-indigo-50/20 ${colorPct(v.leCustom, v.a25)}`}>{renderVarPct(v.leCustom, v.a25)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -789,9 +666,6 @@
                                             <td className="p-2 text-right text-orange-800 border-l border-slate-300">{formatNum(totLeMgmt)}</td>
                                             <td className={`p-2 text-right text-xs ${colorPct(totLeMgmt, totB26)}`}>{renderVarPct(totLeMgmt, totB26)}</td>
                                             <td className={`p-2 text-right text-xs ${colorPct(totLeMgmt, totA25)}`}>{renderVarPct(totLeMgmt, totA25)}</td>
-                                            <td className="p-2 text-right text-indigo-800 border-l border-slate-300">{formatNum(totLeCustom)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCustom, totB26)}`}>{renderVarPct(totLeCustom, totB26)}</td>
-                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCustom, totA25)}`}>{renderVarPct(totLeCustom, totA25)}</td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -801,20 +675,19 @@
                 );
             };
 
-            const renderGenericForecastTab = (leDataset, title, description, iconNode, colorClass, textClass, requireBudget = false, activeMode = '', customControls = null) => {
+            const renderGenericForecastTab = (leDataset, title, description, iconNode, colorClass, textClass, requireBudget = false, activeMode = '') => {
                 if (requireBudget && !isBudgetCommitted) return <div className="p-10 text-center text-slate-400 font-bold">Commit Budget in Allocation Engine to enable this Forecast Method.</div>;
                 
                 const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLE = getFiltered(leDataset);
-                const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth); const fLeCustom = getFiltered(leCustomGrowth);
+                const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth);
 
                 const totA25 = fAct.filter(d => d.year === 2025).reduce((s,d)=>s+d.kwh,0); const totB26 = fBud.filter(d => d.year === 2026).reduce((s,d)=>s+d.kwh,0);
                 const totLE = fLE.reduce((s,d)=>s+d.kwh,0); const totMarchLE = fMarchLE.reduce((s,d)=>s+d.kwh,0); const totLeCust = fLeCust.reduce((s,d)=>s+d.kwh,0);
-                const totLeRC = fLeRC.reduce((s,d)=>s+d.kwh,0); const totLeMgmt = fLeMgmt.reduce((s,d)=>s+d.kwh,0); const totLeCustom = fLeCustom.reduce((s,d)=>s+d.kwh,0);
+                const totLeRC = fLeRC.reduce((s,d)=>s+d.kwh,0); const totLeMgmt = fLeMgmt.reduce((s,d)=>s+d.kwh,0);
                 const totVsBud = totB26 ? (totLE - totB26) / totB26 : 0; const totVsPY = totA25 ? (totLE - totA25) / totA25 : 0;
 
                 return (
                     <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
-                        {customControls}
                         <div className="flex justify-end">
                             <button onClick={() => exportCSV(fLE, `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_base_level.csv`)} className="bg-white border hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition"><Icons.Download /> Download Base Level Data</button>
                         </div>
@@ -828,7 +701,7 @@
                                 <div className={`text-3xl font-black ${(totLE - totB26) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatNum(totLE - totB26)}</div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
+                        <div className="bg-white rounded-xl border shadow-sm">
                             <div className="p-4 bg-slate-50 border-b font-bold flex items-center gap-2"><Icons.Zap/> Forecast vs Targets by Rate Class</div>
                             <table className="w-full text-sm text-left whitespace-nowrap">
                                 <thead className="bg-slate-100 text-slate-600 font-bold">
@@ -840,8 +713,7 @@
                                         <th className={`p-3 text-right ${activeMode === 'leCust' ? 'bg-purple-100 text-purple-800' : 'text-purple-600/70'}`}>LE Cust Vol</th>
                                         <th className={`p-3 text-right ${activeMode === 'leRC' ? 'bg-blue-100 text-blue-800' : 'text-blue-600/70'}`}>LE RC Vol</th>
                                         <th className={`p-3 text-right ${activeMode === 'leMgmt' ? 'bg-orange-100 text-orange-800' : 'text-orange-600/70'}`}>LE Mgmt</th>
-                                        <th className={`p-3 text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`}>LE Custom %</th>
-                                        <th className="p-3 text-right border-l border-slate-200">Active LE vs Bud %</th>
+                                        <th className="p-3 text-right">Active LE vs Bud %</th>
                                         <th className="p-3 text-right">Active LE vs PY %</th>
                                     </tr>
                                 </thead>
@@ -849,8 +721,7 @@
                                     {dimensions.rcs.map(rc => {
                                         const a25 = fAct.filter(d => d.rc === rc && d.year === 2025).reduce((s,d)=>s+d.kwh,0); const b26 = fBud.filter(d => d.rc === rc && d.year === 2026).reduce((s,d)=>s+d.kwh,0);
                                         const le26 = fLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const mle26 = fMarchLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
-                                        const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
-                                        const lMgmt26 = fLeMgmt.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lCustom26 = fLeCustom.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
+                                        const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lMgmt26 = fLeMgmt.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
                                         const vsBud = b26 ? (le26-b26)/b26 : 0; const vsPY = a25 ? (le26-a25)/a25 : 0;
                                         return (
                                             <tr key={rc} className="border-b hover:bg-slate-50">
@@ -861,8 +732,7 @@
                                                 <td className={`p-3 text-right ${activeMode === 'leCust' ? 'font-black text-purple-600 bg-purple-50/50' : 'text-purple-500'}`}>{formatNum(lCust26)}</td>
                                                 <td className={`p-3 text-right ${activeMode === 'leRC' ? 'font-black text-blue-600 bg-blue-50/50' : 'text-blue-500'}`}>{formatNum(lRc26)}</td>
                                                 <td className={`p-3 text-right ${activeMode === 'leMgmt' ? 'font-black text-orange-600 bg-orange-50/50' : 'text-orange-500'}`}>{formatNum(lMgmt26)}</td>
-                                                <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'font-black text-indigo-600 bg-indigo-50/50' : 'text-indigo-500'}`}>{formatNum(lCustom26)}</td>
-                                                <td className={`p-3 text-right font-bold border-l border-slate-100 ${vsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(vsBud)}</td>
+                                                <td className={`p-3 text-right font-bold ${vsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(vsBud)}</td>
                                                 <td className={`p-3 text-right font-bold ${vsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(vsPY)}</td>
                                             </tr>
                                         );
@@ -877,8 +747,7 @@
                                         <td className={`p-3 text-right ${activeMode === 'leCust' ? 'text-purple-800 bg-purple-100' : 'text-purple-700'}`}>{formatNum(totLeCust)}</td>
                                         <td className={`p-3 text-right ${activeMode === 'leRC' ? 'text-blue-800 bg-blue-100' : 'text-blue-700'}`}>{formatNum(totLeRC)}</td>
                                         <td className={`p-3 text-right ${activeMode === 'leMgmt' ? 'text-orange-800 bg-orange-100' : 'text-orange-700'}`}>{formatNum(totLeMgmt)}</td>
-                                        <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'text-indigo-800 bg-indigo-100' : 'text-indigo-700'}`}>{formatNum(totLeCustom)}</td>
-                                        <td className={`p-3 text-right border-l border-slate-200 ${totVsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(totVsBud)}</td>
+                                        <td className={`p-3 text-right ${totVsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(totVsBud)}</td>
                                         <td className={`p-3 text-right ${totVsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(totVsPY)}</td>
                                     </tr>
                                 </tfoot>
@@ -892,7 +761,6 @@
             const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by each Customer\'s average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Users className="text-purple-500"/>, 'purple', 'text-purple-700', true, 'leCust');
             const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap className="text-blue-500"/>, 'blue', 'text-blue-700', true, 'leRC');
             const renderLeMgmtTab = () => renderGenericForecastTab(leMgmtGrowth, 'LE: Management Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase className="text-orange-500"/>, 'orange', 'text-orange-700', true, 'leMgmt');
-            const renderLeCustomTab = () => renderGenericForecastTab(leCustomGrowth, 'LE: Custom RC % Trend', 'Projection based on user-defined percentage adjustments applied to the remaining Budget by Rate Class.', <Icons.Sliders className="text-indigo-500"/>, 'indigo', 'text-indigo-700', true, 'leCustom', customRcControls);
 
             const renderGlossaryTab = () => (
                 <div className="p-10 h-full overflow-y-auto custom-scroll">
@@ -919,11 +787,6 @@
                                     <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2"><Icons.Briefcase/> LE: Management Trend (Hybrid)</h3>
                                     <p className="text-sm text-slate-700"><strong>Definition:</strong> A blended approach. It uses the <em>Customer Volumetric Trend</em> for specific commercial/industrial classes (RT10, RT20, RT60) and uses the <em>Rate Class Volumetric Trend</em> for all other classes.</p>
                                     <p className="text-sm text-slate-700"><strong>Rationale:</strong> Provides a balanced, pragmatic outlook aligned with business operations.</p>
-                                </div>
-                                <div className="bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3 md:col-span-2">
-                                    <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders/> LE: Custom RC % Trend</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers that are applied to the remaining Budget for specific Rate Classes.</p>
-                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Used to model specific external hypotheses (e.g. "What if temperature drives residential volume 5% higher than budgeted?").</p>
                                 </div>
                             </div>
                         </div>
@@ -961,20 +824,17 @@
                         </div>
                     </header>
 
-                    <div className="bg-white border-b px-4 flex gap-1 overflow-x-auto shrink-0 z-10 custom-scroll">
+                    <div className="bg-white border-b px-6 flex gap-2 overflow-x-auto shrink-0 z-10">
                         <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database/> Data Hub</button>
                         {rawActuals.length > 0 && (
                             <>
                                 <button onClick={()=>setActiveTab('overview')} className={`dashboard-tab ${activeTab==='overview'?'active':''}`}><Icons.Activity/> Overview</button>
-                                <button onClick={()=>setActiveTab('monthly')} className={`dashboard-tab ${activeTab==='monthly'?'active':''}`}><Icons.Calendar/> Monthly View</button>
-                                <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator/> Allocation</button>
-                                <div className="w-px bg-slate-200 my-2 mx-1"></div>
-                                <button onClick={()=>setActiveTab('forecast')} className={`dashboard-tab ${activeTab==='forecast'?'active':''}`}><Icons.Wind/> March LE</button>
+                                <button onClick={()=>setActiveTab('monthly')} className={`dashboard-tab ${activeTab==='monthly'?'active':''}`}><Icons.Calendar/> Monthly Graph & Data</button>
+                                <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator/> Allocation Engine</button>
+                                <button onClick={()=>setActiveTab('forecast')} className={`dashboard-tab ${activeTab==='forecast'?'active':''}`}><Icons.Wind/> March LE Forecast</button>
                                 <button onClick={()=>setActiveTab('leCust')} className={`dashboard-tab ${activeTab==='leCust'?'active':''}`}><Icons.Users/> LE: Cust Vol</button>
                                 <button onClick={()=>setActiveTab('leRC')} className={`dashboard-tab ${activeTab==='leRC'?'active':''}`}><Icons.Zap/> LE: RC Vol</button>
-                                <button onClick={()=>setActiveTab('leMgmt')} className={`dashboard-tab ${activeTab==='leMgmt'?'active':''}`}><Icons.Briefcase/> LE: Mgmt</button>
-                                <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders/> LE: Custom RC %</button>
-                                <div className="w-px bg-slate-200 my-2 mx-1"></div>
+                                <button onClick={()=>setActiveTab('leMgmt')} className={`dashboard-tab ${activeTab==='leMgmt'?'active':''}`}><Icons.Briefcase/> LE: Management</button>
                                 <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp/> Variance Matrix</button>
                             </>
                         )}
@@ -982,7 +842,7 @@
                     </div>
 
                     <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                         {rawActuals.length > 0 && ['overview', 'monthly', 'forecast', 'leCust', 'leRC', 'leMgmt', 'leCustom', 'variance'].includes(activeTab) && (
+                         {rawActuals.length > 0 && ['overview', 'monthly', 'forecast', 'leCust', 'leRC', 'leMgmt', 'variance'].includes(activeTab) && (
                             <div className="bg-white border-b px-6 py-2 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto">
                                 <Icons.Filter className="w-3 h-3"/> 
                                 <div className="flex items-center gap-1 border-r pr-3">
@@ -1007,7 +867,6 @@
                             {activeTab === 'leCust' && renderLeCustTab()}
                             {activeTab === 'leRC' && renderLeRCTab()}
                             {activeTab === 'leMgmt' && renderLeMgmtTab()}
-                            {activeTab === 'leCustom' && renderLeCustomTab()}
                             {activeTab === 'variance' && renderVarianceTab()}
                             {activeTab === 'glossary' && renderGlossaryTab()}
                         </div>
@@ -1035,7 +894,7 @@
                                                         <h4 className="font-bold text-slate-800 text-lg">{v.name}</h4>
                                                         <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                                                             <span><Icons.Calendar className="inline w-3 h-3 mr-1"/> {v.timestamp}</span><span className="text-slate-300">|</span>
-                                                            <span>Overrides: {Object.keys(v.allocOverrides).length + Object.keys(v.rcGrowthOverrides || {}).length}</span><span className="text-slate-300">|</span>
+                                                            <span>Overrides: {Object.keys(v.allocOverrides).length}</span><span className="text-slate-300">|</span>
                                                             <span className={v.isNormalizeHurricane ? 'text-emerald-600' : 'text-slate-400'}>Hurricane Norm: {v.isNormalizeHurricane ? 'ON' : 'OFF'}</span>
                                                         </p>
                                                     </div>
