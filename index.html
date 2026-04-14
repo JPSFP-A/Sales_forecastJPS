@@ -7,6 +7,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Removed crossorigin attributes to prevent strict CORS blocking on local file:// protocol -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
@@ -21,6 +22,7 @@
         .table-pin-col { position: sticky; left: 0; background: white; z-index: 10; border-right: 2px solid #e2e8f0; }
         .table-pin-header { position: sticky; top: 0; background: #f8fafc; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         
+        /* Updated Sidebar Tabs CSS */
         .dashboard-tab { padding: 10px 16px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: #64748b; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; font-weight: 500; }
         .dashboard-tab:hover { background: #f1f5f9; color: #0f172a; }
         .dashboard-tab.active { background: #e0f2fe; color: #0ea5e9; font-weight: 700; }
@@ -33,9 +35,15 @@
         const { useState, useMemo, useEffect, useCallback, Component } = React;
         const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
 
+        // --- Error Boundary to prevent white screens ---
         class ErrorBoundary extends Component {
-            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
             render() {
                 if (this.state.hasError) {
                     return (
@@ -54,8 +62,1256 @@
             }
         }
 
+        // --- Icons ---
         const Icons = {
             PieChart: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
             Database: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
             Activity: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-            TrendingUp: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6
+            TrendingUp: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+            Calculator: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M8 18h.01"/><path d="M12 14h.01"/><path d="M12 18h.01"/></svg>,
+            Wind: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2"/><path d="M12.59 19.41A2 2 0 1 0 14 16H2"/><path d="M15.83 7.17a2 2 0 1 0-1.41 3.42H20"/></svg>,
+            Filter: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+            BookOpen: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+            Users: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            Zap: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            Building: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>,
+            Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+            Download: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+            Briefcase: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+            Save: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+            History: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+            X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Eye: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+            EyeOff: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+            Link: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
+            Sliders: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>,
+            CheckCircle: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            RefreshCw: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>,
+            CloudUp: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line></svg>
+        };
+
+        // --- Utils ---
+        const exportCSV = (data, filename) => {
+            if (!data || !data.length) return;
+            const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object');
+            const csvRows = [
+                headers.join(','),
+                ...data.map(row => headers.map(h => `"${(row[h] !== undefined && row[h] !== null) ? row[h].toString().replace(/"/g, '""') : ''}"`).join(','))
+            ];
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        };
+
+        const monthMap = {"January":1,"February":2,"March":3,"April":4,"May":5,"June":6,"July":7,"August":8,"September":9,"October":10,"November":11,"December":12};
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const rcOrder = ['RT10', 'RT20', 'EV', 'RT40', 'RT50', 'RT60', 'RT70'];
+        const getRcWeight = (rc) => { const index = rcOrder.findIndex(r => r.toLowerCase() === (rc || '').toLowerCase()); return index === -1 ? 999 : index; };
+        const parseTimeStr = (str) => {
+            if (!str) return { year: 0, month: 0, qtr: 0, sortKey: 0, text: 'Unassigned' };
+            const parts = str.split(' ');
+            if (parts.length !== 2) return { year: 0, month: 0, qtr: 0, sortKey: 0, text: str };
+            const m = monthMap[parts[0]] || 0; const y = parseInt(parts[1]) || 0; const q = Math.ceil(m / 3);
+            return { year: y, month: m, qtr: q, text: str, sortKey: (y * 100) + m, qtrText: `Q${q} ${y}` };
+        };
+        const formatNum = (num, decimals=0) => Number(num||0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        const formatPct = (num) => (Number(num||0) * 100).toFixed(1) + '%';
+        const cleanVal = (val) => parseFloat((val || '0').toString().replace(/,/g, ''));
+        const parseCSV = (text) => {
+            const rows = []; let currentRow = []; let currentCell = ''; let inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (inQuotes) {
+                    if (char === '"' && text[i + 1] === '"') { currentCell += '"'; i++; }
+                    else if (char === '"') { inQuotes = false; } else { currentCell += char; }
+                } else {
+                    if (char === '"') { inQuotes = true; }
+                    else if (char === ',') { currentRow.push(currentCell); currentCell = ''; }
+                    else if (char === '\n' || char === '\r') {
+                        currentRow.push(currentCell); rows.push(currentRow); currentRow = []; currentCell = '';
+                        if (char === '\r' && text[i + 1] === '\n') i++;
+                    } else { currentCell += char; }
+                }
+            }
+            if (currentCell || currentRow.length > 0) { currentRow.push(currentCell); rows.push(currentRow); }
+            const headers = rows[0]?.map(h => h.trim()) || []; const data = [];
+            for (let i = 1; i < rows.length; i++) {
+                if (rows[i].length < 2) continue;
+                const obj = {}; headers.forEach((h, j) => { obj[h] = rows[i][j] ? rows[i][j].trim() : ''; }); data.push(obj);
+            }
+            return data;
+        };
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('data');
+            const [rawActuals, setRawActuals] = useState([]);
+            
+            // rawBudget stores the active budget (high-level until committed, then granular)
+            const [rawBudget, setRawBudget] = useState([]);
+            // Backup the original high-level budget so we can revert if they "Unlock"
+            const [originalBudget, setOriginalBudget] = useState([]);
+            
+            const [isBudgetCommitted, setIsBudgetCommitted] = useState(false);
+            
+            // GitHub Fetch State
+            const [budgetUrl, setBudgetUrl] = useState('');
+            const [actualsUrl, setActualsUrl] = useState('');
+            const [isLoadingUrl, setIsLoadingUrl] = useState({ budget: false, actuals: false });
+            const [loadError, setLoadError] = useState('');
+            
+            // GitHub Auth & Push Config
+            const [githubConfig, setGithubConfig] = useState({ token: '', owner: '', repo: '' });
+            const [isPushing, setIsPushing] = useState(false);
+
+            const [ytdMonth, setYtdMonth] = useState('All');
+            const [fMonth, setFMonth] = useState('All');
+            const [fYear, setFYear] = useState('All');
+            const [fRC, setFRC] = useState('All');
+            const [fParish, setFParish] = useState('All');
+            const [fInd, setFInd] = useState('All');
+
+            const [monthMapping, setMonthMapping] = useState({});
+            const [allocOverrides, setAllocOverrides] = useState({});
+            const [rcGrowthOverrides, setRcGrowthOverrides] = useState({});
+            const [allocationResults, setAllocationResults] = useState([]);
+            const [varianceDim, setVarianceDim] = useState('rc');
+            const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
+
+            // Version Manager
+            const [savedVersions, setSavedVersions] = useState([]);
+            const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+
+            // Graph Toggles
+            const [graphToggles, setGraphToggles] = useState({
+                act25: true, bud26: true, act26: true, marchLE: true, leCust: true, leRc: true, leMgmt: true, leCustom: true
+            });
+
+            const toggleConfig = [
+                { key: 'act25', label: '2025 Actuals', activeClass: 'bg-slate-100 text-slate-700 border-slate-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'bud26', label: '2026 Budget', activeClass: 'bg-blue-50 text-blue-700 border-blue-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'act26', label: '2026 Actuals', activeClass: 'bg-purple-50 text-purple-700 border-purple-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'marchLE', label: 'March LE', activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leCust', label: 'LE Cust Vol', activeClass: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leRc', label: 'LE RC Vol', activeClass: 'bg-sky-50 text-sky-700 border-sky-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leMgmt', label: 'LE Management', activeClass: 'bg-amber-50 text-amber-700 border-amber-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leCustom', label: 'LE Custom %', activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' }
+            ];
+
+            // --- Auto-Load Local Files on Init ---
+            useEffect(() => {
+                const autoLoadFiles = async () => {
+                    try {
+                        const actRes = await fetch('./JPS%20Actuals%20data.csv');
+                        if (actRes.ok) {
+                            const actText = await actRes.text();
+                            const parsedAct = parseCSV(actText);
+                            if(parsedAct && parsedAct.length > 0) setRawActuals(parsedAct);
+                        }
+                        
+                        const budRes = await fetch('./JPS%20Budget%202026%20data.csv');
+                        if (budRes.ok) {
+                            const budText = await budRes.text();
+                            const parsedBud = parseCSV(budText);
+                            if(parsedBud && parsedBud.length > 0) setRawBudget(parsedBud);
+                        }
+                    } catch (e) {
+                        console.log("Could not auto-load files from root. Manual upload required.", e);
+                        if (window.location.protocol === 'file:') {
+                            setLoadError("Local file fetch blocked by browser. Please upload files manually or run a local web server.");
+                        }
+                    }
+                };
+                autoLoadFiles();
+            }, []);
+
+            // --- Engine ---
+            const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
+                const normA = rawActuals.map(d => ({ source: d['Source'] || 'Postpaid', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unassigned', name: d['Name'] || 'Unassigned', industry: d['Industry'] || 'Unassigned', kwh: cleanVal(d['Sum of net_kwh_billed_consump']), ...parseTimeStr(d['Month']) }));
+                const normB = rawBudget.map(d => ({ source: d['Source'] || 'Budget', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unallocated', name: d['Name'] || 'Unallocated', industry: d['Industry'] || 'Unallocated', kwh: cleanVal(d['Sum of Budget']), ...parseTimeStr(d['Month']) }));
+
+                // 2. MARCH LE
+                const march26Actuals = normA.filter(d => d.month === 3 && d.year === 2026);
+                const baseline25 = normA.filter(d => d.year === 2025);
+                const getNormalizedKwh = (d) => { if (isNormalizeHurricane && (d.month >= 10 && d.month <= 12)) return d.kwh / 0.65; return d.kwh; };
+
+                const march25Map = {}; 
+                baseline25.filter(d => d.month === 3).forEach(d => { march25Map[`${d.acct}|${d.rc}`] = (march25Map[`${d.acct}|${d.rc}`] || 0) + d.kwh; });
+
+                const forecastData = [];
+                normA.filter(d => d.year === 2026 && d.month <= 3).forEach(d => { forecastData.push({ ...d, source: 'March LE', type: 'Actual' }); });
+
+                [4,5,6,7,8,9,10,11,12].forEach(mNum => {
+                    const targetMonth25 = baseline25.filter(d => d.month === mNum);
+                    march26Actuals.forEach(curr => {
+                        const m25Val = march25Map[`${curr.acct}|${curr.rc}`] || 0;
+                        const hist = targetMonth25.find(h => h.acct === curr.acct && h.rc === curr.rc);
+                        let seasonality = 1.0;
+                        if (m25Val > 0 && hist) { seasonality = getNormalizedKwh(hist) / m25Val; }
+                        forecastData.push({ ...curr, source: 'March LE', type: 'Forecast', month: mNum, year: 2026, text: `${monthNames[mNum-1]} 2026`, sortKey: 202600 + mNum, qtr: Math.ceil(mNum/3), qtrText: `Q${Math.ceil(mNum/3)} 2026`, kwh: curr.kwh * seasonality });
+                    });
+                });
+
+                // 3. Volumetric Scenarios
+                const ytd25Cust = {}; const ytd26Cust = {};
+                const ytd25RC = {};   const ytd26RC = {};
+                normA.filter(d => d.month <= 3).forEach(d => {
+                    if (d.year === 2025) { ytd25Cust[d.acct] = (ytd25Cust[d.acct] || 0) + d.kwh; ytd25RC[d.rc] = (ytd25RC[d.rc] || 0) + d.kwh; } 
+                    else if (d.year === 2026) { ytd26Cust[d.acct] = (ytd26Cust[d.acct] || 0) + d.kwh; ytd26RC[d.rc] = (ytd26RC[d.rc] || 0) + d.kwh; }
+                });
+
+                const q1Actuals26 = normA.filter(d => d.year === 2026 && d.month <= 3).map(d => ({...d, source: 'LE Forecast', type: 'Actual'}));
+                const leCustData = [...q1Actuals26]; const leRCData = [...q1Actuals26]; const leMgmtData = [...q1Actuals26]; const leCustomData = [...q1Actuals26];
+
+                const bRcTotal = {}; const bCustTotal = {};
+                normB.filter(d => d.year === 2026 && d.month >= 4).forEach(b => {
+                    bRcTotal[`${b.month}|${b.rc}`] = (bRcTotal[`${b.month}|${b.rc}`] || 0) + b.kwh;
+                    bCustTotal[`${b.month}|${b.acct}`] = (bCustTotal[`${b.month}|${b.acct}`] || 0) + b.kwh;
+                });
+
+                normB.filter(d => d.year === 2026 && d.month >= 4).forEach(b => {
+                    const custMonthlyDelta = ((ytd26Cust[b.acct] || 0) - (ytd25Cust[b.acct] || 0)) / 3;
+                    const rcMonthlyDelta = ((ytd26RC[b.rc] || 0) - (ytd25RC[b.rc] || 0)) / 3;
+                    const rcWeight = b.kwh / (bRcTotal[`${b.month}|${b.rc}`] || 1);
+                    const custWeight = b.kwh / (bCustTotal[`${b.month}|${b.acct}`] || 1);
+
+                    const custKwh = Math.max(0, b.kwh + (custMonthlyDelta * custWeight));
+                    const rcKwh = Math.max(0, b.kwh + (rcMonthlyDelta * rcWeight));
+
+                    leCustData.push({ ...b, source: 'LE - Cust Vol Growth', type: 'Forecast', kwh: custKwh });
+                    leRCData.push({ ...b, source: 'LE - RC Vol Growth', type: 'Forecast', kwh: rcKwh });
+                    
+                    const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
+                    leMgmtData.push({ ...b, source: 'LE - Management', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
+
+                    // Custom RC % Override Scenario
+                    const customPct = rcGrowthOverrides[b.rc] || 0;
+                    const customKwh = Math.max(0, b.kwh * (1 + customPct / 100));
+                    leCustomData.push({ ...b, source: 'LE - Custom RC %', type: 'Forecast', kwh: customKwh });
+                });
+
+                const rcs = [...new Set([...normA, ...normB].map(d => d.rc))].sort((a,b) => getRcWeight(a) - getRcWeight(b));
+                const parishes = [...new Set([...normA, ...normB].map(d => d.parish))].sort();
+                const inds = [...new Set(normA.map(d => d.industry))].sort();
+                const years = [...new Set([...normA, ...normB].map(d => d.year))].filter(y=>y>0).sort();
+
+                return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years } };
+            }, [rawActuals, rawBudget, isNormalizeHurricane, rcGrowthOverrides]);
+
+            // Allocation Engine Logic
+            useEffect(() => {
+                if (rawBudget.length === 0 || isBudgetCommitted) return;
+                const bMonths = [...new Set(rawBudget.map(d => d.Month))].filter(Boolean);
+                const aMonths = [...new Set(rawActuals.map(d => d.Month))].filter(Boolean);
+                const aQuarters = [...new Set(rawActuals.map(d => {
+                    const p = parseTimeStr(d.Month);
+                    return p.year > 0 ? `Q${p.qtr} ${p.year} Average` : null;
+                }))].filter(Boolean);
+
+                const getRef = (target) => aQuarters.includes(target) ? target : (aMonths.includes(target) ? target : (aQuarters.length > 0 ? aQuarters[aQuarters.length-1] : ''));
+                const newMapping = {};
+                
+                bMonths.forEach(bm => {
+                    const p = parseTimeStr(bm);
+                    if (p.year === 2026 && p.qtr <= 2) {
+                        newMapping[bm] = getRef('Q1 2026 Average');
+                    } else {
+                        newMapping[bm] = getRef('Q4 2025 Average');
+                    }
+                });
+                setMonthMapping(newMapping);
+            }, [rawBudget, rawActuals, isBudgetCommitted]);
+
+            useEffect(() => {
+                if (isBudgetCommitted || rawActuals.length === 0 || rawBudget.length === 0) return;
+                const allResults = [];
+                const bMonths = [...new Set(rawBudget.map(d=>d.Month))].filter(Boolean);
+                
+                bMonths.forEach(tMonth => {
+                    const rMonth = monthMapping[tMonth];
+                    const tBud = rawBudget.filter(d => d.Month === tMonth);
+                    const bGroups = {};
+                    tBud.forEach(b => {
+                        const key = `${b['Rate category'] || 'Unassigned'}|${b['Updated Parish'] || 'Unassigned'}`;
+                        if (!bGroups[key]) bGroups[key] = { amount: 0 };
+                        bGroups[key].amount += cleanVal(b['Sum of Budget']);
+                    });
+                    
+                    if (!rMonth) {
+                        Object.keys(bGroups).forEach(key => { const [rc, parish] = key.split('|'); allResults.push({ targetMonth: tMonth, refMonth: 'NONE', rc, parish, acct: 'UNALLOCATED', name: 'NO MAPPING', industry: 'Unallocated', finalA: bGroups[key].amount, weight: 1, override: '-' }); });
+                        return;
+                    }
+                    
+                    // Support for Quarterly Averages filtering
+                    const isQuarter = rMonth.includes('Average');
+                    const filteredActs = isQuarter 
+                        ? rawActuals.filter(a => {
+                            const p = parseTimeStr(a.Month);
+                            return `Q${p.qtr} ${p.year} Average` === rMonth;
+                          })
+                        : rawActuals.filter(a => a.Month === rMonth);
+
+                    const aGroups = {};
+                    filteredActs.forEach(a => {
+                        const groupKey = `${a['Rate category'] || 'Unassigned'}|${a['Updated Parish'] || 'Unassigned'}`;
+                        const custKey = a['JPS A/c'];
+                        
+                        if (!aGroups[groupKey]) aGroups[groupKey] = { totalWeight: 0, customers: {} };
+                        if (!aGroups[groupKey].customers[custKey]) {
+                            aGroups[groupKey].customers[custKey] = { acct: custKey, name: a['Name'], industry: a['Industry'], weightObj: 0 };
+                        }
+                        
+                        const val = Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump']));
+                        aGroups[groupKey].customers[custKey].weightObj += val;
+                        aGroups[groupKey].totalWeight += val;
+                    });
+
+                    Object.keys(bGroups).forEach(key => {
+                        const [rc, parish] = key.split('|'); 
+                        const totB = bGroups[key].amount; 
+                        const groupData = aGroups[key];
+                        
+                        if (!groupData || groupData.totalWeight === 0) { 
+                            allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: 'UNALLOCATED', name: 'NO HISTORY', industry: 'Unallocated', finalA: totB, weight: 1, override: '-' }); 
+                            return; 
+                        }
+                        
+                        Object.values(groupData.customers).forEach(c => {
+                            const w = c.weightObj / groupData.totalWeight; 
+                            let finalVal = totB * w; 
+                            let overrideStr = '-';
+                            if (allocOverrides[c.industry]) { 
+                                finalVal *= (1 + (allocOverrides[c.industry] / 100)); 
+                                overrideStr = `${allocOverrides[c.industry]}%`; 
+                            }
+                            allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: c.acct, name: c.name, industry: c.industry, finalA: finalVal, weight: w, override: overrideStr });
+                        });
+                    });
+                });
+                setAllocationResults(allResults);
+            }, [monthMapping, allocOverrides, rawBudget, rawActuals, isBudgetCommitted]);
+
+            const commitAllocation = useCallback(() => {
+                if (allocationResults.length === 0) return;
+                
+                // Backup original high-level budget before modifying
+                if (originalBudget.length === 0) {
+                    setOriginalBudget([...rawBudget]);
+                }
+
+                setRawBudget(allocationResults.map(r => ({ 'Source': 'Model Allocation', 'Rate category': r.rc, 'Updated Parish': r.parish, 'Month': r.targetMonth, 'Sum of Budget': (r.finalA || 0).toFixed(6), 'JPS A/c': r.acct, 'Name': r.name, 'Industry': r.industry })));
+                setIsBudgetCommitted(true); 
+            }, [allocationResults, rawBudget, originalBudget]);
+
+            // --- Auto-Commit Allocation once Ready ---
+            useEffect(() => {
+                if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0) {
+                    commitAllocation();
+                }
+            }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation]);
+
+            const unlockAllocation = () => {
+                if(originalBudget.length > 0) {
+                    setRawBudget([...originalBudget]);
+                }
+                setIsBudgetCommitted(false);
+            };
+
+            // --- GitHub API Push Action ---
+            const saveForecastToGitHub = async (csvDataArray, filename) => {
+                if (!githubConfig.token || !githubConfig.owner || !githubConfig.repo) {
+                    alert("Please configure your GitHub API Token, Owner, and Repo in the Data Hub first.");
+                    setActiveTab('data');
+                    return;
+                }
+                
+                setIsPushing(true);
+                try {
+                    const headers = Object.keys(csvDataArray[0]).filter(k => typeof csvDataArray[0][k] !== 'object');
+                    const csvString = [
+                        headers.join(','),
+                        ...csvDataArray.map(row => headers.map(h => `"${(row[h] !== undefined && row[h] !== null) ? row[h].toString().replace(/"/g, '""') : ''}"`).join(','))
+                    ].join('\n');
+
+                    // Base64 Encoding suitable for GitHub API (safely handles spaces and special chars)
+                    const base64Content = btoa(unescape(encodeURIComponent(csvString)));
+                    const path = `${filename}.csv`;
+                    const url = `https://api.github.com/repos/${githubConfig.owner}/${githubConfig.repo}/contents/${path}`;
+
+                    // Check if file exists to get SHA
+                    let fileSha = null;
+                    const getRes = await fetch(url, { headers: { 'Authorization': `token ${githubConfig.token}` } });
+                    if (getRes.ok) {
+                        const fileData = await getRes.json();
+                        fileSha = fileData.sha;
+                    }
+
+                    // PUT Request body
+                    const body = {
+                        message: `Auto-update ${filename}.csv from Sales Dashboard`,
+                        content: base64Content,
+                    };
+                    if (fileSha) body.sha = fileSha;
+
+                    const putRes = await fetch(url, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${githubConfig.token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (putRes.ok) {
+                        alert(`Successfully pushed ${filename}.csv to GitHub repository!`);
+                    } else {
+                        const err = await putRes.json();
+                        alert(`Failed to save to GitHub: ${err.message}`);
+                    }
+                } catch (error) {
+                    console.error("GitHub API Error:", error);
+                    alert("An unexpected error occurred while communicating with GitHub. Check console.");
+                } finally {
+                    setIsPushing(false);
+                }
+            };
+
+            const handleFileUpload = (e, isBudget) => {
+                const reader = new FileReader();
+                reader.onload = (evt) => { 
+                    const data = parseCSV(evt.target.result); 
+                    if(isBudget) { 
+                        setRawBudget(data); 
+                        setOriginalBudget([...data]); 
+                        setIsBudgetCommitted(false); 
+                    } else { 
+                        setRawActuals(data); 
+                    } 
+                };
+                reader.readAsText(e.target.files[0]);
+            };
+
+            const handleFetchUrl = async (url, isBudget) => {
+                if(!url) return;
+                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const text = await response.text();
+                    const data = parseCSV(text);
+                    if (isBudget) { 
+                        setRawBudget(data); 
+                        setOriginalBudget([...data]); 
+                        setIsBudgetCommitted(false); 
+                    } else { 
+                        setRawActuals(data); 
+                    }
+                } catch (e) {
+                    alert('Error fetching file: ' + e.message + '\nMake sure you are using the "Raw" GitHub URL.');
+                } finally {
+                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
+                }
+            };
+
+            const handleSaveVersion = () => {
+                const name = prompt("Enter a name for this scenario version:");
+                if (!name) return;
+                const newVersion = { id: Date.now(), name, timestamp: new Date().toLocaleString(), rawBudget: [...rawBudget], isBudgetCommitted, monthMapping: { ...monthMapping }, allocOverrides: { ...allocOverrides }, rcGrowthOverrides: { ...rcGrowthOverrides }, isNormalizeHurricane };
+                setSavedVersions(prev => [...prev, newVersion]);
+                alert(`Version "${name}" saved successfully!`);
+            };
+
+            const handleRestoreVersion = (version) => {
+                if(!confirm(`Are you sure you want to restore "${version.name}"? Any unsaved changes in your current view will be lost.`)) return;
+                setRawBudget([...version.rawBudget]); setIsBudgetCommitted(version.isBudgetCommitted); setMonthMapping({ ...version.monthMapping }); setAllocOverrides({ ...version.allocOverrides }); 
+                setRcGrowthOverrides(version.rcGrowthOverrides || {}); setIsNormalizeHurricane(version.isNormalizeHurricane); setIsVersionModalOpen(false);
+            };
+
+            const handleClearData = () => {
+                if(!confirm("Are you sure you want to clear all data and reset the engine? This will wipe the current session's actuals, budget, and all saved scenarios.")) return;
+                setRawActuals([]);
+                setRawBudget([]);
+                setOriginalBudget([]);
+                setIsBudgetCommitted(false);
+                setBudgetUrl('');
+                setActualsUrl('');
+                setLoadError('');
+                setMonthMapping({});
+                setAllocOverrides({});
+                setRcGrowthOverrides({});
+                setAllocationResults([]);
+                setSavedVersions([]);
+                setActiveTab('data');
+            };
+
+            const getFiltered = useCallback((data) => {
+                return data.filter(d => {
+                    if (fYear !== 'All' && d.year.toString() !== fYear) return false;
+                    if (fMonth !== 'All' && monthNames[d.month-1] !== fMonth) return false;
+                    if (fRC !== 'All' && d.rc !== fRC) return false;
+                    if (fParish !== 'All' && d.parish !== fParish) return false;
+                    if (fInd !== 'All' && d.industry !== fInd) return false;
+                    return true;
+                });
+            }, [fYear, fMonth, fRC, fParish, fInd]);
+
+            const monthlyAggregates = useMemo(() => {
+                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth); const fLeCustom = getFiltered(leCustomGrowth);
+                return monthNames.map((m, idx) => {
+                    const mNum = idx + 1;
+                    const a25 = fAct.filter(d => d.year === 2025 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const b26 = fBud.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const a26 = fAct.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const le26 = fMarchLE.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const leCust26 = fLeCust.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const leRC26 = fLeRC.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const leMgmt26 = fLeMgmt.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const leCustom26 = fLeCustom.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    return { month: m.substring(0,3), monthFull: m, Act25: a25, Bud26: b26, Act26: a26 > 0 ? a26 : null, MarchLE: le26, LeCust: leCust26, LeRC: leRC26, LeMgmt: leMgmt26, LeCustom: leCustom26 };
+                });
+            }, [actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, getFiltered]);
+
+            // --- UI Components ---
+            const renderGraphToggles = () => (
+                <div className="flex flex-wrap items-center gap-3 mb-4 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 ml-2"><Icons.Eye className="w-3 h-3"/> Map Scenarios:</span>
+                    {toggleConfig.map(t => (
+                        <label key={t.key} className={`cursor-pointer px-3 py-1.5 rounded-md border text-xs font-bold flex items-center gap-2 transition select-none shadow-sm ${graphToggles[t.key] ? t.activeClass : t.inactiveClass}`}>
+                            <input type="checkbox" className="hidden" checked={graphToggles[t.key]} onChange={() => setGraphToggles(p => ({...p, [t.key]: !p[t.key]}))} />
+                            <div className={`w-2 h-2 rounded-full ${graphToggles[t.key] ? 'bg-current shadow-sm' : 'bg-slate-300'}`}></div>
+                            {t.label}
+                        </label>
+                    ))}
+                    <div className="flex gap-2 ml-auto pr-2">
+                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-blue-600 transition" onClick={() => setGraphToggles({act25:true, bud26:true, act26:true, marchLE:true, leCust:true, leRc:true, leMgmt:true, leCustom:true})}>All On</button>
+                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-red-500 transition" onClick={() => setGraphToggles({act25:false, bud26:false, act26:false, marchLE:false, leCust:false, leRc:false, leMgmt:false, leCustom:false})}>All Off</button>
+                    </div>
+                </div>
+            );
+
+            const customRcControls = (
+                <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 shadow-sm mb-6">
+                    <h4 className="font-bold mb-4 flex items-center gap-2 text-indigo-800"><Icons.Sliders/> Set Custom % Growth vs Base Budget</h4>
+                    <p className="text-xs text-slate-500 mb-4 max-w-xl">Apply specific percentage increases or decreases to individual rate classes. E.g., Use this to simulate a +5% growth in Residential (RT10) due to warmer temperature projections.</p>
+                    <div className="flex gap-2 mb-4 max-w-md">
+                        <select id="rc-override-sel" className="flex-1 border border-indigo-200 rounded px-3 py-2 text-sm bg-white outline-none focus:border-indigo-400">
+                            {dimensions.rcs.map(r => <option key={r}>{r}</option>)}
+                        </select>
+                        <input id="rc-override-val" type="number" placeholder="%" className="w-20 border border-indigo-200 rounded px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                        <button onClick={() => {
+                            const r = document.getElementById('rc-override-sel').value;
+                            const v = document.getElementById('rc-override-val').value;
+                            if(r && v) setRcGrowthOverrides(p => ({...p, [r]: parseFloat(v)}));
+                        }} className="bg-indigo-600 text-white px-4 rounded font-bold hover:bg-indigo-700 shadow-sm transition">+</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 min-h-[36px]">
+                        {Object.keys(rcGrowthOverrides).length === 0 && <span className="text-sm text-slate-400 italic flex items-center">No overrides applied. Baseline budget is active.</span>}
+                        {Object.entries(rcGrowthOverrides).map(([rc, val]) => (
+                            <div key={rc} className="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded-full border border-indigo-200 shadow-sm">
+                                <span className="font-bold text-slate-700">{rc}</span>
+                                <span className={`font-bold ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</span>
+                                <button onClick={() => { const c = {...rcGrowthOverrides}; delete c[rc]; setRcGrowthOverrides(c); }} className="text-slate-400 hover:text-red-500 ml-1 transition"><Icons.X /></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            // --- TABS ---
+            const renderDataTab = () => (
+                <div className="p-8 max-w-5xl mx-auto space-y-6">
+                    <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
+                        <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
+                        <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data to Engine</h2>
+                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files or fetch directly from GitHub Raw URLs.</p>
+                        
+                        {loadError ? (
+                            <p className="text-xs text-red-600 font-bold mb-8 bg-red-50 py-1.5 px-4 rounded-full inline-block border border-red-200">{loadError}</p>
+                        ) : (
+                            <p className="text-xs text-blue-500 font-bold mb-8 bg-blue-50 py-1.5 px-4 rounded-full inline-block">The engine will auto-load files from the root directory if found.</p>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-left">
+                            <div className="bg-blue-50/30 p-6 rounded-xl border border-blue-100 flex flex-col justify-between">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Activity/> 1. High-Level Budget</h3>
+                                    <p className="text-xs text-slate-500 mb-4">Required format: JPS Budget 2026 data.csv</p>
+                                    <input type="file" accept=".csv" onChange={e => handleFileUpload(e, true)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer w-full text-slate-600 mb-4" />
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-blue-200">
+                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={budgetUrl} onChange={e=>setBudgetUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-blue-400"/>
+                                        <button onClick={()=>handleFetchUrl(budgetUrl, true)} disabled={!budgetUrl || isLoadingUrl.budget} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
+                                            {isLoadingUrl.budget ? 'Fetching...' : 'Fetch'}
+                                        </button>
+                                    </div>
+                                    {rawBudget.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Budget Loaded ({rawBudget.length} rows)</p>}
+                                </div>
+                            </div>
+                            
+                            <div className="bg-purple-50/30 p-6 rounded-xl border border-purple-100 flex flex-col justify-between">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> 2. Detailed Actuals</h3>
+                                    <p className="text-xs text-slate-500 mb-4">Required format: JPS Actuals data.csv</p>
+                                    <input type="file" accept=".csv" onChange={e => handleFileUpload(e, false)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer w-full text-slate-600 mb-4" />
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-purple-200">
+                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={actualsUrl} onChange={e=>setActualsUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-purple-400"/>
+                                        <button onClick={()=>handleFetchUrl(actualsUrl, false)} disabled={!actualsUrl || isLoadingUrl.actuals} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
+                                            {isLoadingUrl.actuals ? 'Fetching...' : 'Fetch'}
+                                        </button>
+                                    </div>
+                                    {rawActuals.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Actuals Loaded ({rawActuals.length} rows)</p>}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-center gap-4 border-t border-slate-100 pt-8">
+                            <label className="flex items-center gap-3 cursor-pointer group bg-slate-50 p-4 rounded-xl border border-slate-200 hover:border-blue-300 transition w-full max-w-lg">
+                                <input type="checkbox" checked={isNormalizeHurricane} onChange={e => setIsNormalizeHurricane(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                <div className="text-left">
+                                    <span className="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">Enable Hurricane Normalization (2025 History)</span>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">Grosses up Oct-Dec 2025 volumes for true business-as-usual seasonality.</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* GitHub Configuration Form */}
+                    <div className="max-w-5xl mx-auto mt-4 bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub API Configuration</h3>
+                        <p className="text-xs text-slate-400 mb-4 max-w-2xl">Enter your credentials to allow the dashboard to push finalized forecasts directly back to your repository. Ensure your Personal Access Token has 'repo' level permissions.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
+                                <input type="password" value={githubConfig.token} onChange={e=>setGithubConfig(p=>({...p, token: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Owner</label>
+                                <input type="text" value={githubConfig.owner} onChange={e=>setGithubConfig(p=>({...p, owner: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. JohnDoe" />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Name</label>
+                                <input type="text" value={githubConfig.repo} onChange={e=>setGithubConfig(p=>({...p, repo: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const renderOverviewTab = () => {
+                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLE = getFiltered(marchLE);
+                return (
+                    <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
+                        {!isBudgetCommitted && (
+                            <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded flex items-center justify-between">
+                                <div className="text-orange-800 text-sm font-bold">Warning: Budget is unallocated. Granular tracking disabled until committed in Allocation Engine.</div>
+                                <button onClick={()=>setActiveTab('allocation')} className="bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow-sm">Go to Engine</button>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 bg-white rounded-xl border p-5 flex flex-col min-h-[500px] shadow-sm">
+                                <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Scenario Trend Overlay (kWh)</div>
+                                {renderGraphToggles()}
+                                <div className="flex-1 min-h-0 mt-2">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={monthlyAggregates}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                            <XAxis dataKey="month" tick={{fontSize: 11}} />
+                                            <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
+                                            <Tooltip formatter={(v) => formatNum(v)} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                            <Legend wrapperStyle={{paddingTop: '10px'}} />
+                                            {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
+                                            {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
+                                            {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
+                                            {graphToggles.marchLE && <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />}
+                                            {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                            {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                            {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                            {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Custom %" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl border p-5 space-y-6 shadow-sm">
+                                <h3 className="font-bold text-slate-800 border-b pb-2">Fiscal Year Outlook</h3>
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                                        <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">March LE (Projected Total)</div>
+                                        <div className="text-2xl font-black text-emerald-800">{formatNum(fLE.reduce((s,d)=>s+d.kwh,0))}</div>
+                                    </div>
+                                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                        <div className="text-[10px] text-blue-600 font-bold uppercase mb-1">Budget FY (Granular)</div>
+                                        <div className="text-2xl font-black text-blue-800">{formatNum(fBud.reduce((s,d)=>s+d.kwh,0))}</div>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Prior Year Actuals (2025)</div>
+                                        <div className="text-2xl font-black text-slate-600">{formatNum(fAct.filter(d=>d.year===2025).reduce((s,d)=>s+d.kwh,0))}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderMonthlyTab = () => {
+                const totA25 = monthlyAggregates.reduce((s,d)=>s+d.Act25,0); const totB26 = monthlyAggregates.reduce((s,d)=>s+d.Bud26,0); const totA26 = monthlyAggregates.reduce((s,d)=>s+(d.Act26||0),0);
+                const totMarchLE = monthlyAggregates.reduce((s,d)=>s+d.MarchLE,0); const totLeCust = monthlyAggregates.reduce((s,d)=>s+d.LeCust,0); const totLeRC = monthlyAggregates.reduce((s,d)=>s+d.LeRC,0); 
+                const totLeMgmt = monthlyAggregates.reduce((s,d)=>s+d.LeMgmt,0); const totLeCustom = monthlyAggregates.reduce((s,d)=>s+d.LeCustom,0);
+
+                return (
+                    <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
+                        <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[450px] shrink-0 shadow-sm">
+                            <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Monthly Trend & Scenarios (kWh)</div>
+                            {renderGraphToggles()}
+                            <div className="flex-1 min-h-0 mt-2">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={monthlyAggregates}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <XAxis dataKey="month" tick={{fontSize: 11}} />
+                                        <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
+                                        <Tooltip formatter={(v) => formatNum(v)} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                        <Legend wrapperStyle={{paddingTop: '10px'}} />
+                                        {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
+                                        {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
+                                        {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
+                                        {graphToggles.marchLE && <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />}
+                                        {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                        {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
+                                        {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                        {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Custom %" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl border shadow-sm flex flex-col">
+                            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Database/> Monthly Data Matrix</h3>
+                                <button onClick={() => exportCSV(monthlyAggregates, 'Monthly_Scenarios_Summary.csv')} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded font-bold text-sm flex items-center gap-2 border border-blue-200 transition">
+                                    <Icons.Download/> Export Summary
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto relative">
+                                <table className="w-full text-sm text-left whitespace-nowrap">
+                                    <thead className="table-pin-header">
+                                        <tr className="bg-slate-100">
+                                            <th className="p-3 border-r table-pin-col bg-slate-100 z-30">Month</th>
+                                            <th className="p-3 text-right">2025 Actuals</th>
+                                            <th className="p-3 text-right">2026 Budget</th>
+                                            <th className="p-3 text-right">2026 Actuals</th>
+                                            <th className="p-3 text-right text-emerald-700">March LE</th>
+                                            <th className="p-3 text-right text-purple-700">LE Cust Vol</th>
+                                            <th className="p-3 text-right text-blue-700">LE RC Vol</th>
+                                            <th className="p-3 text-right text-orange-700">LE Mgmt</th>
+                                            <th className="p-3 text-right text-indigo-700 bg-indigo-50">LE Custom %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {monthlyAggregates.map(row => {
+                                            return (
+                                                <tr key={row.monthFull} className="border-b hover:bg-slate-50">
+                                                    <td className="p-3 font-bold border-r table-pin-col bg-white">{row.monthFull}</td>
+                                                    <td className="p-3 text-right text-slate-500">{formatNum(row.Act25)}</td>
+                                                    <td className="p-3 text-right text-blue-600">{formatNum(row.Bud26)}</td>
+                                                    <td className="p-3 text-right font-bold text-purple-700">{row.Act26 ? formatNum(row.Act26) : '-'}</td>
+                                                    <td className="p-3 text-right font-medium text-emerald-600">{formatNum(row.MarchLE)}</td>
+                                                    <td className="p-3 text-right font-medium text-purple-600">{formatNum(row.LeCust)}</td>
+                                                    <td className="p-3 text-right font-medium text-blue-600">{formatNum(row.LeRC)}</td>
+                                                    <td className="p-3 text-right font-bold text-orange-600">{formatNum(row.LeMgmt)}</td>
+                                                    <td className="p-3 text-right font-bold text-indigo-600 bg-indigo-50/50">{formatNum(row.LeCustom)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-20">
+                                        <tr>
+                                            <td className="p-3 border-r table-pin-col bg-slate-200 z-30">TOTAL YTD/FY</td>
+                                            <td className="p-3 text-right text-slate-600">{formatNum(totA25)}</td>
+                                            <td className="p-3 text-right text-blue-800">{formatNum(totB26)}</td>
+                                            <td className="p-3 text-right text-purple-800">{formatNum(totA26)}</td>
+                                            <td className="p-3 text-right text-emerald-800">{formatNum(totMarchLE)}</td>
+                                            <td className="p-3 text-right text-purple-800">{formatNum(totLeCust)}</td>
+                                            <td className="p-3 text-right text-blue-800">{formatNum(totLeRC)}</td>
+                                            <td className="p-3 text-right text-orange-800">{formatNum(totLeMgmt)}</td>
+                                            <td className="p-3 text-right text-indigo-800 bg-indigo-100">{formatNum(totLeCustom)}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderAllocationTab = () => {
+                const aMonths = [...new Set(rawActuals.map(d => d.Month))].filter(Boolean);
+                const aQuarters = [...new Set(rawActuals.map(d => {
+                    const p = parseTimeStr(d.Month);
+                    return p.year > 0 ? `Q${p.qtr} ${p.year} Average` : null;
+                }))].filter(Boolean);
+                const refOptions = [...aQuarters, ...aMonths];
+
+                return (
+                    <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
+                        <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icons.Calculator/> Budget Proration & Redistribution Engine</h3>
+                                <p className="text-sm text-slate-500">Maps high-level budget targets to customer level based on historical Actuals (Months or Quarterly Averages).</p>
+                            </div>
+                            {isBudgetCommitted ? (
+                                <button onClick={unlockAllocation} className="bg-slate-100 text-slate-800 px-6 py-2 rounded-lg font-bold border hover:bg-slate-200 transition shadow-sm">Unlock Allocation</button>
+                            ) : (
+                                <button onClick={commitAllocation} disabled={allocationResults.length === 0} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-emerald-700 transition disabled:opacity-50">Apply Granular Budget</button>
+                            )}
+                        </div>
+                        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${isBudgetCommitted ? 'opacity-60 pointer-events-none' : ''}`}>
+                            <div className="bg-white p-5 rounded-xl border shadow-sm">
+                                <h4 className="font-bold mb-4 flex items-center gap-2 text-blue-700">Month-to-Month Baseline Mapping</h4>
+                                <div className="max-h-[300px] overflow-y-auto custom-scroll pr-2">
+                                    <table className="w-full text-sm">
+                                        <thead className="sticky top-0 bg-slate-50 border-b"><tr><th className="p-2 text-left text-slate-500">Budget Month</th><th className="p-2 text-left text-slate-500">Reference Actuals</th></tr></thead>
+                                        <tbody>
+                                            {Object.keys(monthMapping).map(bm => (
+                                                <tr key={bm} className="border-b">
+                                                    <td className="p-2 font-medium">{bm}</td>
+                                                    <td className="p-2">
+                                                        <select value={monthMapping[bm] || ''} onChange={e => setMonthMapping(p => ({...p, [bm]: e.target.value}))} className="w-full border rounded px-2 py-1 bg-white outline-none">
+                                                            {refOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div className="bg-white p-5 rounded-xl border shadow-sm h-fit">
+                                 <h4 className="font-bold mb-4 flex items-center gap-2 text-purple-700">Industry Growth Adjustments (%)</h4>
+                                 <div className="flex gap-2 mb-4">
+                                    <select id="ind-sel" className="flex-1 border rounded px-3 py-2 text-sm bg-white outline-none">{dimensions.inds.map(i => <option key={i}>{i}</option>)}</select>
+                                    <input id="ind-val" type="number" placeholder="%" className="w-20 border rounded px-3 py-2 text-sm" />
+                                    <button onClick={() => { const i = document.getElementById('ind-sel').value; const v = document.getElementById('ind-val').value; if(i && v) setAllocOverrides(p => ({...p, [i]: parseFloat(v)})); }} className="bg-slate-800 text-white px-4 rounded font-bold hover:bg-slate-900 transition">+</button>
+                                 </div>
+                                 <div className="space-y-2">
+                                    {Object.entries(allocOverrides).map(([ind, val]) => (
+                                        <div key={ind} className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded border border-slate-100">
+                                            <span className="font-medium text-slate-700">{ind}</span>
+                                            <span className={`font-bold ${val>=0?'text-emerald-600':'text-red-500'}`}>{val}%</span>
+                                            <button onClick={() => { const c = {...allocOverrides}; delete c[ind]; setAllocOverrides(c); }} className="text-red-400 hover:text-red-600">Remove</button>
+                                        </div>
+                                    ))}
+                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderVarianceTab = () => {
+                if (!isBudgetCommitted) return <div className="p-10 text-center text-slate-400 font-bold">Commit Budget in Allocation Engine to enable Variance Matrix.</div>;
+
+                const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
+                const matrix = {};
+                const fAct = getFiltered(actuals).filter(d => d.month <= ytdLimit); const fBud = getFiltered(budget).filter(d => d.month <= ytdLimit);
+                const fMarchLE = getFiltered(marchLE).filter(d => d.month <= ytdLimit); const fLeCust = getFiltered(leCustGrowth).filter(d => d.month <= ytdLimit);
+                const fLeRC = getFiltered(leRCGrowth).filter(d => d.month <= ytdLimit); const fLeMgmt = getFiltered(leMgmtGrowth).filter(d => d.month <= ytdLimit);
+                const fLeCustom = getFiltered(leCustomGrowth).filter(d => d.month <= ytdLimit);
+
+                const initMatrix = (dim) => { if(!matrix[dim]) matrix[dim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0, leCustom:0 }; };
+                fAct.forEach(d => { initMatrix(d[varianceDim]); if(d.year === 2025) matrix[d[varianceDim]].a25 += d.kwh; if(d.year === 2026) matrix[d[varianceDim]].a26 += d.kwh; });
+                fBud.forEach(d => { initMatrix(d[varianceDim]); if(d.year === 2026) matrix[d[varianceDim]].b26 += d.kwh; });
+                fMarchLE.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].mle += d.kwh; });
+                fLeCust.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leCust += d.kwh; });
+                fLeRC.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leRc += d.kwh; });
+                fLeMgmt.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leMgmt += d.kwh; });
+                fLeCustom.forEach(d => { initMatrix(d[varianceDim]); matrix[d[varianceDim]].leCustom += d.kwh; });
+
+                const totA25 = Object.values(matrix).reduce((s,v)=>s+v.a25,0); const totB26 = Object.values(matrix).reduce((s,v)=>s+v.b26,0); const totA26 = Object.values(matrix).reduce((s,v)=>s+v.a26,0);
+                const totMle = Object.values(matrix).reduce((s,v)=>s+v.mle,0); const totLeCust = Object.values(matrix).reduce((s,v)=>s+v.leCust,0); const totLeRc = Object.values(matrix).reduce((s,v)=>s+v.leRc,0); 
+                const totLeMgmt = Object.values(matrix).reduce((s,v)=>s+v.leMgmt,0); const totLeCustom = Object.values(matrix).reduce((s,v)=>s+v.leCustom,0);
+
+                const renderVarPct = (val, base) => formatPct(base ? (val - base) / base : 0);
+                const colorPct = (val, base) => { const pct = base ? (val - base) / base : 0; return pct >= 0 ? 'text-emerald-600' : 'text-red-500'; };
+
+                return (
+                    <div className="p-6 h-full flex flex-col">
+                        <div className="bg-white rounded-xl border shadow-sm flex-1 flex flex-col overflow-hidden">
+                            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-slate-800">Deep-Dive Variance Matrix (All Scenarios vs Budget & PY)</h3>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => exportCSV([...fAct, ...fBud], `Variance_Base_Level_Data.csv`)} className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded border border-blue-100"><Icons.Download/> Base Data</button>
+                                    <select value={varianceDim} onChange={e=>setVarianceDim(e.target.value)} className="border rounded px-3 py-1 font-bold text-blue-700 bg-white">
+                                        <option value="rc">Rate Category</option><option value="parish">Parish</option><option value="industry">Industry</option><option value="name">Customer</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-auto custom-scroll relative">
+                                <table className="w-full text-sm text-left whitespace-nowrap">
+                                    <thead className="table-pin-header">
+                                        <tr className="bg-slate-100">
+                                            <th className="p-2 border-r table-pin-col bg-slate-100 z-30">{varianceDim.toUpperCase()}</th>
+                                            <th className="p-2 text-right">2025 Act</th>
+                                            <th className="p-2 text-right">2026 Bud</th>
+                                            <th className="p-2 text-right border-l border-slate-300">2026 Act</th>
+                                            <th className="p-2 text-right text-xs text-slate-500">vs Bud</th>
+                                            <th className="p-2 text-right text-xs text-slate-500">vs PY</th>
+                                            <th className="p-2 text-right border-l border-slate-300 text-emerald-700 bg-emerald-50">March LE</th>
+                                            <th className="p-2 text-right text-xs text-emerald-600 bg-emerald-50">vs Bud</th>
+                                            <th className="p-2 text-right text-xs text-emerald-600 bg-emerald-50">vs PY</th>
+                                            <th className="p-2 text-right border-l border-slate-300 text-purple-700 bg-purple-50">LE Cust Vol</th>
+                                            <th className="p-2 text-right text-xs text-purple-600 bg-purple-50">vs Bud</th>
+                                            <th className="p-2 text-right text-xs text-purple-600 bg-purple-50">vs PY</th>
+                                            <th className="p-2 text-right border-l border-slate-300 text-blue-700 bg-blue-50">LE RC Vol</th>
+                                            <th className="p-2 text-right text-xs text-blue-600 bg-blue-50">vs Bud</th>
+                                            <th className="p-2 text-right text-xs text-blue-600 bg-blue-50">vs PY</th>
+                                            <th className="p-2 text-right border-l border-slate-300 text-orange-700 bg-orange-50">LE Mgmt</th>
+                                            <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs Bud</th>
+                                            <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs PY</th>
+                                            <th className="p-2 text-right border-l border-slate-300 text-indigo-700 bg-indigo-50">LE Custom %</th>
+                                            <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs Bud</th>
+                                            <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs PY</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(matrix).sort((a,b) => b[1].a26 - a[1].a26).map(([dim, v]) => (
+                                            <tr key={dim} className="border-b hover:bg-slate-50">
+                                                <td className="p-2 font-bold border-r table-pin-col bg-white truncate max-w-[150px]">{dim}</td>
+                                                <td className="p-2 text-right text-slate-500">{formatNum(v.a25)}</td>
+                                                <td className="p-2 text-right text-blue-700">{formatNum(v.b26)}</td>
+                                                <td className="p-2 text-right text-slate-800 border-l border-slate-200">{formatNum(v.a26)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold ${colorPct(v.a26, v.b26)}`}>{renderVarPct(v.a26, v.b26)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold ${colorPct(v.a26, v.a25)}`}>{renderVarPct(v.a26, v.a25)}</td>
+                                                <td className="p-2 text-right text-emerald-700 border-l border-slate-200 bg-emerald-50/20">{formatNum(v.mle)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-emerald-50/20 ${colorPct(v.mle, v.b26)}`}>{renderVarPct(v.mle, v.b26)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-emerald-50/20 ${colorPct(v.mle, v.a25)}`}>{renderVarPct(v.mle, v.a25)}</td>
+                                                <td className="p-2 text-right text-purple-700 border-l border-slate-200 bg-purple-50/20">{formatNum(v.leCust)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-purple-50/20 ${colorPct(v.leCust, v.b26)}`}>{renderVarPct(v.leCust, v.b26)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-purple-50/20 ${colorPct(v.leCust, v.a25)}`}>{renderVarPct(v.leCust, v.a25)}</td>
+                                                <td className="p-2 text-right text-blue-700 border-l border-slate-200 bg-blue-50/20">{formatNum(v.leRc)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-blue-50/20 ${colorPct(v.leRc, v.b26)}`}>{renderVarPct(v.leRc, v.b26)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-blue-50/20 ${colorPct(v.leRc, v.a25)}`}>{renderVarPct(v.leRc, v.a25)}</td>
+                                                <td className="p-2 text-right text-orange-700 border-l border-slate-200 bg-orange-50/20">{formatNum(v.leMgmt)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-orange-50/20 ${colorPct(v.leMgmt, v.b26)}`}>{renderVarPct(v.leMgmt, v.b26)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-orange-50/20 ${colorPct(v.leMgmt, v.a25)}`}>{renderVarPct(v.leMgmt, v.a25)}</td>
+                                                <td className="p-2 text-right text-indigo-700 border-l border-slate-200 bg-indigo-50/20">{formatNum(v.leCustom)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-indigo-50/20 ${colorPct(v.leCustom, v.b26)}`}>{renderVarPct(v.leCustom, v.b26)}</td>
+                                                <td className={`p-2 text-right text-xs font-bold bg-indigo-50/20 ${colorPct(v.leCustom, v.a25)}`}>{renderVarPct(v.leCustom, v.a25)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-20">
+                                        <tr>
+                                            <td className="p-2 border-r table-pin-col bg-slate-200 z-30">TOTAL</td>
+                                            <td className="p-2 text-right text-slate-600">{formatNum(totA25)}</td>
+                                            <td className="p-2 text-right text-blue-800">{formatNum(totB26)}</td>
+                                            <td className="p-2 text-right text-slate-900 border-l border-slate-300">{formatNum(totA26)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totA26, totB26)}`}>{renderVarPct(totA26, totB26)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totA26, totA25)}`}>{renderVarPct(totA26, totA25)}</td>
+                                            <td className="p-2 text-right text-emerald-800 border-l border-slate-300">{formatNum(totMle)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totMle, totB26)}`}>{renderVarPct(totMle, totB26)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totMle, totA25)}`}>{renderVarPct(totMle, totA25)}</td>
+                                            <td className="p-2 text-right text-purple-800 border-l border-slate-300">{formatNum(totLeCust)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCust, totB26)}`}>{renderVarPct(totLeCust, totB26)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCust, totA25)}`}>{renderVarPct(totLeCust, totA25)}</td>
+                                            <td className="p-2 text-right text-blue-800 border-l border-slate-300">{formatNum(totLeRc)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeRc, totB26)}`}>{renderVarPct(totLeRc, totB26)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeRc, totA25)}`}>{renderVarPct(totLeRc, totA25)}</td>
+                                            <td className="p-2 text-right text-orange-800 border-l border-slate-300">{formatNum(totLeMgmt)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeMgmt, totB26)}`}>{renderVarPct(totLeMgmt, totB26)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeMgmt, totA25)}`}>{renderVarPct(totLeMgmt, totA25)}</td>
+                                            <td className="p-2 text-right text-indigo-800 border-l border-slate-300">{formatNum(totLeCustom)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCustom, totB26)}`}>{renderVarPct(totLeCustom, totB26)}</td>
+                                            <td className={`p-2 text-right text-xs ${colorPct(totLeCustom, totA25)}`}>{renderVarPct(totLeCustom, totA25)}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderGenericForecastTab = (leDataset, title, description, iconNode, colorClass, textClass, requireBudget = false, activeMode = '', customControls = null) => {
+                if (requireBudget && !isBudgetCommitted) return <div className="p-10 text-center text-slate-400 font-bold">Commit Budget in Allocation Engine to enable this Forecast Method.</div>;
+                
+                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLE = getFiltered(leDataset);
+                const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth); const fLeCustom = getFiltered(leCustomGrowth);
+
+                const totA25 = fAct.filter(d => d.year === 2025).reduce((s,d)=>s+d.kwh,0); const totB26 = fBud.filter(d => d.year === 2026).reduce((s,d)=>s+d.kwh,0);
+                const totLE = fLE.reduce((s,d)=>s+d.kwh,0); const totMarchLE = fMarchLE.reduce((s,d)=>s+d.kwh,0); const totLeCust = fLeCust.reduce((s,d)=>s+d.kwh,0);
+                const totLeRC = fLeRC.reduce((s,d)=>s+d.kwh,0); const totLeMgmt = fLeMgmt.reduce((s,d)=>s+d.kwh,0); const totLeCustom = fLeCustom.reduce((s,d)=>s+d.kwh,0);
+                const totVsBud = totB26 ? (totLE - totB26) / totB26 : 0; const totVsPY = totA25 ? (totLE - totA25) / totA25 : 0;
+
+                return (
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+                        {customControls}
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => exportCSV(fLE, `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_base_level.csv`)} className="bg-white border hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition"><Icons.Download /> Download Base Level Data</button>
+                            <button onClick={() => saveForecastToGitHub(fLE, title.replace(/[^a-z0-9]/gi, '_').toLowerCase())} disabled={isPushing} className="bg-slate-800 border hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-50">
+                                <Icons.CloudUp /> {isPushing ? 'Pushing...' : 'Push to GitHub Repo'}
+                            </button>
+                        </div>
+                        <div className={`bg-white p-8 rounded-xl border border-${colorClass}-100 shadow-sm flex items-center justify-between`}>
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">{iconNode} {title}</h3>
+                                <p className="text-sm text-slate-500 mt-1">{description}</p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-[10px] text-slate-400 font-bold uppercase">FY 2026 Forecasted Gap to Budget</div>
+                                <div className={`text-3xl font-black ${(totLE - totB26) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatNum(totLE - totB26)}</div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
+                            <div className="p-4 bg-slate-50 border-b font-bold flex items-center gap-2"><Icons.Zap/> Forecast vs Targets by Rate Class</div>
+                            <table className="w-full text-sm text-left whitespace-nowrap">
+                                <thead className="bg-slate-100 text-slate-600 font-bold">
+                                    <tr>
+                                        <th className="p-3">Rate Category</th>
+                                        <th className="p-3 text-right">2025 Act</th>
+                                        <th className="p-3 text-right">2026 Bud</th>
+                                        <th className={`p-3 text-right ${activeMode === 'marchLE' ? 'bg-emerald-100 text-emerald-800' : 'text-emerald-600/70'}`}>March LE (F)</th>
+                                        <th className={`p-3 text-right ${activeMode === 'leCust' ? 'bg-purple-100 text-purple-800' : 'text-purple-600/70'}`}>LE Cust Vol</th>
+                                        <th className={`p-3 text-right ${activeMode === 'leRC' ? 'bg-blue-100 text-blue-800' : 'text-blue-600/70'}`}>LE RC Vol</th>
+                                        <th className={`p-3 text-right ${activeMode === 'leMgmt' ? 'bg-orange-100 text-orange-800' : 'text-orange-600/70'}`}>LE Mgmt</th>
+                                        <th className={`p-3 text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`}>LE Custom %</th>
+                                        <th className="p-3 text-right border-l border-slate-200">Active LE vs Bud %</th>
+                                        <th className="p-3 text-right">Active LE vs PY %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {dimensions.rcs.map(rc => {
+                                        const a25 = fAct.filter(d => d.rc === rc && d.year === 2025).reduce((s,d)=>s+d.kwh,0); const b26 = fBud.filter(d => d.rc === rc && d.year === 2026).reduce((s,d)=>s+d.kwh,0);
+                                        const le26 = fLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const mle26 = fMarchLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
+                                        const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
+                                        const lMgmt26 = fLeMgmt.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lCustom26 = fLeCustom.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
+                                        const vsBud = b26 ? (le26-b26)/b26 : 0; const vsPY = a25 ? (le26-a25)/a25 : 0;
+                                        return (
+                                            <tr key={rc} className="border-b hover:bg-slate-50">
+                                                <td className="p-3 font-bold">{rc}</td>
+                                                <td className="p-3 text-right text-slate-400">{formatNum(a25)}</td>
+                                                <td className="p-3 text-right text-blue-600">{formatNum(b26)}</td>
+                                                <td className={`p-3 text-right ${activeMode === 'marchLE' ? 'font-black text-emerald-600 bg-emerald-50/50' : 'text-emerald-500'}`}>{formatNum(mle26)}</td>
+                                                <td className={`p-3 text-right ${activeMode === 'leCust' ? 'font-black text-purple-600 bg-purple-50/50' : 'text-purple-500'}`}>{formatNum(lCust26)}</td>
+                                                <td className={`p-3 text-right ${activeMode === 'leRC' ? 'font-black text-blue-600 bg-blue-50/50' : 'text-blue-500'}`}>{formatNum(lRc26)}</td>
+                                                <td className={`p-3 text-right ${activeMode === 'leMgmt' ? 'font-black text-orange-600 bg-orange-50/50' : 'text-orange-500'}`}>{formatNum(lMgmt26)}</td>
+                                                <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'font-black text-indigo-600 bg-indigo-50/50' : 'text-indigo-500'}`}>{formatNum(lCustom26)}</td>
+                                                <td className={`p-3 text-right font-bold border-l border-slate-100 ${vsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(vsBud)}</td>
+                                                <td className={`p-3 text-right font-bold ${vsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(vsPY)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot className="bg-slate-100 font-black text-slate-800 border-t-2 border-slate-300">
+                                    <tr>
+                                        <td className="p-3">TOTAL</td>
+                                        <td className="p-3 text-right text-slate-500">{formatNum(totA25)}</td>
+                                        <td className="p-3 text-right text-blue-700">{formatNum(totB26)}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'marchLE' ? 'text-emerald-800 bg-emerald-100' : 'text-emerald-700'}`}>{formatNum(totMarchLE)}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leCust' ? 'text-purple-800 bg-purple-100' : 'text-purple-700'}`}>{formatNum(totLeCust)}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leRC' ? 'text-blue-800 bg-blue-100' : 'text-blue-700'}`}>{formatNum(totLeRC)}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leMgmt' ? 'text-orange-800 bg-orange-100' : 'text-orange-700'}`}>{formatNum(totLeMgmt)}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'text-indigo-800 bg-indigo-100' : 'text-indigo-700'}`}>{formatNum(totLeCustom)}</td>
+                                        <td className={`p-3 text-right border-l border-slate-200 ${totVsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(totVsBud)}</td>
+                                        <td className={`p-3 text-right ${totVsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(totVsPY)}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderForecastTab = () => renderGenericForecastTab(marchLE, 'March LE Analysis', 'Projection based on March jump-off point normalized for 2025 hurricane impact.', <Icons.Wind className="text-emerald-500"/>, 'emerald', 'text-emerald-700', false, 'marchLE');
+            const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by each Customer\'s average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Users className="text-purple-500"/>, 'purple', 'text-purple-700', true, 'leCust');
+            const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap className="text-blue-500"/>, 'blue', 'text-blue-700', true, 'leRC');
+            const renderLeMgmtTab = () => renderGenericForecastTab(leMgmtGrowth, 'LE: Management Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase className="text-orange-500"/>, 'orange', 'text-orange-700', true, 'leMgmt');
+            const renderLeCustomTab = () => renderGenericForecastTab(leCustomGrowth, 'LE: Custom RC % Trend', 'Projection based on user-defined percentage adjustments applied to the remaining Budget by Rate Class.', <Icons.Sliders className="text-indigo-500"/>, 'indigo', 'text-indigo-700', true, 'leCustom', customRcControls);
+
+            const renderGlossaryTab = () => (
+                <div className="p-10 h-full overflow-y-auto custom-scroll">
+                    <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><Icons.BookOpen className="text-blue-600"/> Forecasting Scenarios Glossary</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="bg-emerald-50/50 border border-emerald-200 p-6 rounded-xl space-y-3">
+                                    <h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Icons.Wind/> March LE (Run-Rate Method)</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Projects April–December 2026 using the <em>actual</em> billed volumes from March 2026 as the jumping-off point. It shapes the remaining months by applying the 2025 seasonality curve to that March baseline.</p>
+                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Best for capturing immediate, recent shifts in run-rate. It ignores the original budget entirely, assuming that the most recent actual month is the truest indicator of current trajectory.</p>
+                                </div>
+                                <div className="bg-purple-50/50 border border-purple-200 p-6 rounded-xl space-y-3">
+                                    <h3 className="text-lg font-bold text-purple-800 flex items-center gap-2"><Icons.Users/> LE: Customer Volumetric Trend</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for <em>each individual customer</em> (Q1 2026 vs Q1 2025). This absolute volumetric difference is then added to or subtracted from that customer's remaining budgeted months.</p>
+                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Safely adjusts the granular budget for customer-specific over/under-performance.</p>
+                                </div>
+                                <div className="bg-blue-50/50 border border-blue-200 p-6 rounded-xl space-y-3">
+                                    <h3 className="text-lg font-bold text-blue-800 flex items-center gap-2"><Icons.Zap/> LE: Rate Class Volumetric Trend</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for the <em>entire Rate Class</em> (Q1 2026 vs Q1 2025). This aggregate class variance is then spread proportionally across all customers in that class based on their budget share.</p>
+                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Smooths out extreme individual customer anomalies. This is best for classes with many customers where individual account noise is high.</p>
+                                </div>
+                                <div className="bg-orange-50/50 border border-orange-200 p-6 rounded-xl space-y-3">
+                                    <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2"><Icons.Briefcase/> LE: Management Trend (Hybrid)</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> A blended approach. It uses the <em>Customer Volumetric Trend</em> for specific commercial/industrial classes (RT10, RT20, RT60) and uses the <em>Rate Class Volumetric Trend</em> for all other classes.</p>
+                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Provides a balanced, pragmatic outlook aligned with business operations. The commercial accounts are individually managed and driven by specific business decisions (thus mapped by customer trend), while residential/general classes are better forecasted via smoothed, class-wide macroeconomic trends.</p>
+                                </div>
+                                <div className="bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3 md:col-span-2">
+                                    <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders/> LE: Custom RC % Trend</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers that are applied to the remaining Budget for specific Rate Classes.</p>
+                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Used to model specific external hypotheses (e.g. "What if temperature drives residential volume 5% higher than budgeted?").</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Core Engine Mechanics</h2>
+                            <div className="space-y-4 text-sm text-slate-600">
+                                <section><h3 className="font-bold text-slate-800">Budget Proration Engine</h3><p>High-level targets are redistributed to the account level using historical weights from the "Reference Actuals" month selected in the Allocation Engine.</p></section>
+                                <section><h3 className="font-bold text-slate-800">Hurricane Normalization Toggle</h3><p>When enabled, it grosses up Oct–Dec 2025 historical volumes (e.g., dividing by 0.65 to reverse a 35% drop) to ensure the seasonal ratios used in the March LE projection represent true business-as-usual behavior.</p></section>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="flex flex-col h-full w-full bg-slate-100">
+                    <header className="bg-white border-b px-6 py-4 flex justify-between items-center shrink-0 z-20">
+                        <div>
+                            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.PieChart/> JPS Sales Analytics Model</h1>
+                            <p className="text-xs text-slate-500">Commercial Analytics | Redistribution & Forecasting Engine</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            {rawActuals.length > 0 && (
+                                <div className={`text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 ${isBudgetCommitted ? 'bg-emerald-50 text-emerald-700 border-emerald-200':'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                                    <span className={`w-2 h-2 rounded-full ${isBudgetCommitted ? 'bg-emerald-500' : 'bg-orange-400 animate-pulse'}`}></span>
+                                    {isBudgetCommitted ? 'Granular Budget Active' : 'Allocating Budget...'}
+                                </div>
+                            )}
+                            {(rawActuals.length > 0 || rawBudget.length > 0) && (
+                                <div className="flex items-center gap-2 border-l pl-4 border-slate-200">
+                                    {rawActuals.length > 0 && rawBudget.length > 0 && (
+                                        <>
+                                            <button onClick={handleSaveVersion} className="flex items-center gap-1.5 text-sm bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg border shadow-sm transition font-medium"><Icons.Save /> Save Scenario</button>
+                                            <button onClick={() => setIsVersionModalOpen(true)} className="flex items-center gap-1.5 text-sm bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg border shadow-sm transition font-medium"><Icons.History /> Versions <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs ml-1">{savedVersions.length}</span></button>
+                                        </>
+                                    )}
+                                    <button onClick={handleClearData} className="flex items-center gap-1.5 text-sm bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg border border-red-200 shadow-sm transition font-medium" title="Clear all data and restart">
+                                        <Icons.RefreshCw /> Reset
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </header>
+
+                    <div className="flex flex-1 overflow-hidden">
+                        {/* Vertical Sidebar Tabs */}
+                        <aside className="w-56 bg-white border-r flex flex-col gap-1 p-4 shrink-0 overflow-y-auto custom-scroll z-10 shadow-sm">
+                            <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database/> Data Hub</button>
+                            {rawActuals.length > 0 && (
+                                <>
+                                    <button onClick={()=>setActiveTab('overview')} className={`dashboard-tab ${activeTab==='overview'?'active':''}`}><Icons.Activity/> Overview</button>
+                                    <button onClick={()=>setActiveTab('monthly')} className={`dashboard-tab ${activeTab==='monthly'?'active':''}`}><Icons.Calendar/> Monthly View</button>
+                                    <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator/> Allocation</button>
+                                    
+                                    <div className="h-px bg-slate-200 my-3 mx-2"></div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Forecast Scenarios</div>
+                                    
+                                    <button onClick={()=>setActiveTab('forecast')} className={`dashboard-tab ${activeTab==='forecast'?'active':''}`}><Icons.Wind/> March LE</button>
+                                    <button onClick={()=>setActiveTab('leCust')} className={`dashboard-tab ${activeTab==='leCust'?'active':''}`}><Icons.Users/> LE: Cust Vol</button>
+                                    <button onClick={()=>setActiveTab('leRC')} className={`dashboard-tab ${activeTab==='leRC'?'active':''}`}><Icons.Zap/> LE: RC Vol</button>
+                                    <button onClick={()=>setActiveTab('leMgmt')} className={`dashboard-tab ${activeTab==='leMgmt'?'active':''}`}><Icons.Briefcase/> LE: Mgmt</button>
+                                    <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders/> LE: Custom %</button>
+                                    
+                                    <div className="h-px bg-slate-200 my-3 mx-2"></div>
+                                    <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp/> Variance Matrix</button>
+                                </>
+                            )}
+                            <button onClick={()=>setActiveTab('glossary')} className={`dashboard-tab ${activeTab==='glossary'?'active':''}`}><Icons.BookOpen/> Glossary</button>
+                        </aside>
+
+                        <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+                             {rawActuals.length > 0 && ['overview', 'monthly', 'forecast', 'leCust', 'leRC', 'leMgmt', 'leCustom', 'variance'].includes(activeTab) && (
+                                <div className="bg-white border-b px-6 py-3 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto z-10 relative">
+                                    <Icons.Filter className="w-3 h-3"/> 
+                                    <div className="flex items-center gap-1 border-r pr-3">
+                                        <Icons.Calendar />
+                                        <select value={ytdMonth} onChange={e=>setYtdMonth(e.target.value)} className="bg-transparent text-blue-700 outline-none">
+                                            <option value="All">Full Year (YTD)</option>
+                                            {monthNames.map(m=><option key={m} value={m}>YTD: {m}</option>)}
+                                        </select>
+                                    </div>
+                                    <select value={fRC} onChange={e=>setFRC(e.target.value)} className="bg-transparent outline-none"><option value="All">All Rates</option>{dimensions.rcs.map(r=><option key={r}>{r}</option>)}</select>
+                                    <select value={fParish} onChange={e=>setFParish(e.target.value)} className="bg-transparent outline-none"><option value="All">All Parishes</option>{dimensions.parishes.map(p=><option key={p}>{p}</option>)}</select>
+                                    <select value={fInd} onChange={e=>setFInd(e.target.value)} className="bg-transparent outline-none"><option value="All">All Industries</option>{dimensions.inds.map(i=><option key={i}>{i}</option>)}</select>
+                                </div>
+                             )}
+
+                            <div className="flex-1 overflow-hidden relative bg-slate-50/50 z-0">
+                                <ErrorBoundary>
+                                    {activeTab === 'data' && renderDataTab()}
+                                    {activeTab === 'overview' && renderOverviewTab()}
+                                    {activeTab === 'monthly' && renderMonthlyTab()}
+                                    {activeTab === 'allocation' && renderAllocationTab()}
+                                    {activeTab === 'forecast' && renderForecastTab()}
+                                    {activeTab === 'leCust' && renderLeCustTab()}
+                                    {activeTab === 'leRC' && renderLeRCTab()}
+                                    {activeTab === 'leMgmt' && renderLeMgmtTab()}
+                                    {activeTab === 'leCustom' && renderLeCustomTab()}
+                                    {activeTab === 'variance' && renderVarianceTab()}
+                                    {activeTab === 'glossary' && renderGlossaryTab()}
+                                </ErrorBoundary>
+                            </div>
+                        </main>
+                    </div>
+
+                    {isVersionModalOpen && (
+                        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
+                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[80vh]">
+                                <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
+                                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.History/> Saved Scenarios & Versions</h2>
+                                    <button onClick={() => setIsVersionModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition"><Icons.X/></button>
+                                </div>
+                                <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+                                    {savedVersions.length === 0 ? (
+                                        <div className="text-center py-10 text-slate-500">
+                                            <Icons.Save className="w-12 h-12 mx-auto mb-3 text-slate-300"/>
+                                            <p className="font-medium">No versions saved in this session.</p>
+                                            <p className="text-sm mt-1">Save your allocation logic and overrides to quickly switch between scenarios.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {savedVersions.map(v => (
+                                                <div key={v.id} className="bg-white border rounded-xl p-4 flex items-center justify-between shadow-sm hover:border-blue-300 transition">
+                                                    <div>
+                                                        <h4 className="font-bold text-slate-800 text-lg">{v.name}</h4>
+                                                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                                                            <span><Icons.Calendar className="inline w-3 h-3 mr-1"/> {v.timestamp}</span><span className="text-slate-300">|</span>
+                                                            <span>Overrides: {Object.keys(v.allocOverrides).length + Object.keys(v.rcGrowthOverrides || {}).length}</span><span className="text-slate-300">|</span>
+                                                            <span className={v.isNormalizeHurricane ? 'text-emerald-600' : 'text-slate-400'}>Hurricane Norm: {v.isNormalizeHurricane ? 'ON' : 'OFF'}</span>
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => handleRestoreVersion(v)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition">Restore</button>
+                                                        <button onClick={() => handleDeleteVersion(v.id)} className="bg-white border hover:bg-red-50 text-red-500 p-2 rounded-lg shadow-sm transition" title="Delete"><Icons.Trash/></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="bg-slate-100 p-4 text-center text-xs text-slate-500 border-t">Note: Saved versions are stored in-memory for the current active browser session.</div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
