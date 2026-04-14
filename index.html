@@ -190,7 +190,6 @@
             ];
 
             // --- Auto-Load Local Files on Init ---
-            // Replaced spaces with %20 to avoid malformed URL errors in strict browsers
             useEffect(() => {
                 const autoLoadFiles = async () => {
                     try {
@@ -208,7 +207,6 @@
                             if(parsedBud && parsedBud.length > 0) setRawBudget(parsedBud);
                         }
                     } catch (e) {
-                        // Normally happens when opened via file:/// due to CORS
                         console.log("Could not auto-load files from root. Manual upload required.", e);
                         if (window.location.protocol === 'file:') {
                             setLoadError("Local file fetch blocked by browser. Please upload files manually or run a local web server.");
@@ -291,17 +289,26 @@
                 return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years } };
             }, [rawActuals, rawBudget, isNormalizeHurricane, rcGrowthOverrides]);
 
-            // Allocation Engine
+            // --- Updated Allocation Engine (with Quarterly Support) ---
             useEffect(() => {
                 if (rawBudget.length === 0 || isBudgetCommitted) return;
                 const bMonths = [...new Set(rawBudget.map(d => d.Month))].filter(Boolean);
                 const aMonths = [...new Set(rawActuals.map(d => d.Month))].filter(Boolean);
-                const getRef = (target) => aMonths.includes(target) ? target : (aMonths.length > 0 ? aMonths[aMonths.length-1] : '');
+                const aQuarters = [...new Set(rawActuals.map(d => {
+                    const p = parseTimeStr(d.Month);
+                    return p.year > 0 ? `Q${p.qtr} ${p.year} Average` : null;
+                }))].filter(Boolean);
+
+                const getRef = (target) => aQuarters.includes(target) ? target : (aMonths.includes(target) ? target : (aQuarters.length > 0 ? aQuarters[aQuarters.length-1] : ''));
                 const newMapping = {};
+                
                 bMonths.forEach(bm => {
-                    if (/January|February|March|April|May|June/.test(bm) && bm.includes('2026')) { newMapping[bm] = getRef('March 2026'); } 
-                    else if (/July|August|September|October|November|December/.test(bm) && bm.includes('2026')) { newMapping[bm] = getRef('June 2025'); } 
-                    else { newMapping[bm] = aMonths.length > 0 ? aMonths[aMonths.length-1] : ''; }
+                    const p = parseTimeStr(bm);
+                    if (p.year === 2026 && p.qtr <= 2) {
+                        newMapping[bm] = getRef('Q1 2026 Average');
+                    } else {
+                        newMapping[bm] = getRef('Q4 2025 Average');
+                    }
                 });
                 setMonthMapping(newMapping);
             }, [rawBudget, rawActuals, isBudgetCommitted]);
@@ -310,6 +317,7 @@
                 if (isBudgetCommitted || rawActuals.length === 0 || rawBudget.length === 0) return;
                 const allResults = [];
                 const bMonths = [...new Set(rawBudget.map(d=>d.Month))].filter(Boolean);
+                
                 bMonths.forEach(tMonth => {
                     const rMonth = monthMapping[tMonth];
                     const tBud = rawBudget.filter(d => d.Month === tMonth);
@@ -319,25 +327,55 @@
                         if (!bGroups[key]) bGroups[key] = { amount: 0 };
                         bGroups[key].amount += cleanVal(b['Sum of Budget']);
                     });
+                    
                     if (!rMonth) {
                         Object.keys(bGroups).forEach(key => { const [rc, parish] = key.split('|'); allResults.push({ targetMonth: tMonth, refMonth: 'NONE', rc, parish, acct: 'UNALLOCATED', name: 'NO MAPPING', industry: 'Unallocated', finalA: bGroups[key].amount, weight: 1, override: '-' }); });
                         return;
                     }
-                    const rAct = rawActuals.filter(d => d.Month === rMonth);
+                    
+                    // Support for Quarterly Averages filtering
+                    const isQuarter = rMonth.includes('Average');
+                    const filteredActs = isQuarter 
+                        ? rawActuals.filter(a => {
+                            const p = parseTimeStr(a.Month);
+                            return `Q${p.qtr} ${p.year} Average` === rMonth;
+                          })
+                        : rawActuals.filter(a => a.Month === rMonth);
+
                     const aGroups = {};
-                    rAct.forEach(a => {
-                        const key = `${a['Rate category'] || 'Unassigned'}|${a['Updated Parish'] || 'Unassigned'}`;
-                        if (!aGroups[key]) aGroups[key] = [];
-                        aGroups[key].push({ ...a, weightObj: Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump'])) });
+                    filteredActs.forEach(a => {
+                        const groupKey = `${a['Rate category'] || 'Unassigned'}|${a['Updated Parish'] || 'Unassigned'}`;
+                        const custKey = a['JPS A/c'];
+                        
+                        if (!aGroups[groupKey]) aGroups[groupKey] = { totalWeight: 0, customers: {} };
+                        if (!aGroups[groupKey].customers[custKey]) {
+                            aGroups[groupKey].customers[custKey] = { acct: custKey, name: a['Name'], industry: a['Industry'], weightObj: 0 };
+                        }
+                        
+                        const val = Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump']));
+                        aGroups[groupKey].customers[custKey].weightObj += val;
+                        aGroups[groupKey].totalWeight += val;
                     });
+
                     Object.keys(bGroups).forEach(key => {
-                        const [rc, parish] = key.split('|'); const totB = bGroups[key].amount; const acts = aGroups[key] || [];
-                        const groupTotAct = acts.reduce((sum, a) => sum + a.weightObj, 0);
-                        if(groupTotAct === 0) { allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: 'UNALLOCATED', name: 'NO HISTORY', industry: 'Unallocated', finalA: totB, weight: 1, override: '-' }); return; }
-                        acts.forEach(a => {
-                            const w = a.weightObj / groupTotAct; let finalVal = totB * w; let overrideStr = '-';
-                            if (allocOverrides[a['Industry']]) { finalVal *= (1 + (allocOverrides[a['Industry']] / 100)); overrideStr = `${allocOverrides[a['Industry']]}%`; }
-                            allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: a['JPS A/c'], name: a['Name'], industry: a['Industry'], finalA: finalVal, weight: w, override: overrideStr });
+                        const [rc, parish] = key.split('|'); 
+                        const totB = bGroups[key].amount; 
+                        const groupData = aGroups[key];
+                        
+                        if (!groupData || groupData.totalWeight === 0) { 
+                            allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: 'UNALLOCATED', name: 'NO HISTORY', industry: 'Unallocated', finalA: totB, weight: 1, override: '-' }); 
+                            return; 
+                        }
+                        
+                        Object.values(groupData.customers).forEach(c => {
+                            const w = c.weightObj / groupData.totalWeight; 
+                            let finalVal = totB * w; 
+                            let overrideStr = '-';
+                            if (allocOverrides[c.industry]) { 
+                                finalVal *= (1 + (allocOverrides[c.industry] / 100)); 
+                                overrideStr = `${allocOverrides[c.industry]}%`; 
+                            }
+                            allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: c.acct, name: c.name, industry: c.industry, finalA: finalVal, weight: w, override: overrideStr });
                         });
                     });
                 });
@@ -686,56 +724,69 @@
                 );
             };
 
-            const renderAllocationTab = () => (
-                <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
-                    <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between">
-                        <div>
-                            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icons.Calculator/> Budget Proration & Redistribution Engine</h3>
-                            <p className="text-sm text-slate-500">Maps high-level budget targets to customer level based on historical Actuals.</p>
+            const renderAllocationTab = () => {
+                const aMonths = [...new Set(rawActuals.map(d => d.Month))].filter(Boolean);
+                const aQuarters = [...new Set(rawActuals.map(d => {
+                    const p = parseTimeStr(d.Month);
+                    return p.year > 0 ? `Q${p.qtr} ${p.year} Average` : null;
+                }))].filter(Boolean);
+                const refOptions = [...aQuarters, ...aMonths];
+
+                return (
+                    <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
+                        <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icons.Calculator/> Budget Proration & Redistribution Engine</h3>
+                                <p className="text-sm text-slate-500">Maps high-level budget targets to customer level based on historical Actuals (Months or Quarterly Averages).</p>
+                            </div>
+                            {isBudgetCommitted ? (
+                                <button onClick={()=>setIsBudgetCommitted(false)} className="bg-slate-100 text-slate-800 px-6 py-2 rounded-lg font-bold border hover:bg-slate-200 transition">Unlock Allocation</button>
+                            ) : (
+                                <button onClick={commitAllocation} disabled={allocationResults.length === 0} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-emerald-700 transition disabled:opacity-50">Apply Granular Budget</button>
+                            )}
                         </div>
-                        {isBudgetCommitted ? (
-                            <button onClick={()=>setIsBudgetCommitted(false)} className="bg-slate-100 text-slate-800 px-6 py-2 rounded-lg font-bold border hover:bg-slate-200 transition">Unlock Allocation</button>
-                        ) : (
-                            <button onClick={commitAllocation} disabled={allocationResults.length === 0} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-emerald-700 transition disabled:opacity-50">Apply Granular Budget</button>
-                        )}
-                    </div>
-                    <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${isBudgetCommitted ? 'opacity-60 pointer-events-none' : ''}`}>
-                        <div className="bg-white p-5 rounded-xl border shadow-sm">
-                            <h4 className="font-bold mb-4 flex items-center gap-2 text-blue-700">Month-to-Month Baseline Mapping</h4>
-                            <div className="max-h-[300px] overflow-y-auto custom-scroll pr-2">
-                                <table className="w-full text-sm">
-                                    <thead className="sticky top-0 bg-slate-50 border-b"><tr><th className="p-2 text-left text-slate-500">Budget Month</th><th className="p-2 text-left text-slate-500">Reference Actuals</th></tr></thead>
-                                    <tbody>
-                                        {Object.keys(monthMapping).map(bm => (
-                                            <tr key={bm} className="border-b">
-                                                <td className="p-2 font-medium">{bm}</td>
-                                                <td className="p-2"><select value={monthMapping[bm]} onChange={e => setMonthMapping(p => ({...p, [bm]: e.target.value}))} className="w-full border rounded px-2 py-1 bg-white outline-none">{[...new Set(rawActuals.map(d=>d.Month))].map(am => <option key={am} value={am}>{am}</option>)}</select></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${isBudgetCommitted ? 'opacity-60 pointer-events-none' : ''}`}>
+                            <div className="bg-white p-5 rounded-xl border shadow-sm">
+                                <h4 className="font-bold mb-4 flex items-center gap-2 text-blue-700">Month-to-Month Baseline Mapping</h4>
+                                <div className="max-h-[300px] overflow-y-auto custom-scroll pr-2">
+                                    <table className="w-full text-sm">
+                                        <thead className="sticky top-0 bg-slate-50 border-b"><tr><th className="p-2 text-left text-slate-500">Budget Month</th><th className="p-2 text-left text-slate-500">Reference Actuals</th></tr></thead>
+                                        <tbody>
+                                            {Object.keys(monthMapping).map(bm => (
+                                                <tr key={bm} className="border-b">
+                                                    <td className="p-2 font-medium">{bm}</td>
+                                                    <td className="p-2">
+                                                        <select value={monthMapping[bm] || ''} onChange={e => setMonthMapping(p => ({...p, [bm]: e.target.value}))} className="w-full border rounded px-2 py-1 bg-white outline-none">
+                                                            {refOptions.map(o => <option key={o} value={o}>{o}</option>)}
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div className="bg-white p-5 rounded-xl border shadow-sm h-fit">
+                                 <h4 className="font-bold mb-4 flex items-center gap-2 text-purple-700">Industry Growth Adjustments (%)</h4>
+                                 <div className="flex gap-2 mb-4">
+                                    <select id="ind-sel" className="flex-1 border rounded px-3 py-2 text-sm bg-white outline-none">{dimensions.inds.map(i => <option key={i}>{i}</option>)}</select>
+                                    <input id="ind-val" type="number" placeholder="%" className="w-20 border rounded px-3 py-2 text-sm" />
+                                    <button onClick={() => { const i = document.getElementById('ind-sel').value; const v = document.getElementById('ind-val').value; if(i && v) setAllocOverrides(p => ({...p, [i]: parseFloat(v)})); }} className="bg-slate-800 text-white px-4 rounded font-bold hover:bg-slate-900 transition">+</button>
+                                 </div>
+                                 <div className="space-y-2">
+                                    {Object.entries(allocOverrides).map(([ind, val]) => (
+                                        <div key={ind} className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded border border-slate-100">
+                                            <span className="font-medium text-slate-700">{ind}</span>
+                                            <span className={`font-bold ${val>=0?'text-emerald-600':'text-red-500'}`}>{val}%</span>
+                                            <button onClick={() => { const c = {...allocOverrides}; delete c[ind]; setAllocOverrides(c); }} className="text-red-400 hover:text-red-600">Remove</button>
+                                        </div>
+                                    ))}
+                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white p-5 rounded-xl border shadow-sm h-fit">
-                             <h4 className="font-bold mb-4 flex items-center gap-2 text-purple-700">Industry Growth Adjustments (%)</h4>
-                             <div className="flex gap-2 mb-4">
-                                <select id="ind-sel" className="flex-1 border rounded px-3 py-2 text-sm bg-white outline-none">{dimensions.inds.map(i => <option key={i}>{i}</option>)}</select>
-                                <input id="ind-val" type="number" placeholder="%" className="w-20 border rounded px-3 py-2 text-sm" />
-                                <button onClick={() => { const i = document.getElementById('ind-sel').value; const v = document.getElementById('ind-val').value; if(i && v) setAllocOverrides(p => ({...p, [i]: parseFloat(v)})); }} className="bg-slate-800 text-white px-4 rounded font-bold hover:bg-slate-900 transition">+</button>
-                             </div>
-                             <div className="space-y-2">
-                                {Object.entries(allocOverrides).map(([ind, val]) => (
-                                    <div key={ind} className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded border border-slate-100">
-                                        <span className="font-medium text-slate-700">{ind}</span>
-                                        <span className={`font-bold ${val>=0?'text-emerald-600':'text-red-500'}`}>{val}%</span>
-                                        <button onClick={() => { const c = {...allocOverrides}; delete c[ind]; setAllocOverrides(c); }} className="text-red-400 hover:text-red-600">Remove</button>
-                                    </div>
-                                ))}
-                             </div>
-                        </div>
                     </div>
-                </div>
-            );
+                );
+            };
 
             const renderVarianceTab = () => {
                 if (!isBudgetCommitted) return <div className="p-10 text-center text-slate-400 font-bold">Commit Budget in Allocation Engine to enable Variance Matrix.</div>;
