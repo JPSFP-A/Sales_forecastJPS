@@ -422,7 +422,11 @@
 
             // --- GitHub API Push Action ---
             const saveForecastToGitHub = async (csvDataArray, filename) => {
-                if (!githubConfig.token || !githubConfig.owner || !githubConfig.repo) {
+                const token = githubConfig.token.trim();
+                const owner = githubConfig.owner.trim();
+                const repo = githubConfig.repo.trim();
+
+                if (!token || !owner || !repo) {
                     alert("Please configure your GitHub API Token, Owner, and Repo in the Data Hub first.");
                     setActiveTab('data');
                     return;
@@ -439,11 +443,17 @@
                     // Base64 Encoding suitable for GitHub API (safely handles spaces and special chars)
                     const base64Content = btoa(unescape(encodeURIComponent(csvString)));
                     const path = `${filename}.csv`;
-                    const url = `https://api.github.com/repos/${githubConfig.owner}/${githubConfig.repo}/contents/${path}`;
+                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
                     // Check if file exists to get SHA
                     let fileSha = null;
-                    const getRes = await fetch(url, { headers: { 'Authorization': `token ${githubConfig.token}` } });
+                    const getRes = await fetch(url, { 
+                        headers: { 
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        } 
+                    });
+                    
                     if (getRes.ok) {
                         const fileData = await getRes.json();
                         fileSha = fileData.sha;
@@ -459,7 +469,8 @@
                     const putRes = await fetch(url, {
                         method: 'PUT',
                         headers: {
-                            'Authorization': `token ${githubConfig.token}`,
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/vnd.github.v3+json',
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify(body)
@@ -469,7 +480,11 @@
                         alert(`Successfully pushed ${filename}.csv to GitHub repository!`);
                     } else {
                         const err = await putRes.json();
-                        alert(`Failed to save to GitHub: ${err.message}`);
+                        if (putRes.status === 404) {
+                            alert(`Failed to save: "Not Found" (404).\n\nCauses:\n1. Your Personal Access Token does NOT have the 'repo' scope checked.\n2. Typo in Repository Owner or Name.\n3. The token is invalid/expired.`);
+                        } else {
+                            alert(`Failed to save to GitHub: ${err.message}`);
+                        }
                     }
                 } catch (error) {
                     console.error("GitHub API Error:", error);
@@ -771,7 +786,7 @@
                         <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[450px] shrink-0 shadow-sm">
                             <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Monthly Trend & Scenarios (kWh)</div>
                             {renderGraphToggles()}
-                            <div className="flex-1 min-h-0 mt-2">
+                            <div className="w-full h-[400px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={monthlyAggregates}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
