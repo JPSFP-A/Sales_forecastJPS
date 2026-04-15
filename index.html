@@ -178,6 +178,7 @@
             const [isPushing, setIsPushing] = useState(false);
             const [isSyncingConfigs, setIsSyncingConfigs] = useState(false);
             const [hasAutoRestored, setHasAutoRestored] = useState(false);
+            const [hasAutoAllocated, setHasAutoAllocated] = useState(false);
 
             // Filters & State
             const [ytdMonth, setYtdMonth] = useState('All');
@@ -528,10 +529,11 @@
             }, [allocationResults, rawBudget, originalBudget]);
 
             useEffect(() => {
-                if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0) {
+                if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0 && !hasAutoAllocated) {
                     commitAllocation();
+                    setHasAutoAllocated(true);
                 }
-            }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation]);
+            }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation, hasAutoAllocated]);
 
             const unlockAllocation = () => {
                 if(originalBudget.length > 0) {
@@ -907,6 +909,7 @@
                 setAllocationResults([]);
                 setSavedVersions([]);
                 setHasAutoRestored(false);
+                setHasAutoAllocated(false);
                 setActiveTab('data');
             };
 
@@ -1140,7 +1143,35 @@
             );
 
             const renderOverviewTab = () => {
-                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLE = getFiltered(marchLE);
+                const totA25 = monthlyAggregates.reduce((s,d)=>s+d.Act25,0);
+                const totB26 = monthlyAggregates.reduce((s,d)=>s+d.Bud26,0);
+                const totMarchLE = monthlyAggregates.reduce((s,d)=>s+d.MarchLE,0);
+                const totLeCust = monthlyAggregates.reduce((s,d)=>s+d.LeCust,0);
+                const totLeRC = monthlyAggregates.reduce((s,d)=>s+d.LeRC,0);
+                const totLeMgmt = monthlyAggregates.reduce((s,d)=>s+d.LeMgmt,0);
+                const totLeCustom = monthlyAggregates.reduce((s,d)=>s+d.LeCustom,0);
+
+                const renderOutlookRow = (title, val, bud, bgClass, textClass, borderClass) => {
+                    const variance = bud ? (val - bud) / bud : 0;
+                    const varText = formatPct(variance);
+                    const varColor = variance >= 0 ? 'text-emerald-600' : 'text-red-500';
+                    const sign = variance > 0 ? '+' : '';
+
+                    return (
+                        <div className={`p-3 rounded-xl border ${bgClass} ${borderClass} flex justify-between items-center`}>
+                            <div>
+                                <div className={`text-[10px] font-bold uppercase mb-0.5 ${textClass}`}>{title}</div>
+                                <div className={`text-xl font-black ${textClass}`}>{formatNum(val)}</div>
+                            </div>
+                            <div className="text-right">
+                                <div className={`text-xs font-bold px-2 py-1 rounded-md bg-white shadow-sm ${varColor}`}>
+                                    {sign}{varText} vs Bud
+                                </div>
+                            </div>
+                        </div>
+                    );
+                };
+
                 return (
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
                         {!isBudgetCommitted && (
@@ -1173,21 +1204,26 @@
                                     </ResponsiveContainer>
                                 </div>
                             </div>
-                            <div className="bg-white rounded-xl border p-5 space-y-6 shadow-sm">
-                                <h3 className="font-bold text-slate-800 border-b pb-2">Fiscal Year Outlook</h3>
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                                        <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">March LE (Projected Total)</div>
-                                        <div className="text-2xl font-black text-emerald-800">{formatNum(fLE.reduce((s,d)=>s+d.kwh,0))}</div>
+                            <div className="bg-white rounded-xl border p-5 space-y-4 shadow-sm flex flex-col max-h-[600px]">
+                                <h3 className="font-bold text-slate-800 border-b pb-2 shrink-0">Fiscal Year Outlook</h3>
+                                
+                                <div className="grid grid-cols-2 gap-3 shrink-0">
+                                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                        <div className="text-[10px] text-blue-600 font-bold uppercase mb-1">Budget FY</div>
+                                        <div className="text-xl font-black text-blue-800">{formatNum(totB26)}</div>
                                     </div>
-                                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                                        <div className="text-[10px] text-blue-600 font-bold uppercase mb-1">Budget FY (Granular)</div>
-                                        <div className="text-2xl font-black text-blue-800">{formatNum(fBud.reduce((s,d)=>s+d.kwh,0))}</div>
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">2025 Actuals</div>
+                                        <div className="text-xl font-black text-slate-700">{formatNum(totA25)}</div>
                                     </div>
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Prior Year Actuals (2025)</div>
-                                        <div className="text-2xl font-black text-slate-600">{formatNum(fAct.filter(d=>d.year===2025).reduce((s,d)=>s+d.kwh,0))}</div>
-                                    </div>
+                                </div>
+
+                                <div className="space-y-3 overflow-y-auto custom-scroll pr-1 flex-1 pb-2">
+                                    {renderOutlookRow('March LE', totMarchLE, totB26, 'bg-emerald-50', 'text-emerald-800', 'border-emerald-100')}
+                                    {renderOutlookRow('LE Cust Vol', totLeCust, totB26, 'bg-purple-50', 'text-purple-800', 'border-purple-100')}
+                                    {renderOutlookRow('LE RC Vol', totLeRC, totB26, 'bg-sky-50', 'text-sky-800', 'border-sky-100')}
+                                    {renderOutlookRow('LE Mgmt', totLeMgmt, totB26, 'bg-orange-50', 'text-orange-800', 'border-orange-100')}
+                                    {renderOutlookRow('LE Advanced', totLeCustom, totB26, 'bg-indigo-50', 'text-indigo-800', 'border-indigo-100')}
                                 </div>
                             </div>
                         </div>
@@ -1302,7 +1338,10 @@
                             {isBudgetCommitted ? (
                                 <button onClick={unlockAllocation} className="bg-slate-100 text-slate-800 px-6 py-2 rounded-lg font-bold border hover:bg-slate-200 transition shadow-sm">Unlock Allocation</button>
                             ) : (
-                                <button onClick={commitAllocation} disabled={allocationResults.length === 0} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-emerald-700 transition disabled:opacity-50">Apply Granular Budget</button>
+                                <div className="flex gap-3">
+                                    <button onClick={commitAllocation} disabled={allocationResults.length === 0} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-emerald-700 transition disabled:opacity-50">Apply Granular Budget</button>
+                                    <button onClick={() => { commitAllocation(); setTimeout(() => handleSaveVersion(), 100); }} disabled={allocationResults.length === 0} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"><Icons.Save /> Apply & Save</button>
+                                </div>
                             )}
                         </div>
                         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${isBudgetCommitted ? 'opacity-60 pointer-events-none' : ''}`}>
