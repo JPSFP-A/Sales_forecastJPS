@@ -148,7 +148,6 @@
         };
 
         function App() {
-            // SET OVERVIEW AS THE DEFAULT TAB
             const [activeTab, setActiveTab] = useState('overview');
 
             // --- GITHUB CONFIGURATION ---
@@ -191,8 +190,6 @@
 
             const [monthMapping, setMonthMapping] = useState({});
             const [allocOverrides, setAllocOverrides] = useState({});
-            
-            // Advanced Overrides Form State (Moved from inner function to avoid hook crashes)
             const [advOverrideDim, setAdvOverrideDim] = useState('rc');
             const [advOverrideKey, setAdvOverrideKey] = useState('');
             const [advOverrideVal, setAdvOverrideVal] = useState('');
@@ -210,7 +207,7 @@
             const [moversRC, setMoversRC] = useState('All');
             const [moversTimeFrame, setMoversTimeFrame] = useState('FY'); 
             const [expandedPivotRC, setExpandedPivotRC] = useState(null);
-            const [varianceComments, setVarianceComments] = useState({}); // Stores explanations
+            const [varianceComments, setVarianceComments] = useState({}); 
 
             // Version Manager
             const [savedVersions, setSavedVersions] = useState([]);
@@ -231,55 +228,152 @@
                 { key: 'leCustom', label: 'LE Advanced', activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' }
             ];
 
-            // 1. SILENT BOOT SEQUENCE
+            // 1. DATA LOAD & CLOUD SYNC METHOD
+            const fetchCloudData = async (silent = false) => {
+                const token = githubConfig.token.trim();
+                const owner = githubConfig.owner.trim();
+                const repo = githubConfig.repo.trim();
+
+                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
+                    if (!silent) alert("Please enter valid GitHub API credentials.");
+                    return false;
+                }
+
+                if (!silent) setIsLoadingUrl({ budget: true, actuals: true });
+                let loadedSomething = false;
+
+                try {
+                    const fetchRaw = async (filename) => {
+                        const urls = [
+                            `https://raw.githubusercontent.com/${owner}/${repo}/main/${filename}`,
+                            `https://raw.githubusercontent.com/${owner}/${repo}/master/${filename}`
+                        ];
+                        for (const url of urls) {
+                            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                            if (res.ok) return await res.text();
+                        }
+                        return null;
+                    };
+
+                    const actText = await fetchRaw('JPS%20Actuals%20data.csv');
+                    if (actText) {
+                        setRawActuals(parseCSV(actText));
+                        loadedSomething = true;
+                    }
+
+                    const budText = await fetchRaw('JPS%20Budget%202026%20data.csv');
+                    if (budText) {
+                        const pb = parseCSV(budText);
+                        setRawBudget(pb);
+                        setOriginalBudget([...pb]);
+                        loadedSomething = true;
+                    }
+                    
+                    const configRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/dashboard_scenarios.json`, { 
+                        headers: { 'Authorization': `Bearer ${token}` } 
+                    });
+                    
+                    if (configRes.ok) {
+                        const fileData = await configRes.json();
+                        const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
+                        const parsed = JSON.parse(decodedContent);
+                        if (Array.isArray(parsed)) setSavedVersions(parsed);
+                        else {
+                            setSavedVersions(parsed.versions || []);
+                            setVarianceComments(parsed.comments || {});
+                        }
+                    }
+
+                    if (!silent && loadedSomething) alert("Data successfully synced from GitHub!");
+                    else if (!silent && !loadedSomething) alert("Connected to GitHub, but could not find the CSV files in the repository root. Please ensure they are named exactly 'JPS Actuals data.csv' and 'JPS Budget 2026 data.csv'");
+                    
+                    return loadedSomething;
+                } catch (e) {
+                    console.error("Cloud Sync Error", e);
+                    if (!silent) alert("Failed to fetch from GitHub. Check your token permissions and repo details.");
+                    return false;
+                } finally {
+                    if (!silent) setIsLoadingUrl({ budget: false, actuals: false });
+                }
+            };
+
+            // 2. SILENT BOOT SEQUENCE
             useEffect(() => {
                 let isMounted = true;
 
                 const bootApp = async () => {
-                    try {
-                        const actRes = await fetch('./JPS%20Actuals%20data.csv');
-                        if (actRes.ok) {
-                            const actText = await actRes.text();
-                            const parsedAct = parseCSV(actText);
-                            if(parsedAct && parsedAct.length > 0 && isMounted) setRawActuals(parsedAct);
-                        }
-                        
-                        const budRes = await fetch('./JPS%20Budget%202026%20data.csv');
-                        if (budRes.ok) {
-                            const budText = await budRes.text();
-                            const parsedBud = parseCSV(budText);
-                            if(parsedBud && parsedBud.length > 0 && isMounted) {
-                                setRawBudget(parsedBud);
-                                setOriginalBudget([...parsedBud]);
-                            }
-                        }
-                    } catch (e) {
-                        console.log("Could not auto-load files from root.", e);
-                        if (window.location.protocol === 'file:' && isMounted) {
-                            setLoadError("Local file fetch blocked by browser security. Please run a local server or use the manual file inputs in the Data Hub.");
-                        }
-                    }
+                    const savedStr = localStorage.getItem('jps_github_config');
+                    const savedCfg = savedStr ? JSON.parse(savedStr) : null;
+                    let cloudSuccess = false;
 
-                    if (githubConfig.token && githubConfig.owner && githubConfig.repo && !githubConfig.token.includes('YOUR_TOKEN')) {
+                    // A: Try Cloud First if configured
+                    if (savedCfg && savedCfg.token && savedCfg.owner && savedCfg.repo && !savedCfg.token.includes('YOUR_TOKEN')) {
                         try {
-                            const path = `dashboard_scenarios.json`;
-                            const url = `https://api.github.com/repos/${githubConfig.owner.trim()}/${githubConfig.repo.trim()}/contents/${path}`;
-                            const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${githubConfig.token.trim()}` } });
-                            if (getRes.ok && isMounted) {
-                                const fileData = await getRes.json();
+                            const token = savedCfg.token.trim();
+                            const owner = savedCfg.owner.trim();
+                            const repo = savedCfg.repo.trim();
+
+                            const fetchRaw = async (filename) => {
+                                const urls = [
+                                    `https://raw.githubusercontent.com/${owner}/${repo}/main/${filename}`,
+                                    `https://raw.githubusercontent.com/${owner}/${repo}/master/${filename}`
+                                ];
+                                for (const url of urls) {
+                                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                                    if (res.ok) return await res.text();
+                                }
+                                return null;
+                            };
+
+                            const actText = await fetchRaw('JPS%20Actuals%20data.csv');
+                            if (actText && isMounted) {
+                                setRawActuals(parseCSV(actText));
+                                cloudSuccess = true;
+                            }
+
+                            const budText = await fetchRaw('JPS%20Budget%202026%20data.csv');
+                            if (budText && isMounted) {
+                                const pb = parseCSV(budText);
+                                setRawBudget(pb);
+                                setOriginalBudget([...pb]);
+                                cloudSuccess = true;
+                            }
+
+                            const configRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/dashboard_scenarios.json`, { 
+                                headers: { 'Authorization': `Bearer ${token}` } 
+                            });
+                            if (configRes.ok && isMounted) {
+                                const fileData = await configRes.json();
                                 const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
                                 const parsed = JSON.parse(decodedContent);
-                                
-                                // Support new and legacy config formats
-                                if (Array.isArray(parsed)) {
-                                    setSavedVersions(parsed);
-                                } else {
+                                if (Array.isArray(parsed)) setSavedVersions(parsed);
+                                else {
                                     setSavedVersions(parsed.versions || []);
                                     setVarianceComments(parsed.comments || {});
                                 }
                             }
                         } catch (e) {
-                            console.log("No cloud scenarios found or failed to fetch config on boot.", e);
+                            console.log("Boot cloud fetch failed", e);
+                        }
+                    }
+
+                    // B: Fallback to local
+                    if (!cloudSuccess && isMounted) {
+                        try {
+                            const actRes = await fetch('./JPS%20Actuals%20data.csv');
+                            if (actRes.ok) {
+                                setRawActuals(parseCSV(await actRes.text()));
+                            }
+                            
+                            const budRes = await fetch('./JPS%20Budget%202026%20data.csv');
+                            if (budRes.ok) {
+                                const pb = parseCSV(await budRes.text());
+                                setRawBudget(pb);
+                                setOriginalBudget([...pb]);
+                            }
+                        } catch (e) {
+                            console.log("Could not auto-load files locally.", e);
+                            setLoadError("Local fetch blocked by browser. Please configure GitHub Sync or use manual file upload.");
                         }
                     }
                 };
@@ -288,7 +382,7 @@
                 return () => { isMounted = false; };
             }, []);
 
-            // 2. AUTO-APPLY DEFAULT SCENARIO
+            // 3. AUTO-APPLY DEFAULT SCENARIO
             useEffect(() => {
                 if (!hasAutoRestored && originalBudget.length > 0 && rawActuals.length > 0 && savedVersions.length > 0) {
                     const defaultScenario = savedVersions.find(v => v.isDefault);
@@ -309,10 +403,8 @@
 
             // --- Engine ---
             const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
-                // Return an empty template safely if one dataset is missing
-                if (rawActuals.length === 0 && rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
+                if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
 
-                // Clean and Trim all input data carefully
                 const normA = rawActuals.map(d => ({ 
                     source: d['Source'] || 'Postpaid', 
                     rc: (d['Rate category'] || 'Unassigned').trim(), 
@@ -387,7 +479,6 @@
                     const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
                     leMgmtData.push({ ...b, source: 'LE - Management', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
 
-                    // Apply Multi-Dimensional Advanced Overrides
                     let overridePct = 0;
                     let hasOverride = false;
                     
@@ -418,14 +509,12 @@
                 return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
             }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides]);
 
-            // Initialize Advanced Override Default Key safely
             useEffect(() => {
                 if (dimensions.rcs.length > 0 && !advOverrideKey) {
                     setAdvOverrideKey(dimensions.rcs[0]);
                 }
             }, [dimensions.rcs, advOverrideKey]);
 
-            // Mapping for Allocation Setup
             useEffect(() => {
                 if (rawBudget.length === 0 || isBudgetCommitted) return;
                 const bMonths = [...new Set(rawBudget.map(d => d.Month))].filter(Boolean);
@@ -451,7 +540,6 @@
                 }
             }, [rawBudget, rawActuals, isBudgetCommitted, monthMapping]);
 
-            // Run Proration Engine
             useEffect(() => {
                 if (isBudgetCommitted || rawActuals.length === 0 || rawBudget.length === 0) return;
                 const allResults = [];
@@ -542,7 +630,6 @@
                 setIsBudgetCommitted(false);
             };
 
-            // --- Pivot View & Movers Logic ---
             const pivotState = useMemo(() => {
                 if (activeTab !== 'pivot' || actuals.length === 0) return { rcMatrix: {}, topMovers: [], bottomMovers: [] };
 
@@ -623,7 +710,6 @@
                 return { rcMatrix, topMovers, bottomMovers };
             }, [activeTab, pivotScenario, moversRC, actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, moversTimeFrame, ytdMonth]);
 
-            // --- Cloud Functions ---
             const saveForecastToGitHub = async (csvDataArray, filename) => {
                 const token = githubConfig.token.trim();
                 const owner = githubConfig.owner.trim();
@@ -686,10 +772,7 @@
                 const owner = githubConfig.owner.trim();
                 const repo = githubConfig.repo.trim();
 
-                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
-                    alert("Please enter your GitHub API credentials in the Data Hub (bottom left tab).");
-                    return;
-                }
+                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) return;
 
                 setIsSyncingConfigs(true);
                 try {
@@ -733,53 +816,12 @@
                         alert(`Failed to sync config to GitHub: ${err.message}`);
                     }
                 } catch (error) {
-                    alert("An unexpected error occurred while communicating with GitHub.");
+                    console.error("Silent sync failed", error);
                 } finally {
                     setIsSyncingConfigs(false);
                 }
             };
 
-            const pullScenariosFromCloud = async () => {
-                const token = githubConfig.token.trim();
-                const owner = githubConfig.owner.trim();
-                const repo = githubConfig.repo.trim();
-
-                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
-                    alert("Please configure your GitHub credentials in the Data Hub first.");
-                    return;
-                }
-
-                setIsSyncingConfigs(true);
-                try {
-                    const path = `dashboard_scenarios.json`;
-                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-                    const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-                    if (getRes.ok) {
-                        const fileData = await getRes.json();
-                        const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
-                        const parsed = JSON.parse(decodedContent);
-                        
-                        if (Array.isArray(parsed)) {
-                            setSavedVersions(parsed);
-                        } else {
-                            setSavedVersions(parsed.versions || []);
-                            setVarianceComments(parsed.comments || {});
-                        }
-                        alert("Cloud scenarios and comments loaded successfully.");
-                    } else if (getRes.status === 404) {
-                        alert("No 'dashboard_scenarios.json' config file found on GitHub. Push a scenario to the cloud first!");
-                    } else {
-                        alert("Failed to fetch scenarios from GitHub.");
-                    }
-                } catch (error) {
-                    alert("An unexpected error occurred while parsing cloud data.");
-                } finally {
-                    setIsSyncingConfigs(false);
-                }
-            };
-
-            // --- Handlers ---
             const handleAddComment = (companyName) => {
                 const commentKey = `${pivotScenario}|${moversTimeFrame}|${companyName}`;
                 const currentVal = varianceComments[commentKey] || '';
@@ -808,28 +850,6 @@
                     } 
                 };
                 reader.readAsText(e.target.files[0]);
-            };
-
-            const handleFetchUrl = async (url, isBudget) => {
-                if(!url) return;
-                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const text = await response.text();
-                    const data = parseCSV(text);
-                    if (isBudget) { 
-                        setRawBudget(data); 
-                        setOriginalBudget([...data]); 
-                        setIsBudgetCommitted(false); 
-                    } else { 
-                        setRawActuals(data); 
-                    }
-                } catch (e) {
-                    alert('Error fetching file: ' + e.message);
-                } finally {
-                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
-                }
             };
 
             const handleSaveVersion = () => {
@@ -960,7 +980,6 @@
                 </div>
             );
 
-            // Advanced Overrides UI
             const renderAdvOverridesUI = () => {
                 const dimLabels = { rc: 'Rate Class', industry: 'Industry', customer: 'Customer', month: 'Month' };
                 const dimOptions = {
@@ -1058,13 +1077,17 @@
                 );
             };
 
+            const fetchCloudDataFromButton = async () => {
+                await fetchCloudData(false);
+            };
+
             // --- TABS ---
             const renderDataTab = () => (
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
                         <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub Team Sync & API Config</h3>
-                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage, not in the file.</strong></p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage, not in the HTML file.</strong></p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
                                 <input type="password" value={githubConfig.token} onChange={e=>updateGithubConfig('token', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
@@ -1078,35 +1101,26 @@
                                 <input type="text" value={githubConfig.repo} onChange={e=>updateGithubConfig('repo', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
                             </div>
                         </div>
+                        <button onClick={fetchCloudDataFromButton} disabled={isLoadingUrl.actuals} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2">
+                            <Icons.RefreshCw /> {isLoadingUrl.actuals ? 'Syncing...' : 'Sync All Data & Configs from GitHub'}
+                        </button>
                     </div>
 
                     <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
-                        <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data to Engine</h2>
-                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files or let the system fetch directly from GitHub Raw URLs.</p>
+                        <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data Manually</h2>
+                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files if you are not using the automated GitHub connection above.</p>
                         
-                        {loadError ? (
+                        {loadError && (
                             <p className="text-xs text-red-600 font-bold mb-8 bg-red-50 py-1.5 px-4 rounded-full inline-block border border-red-200">{loadError}</p>
-                        ) : (
-                            <p className="text-xs text-blue-500 font-bold mb-8 bg-blue-50 py-1.5 px-4 rounded-full inline-block">The engine will auto-load files from the root directory if found.</p>
                         )}
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-left">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-left mt-8">
                             <div className="bg-blue-50/30 p-6 rounded-xl border border-blue-100 flex flex-col justify-between">
                                 <div>
                                     <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Activity/> 1. High-Level Budget</h3>
                                     <p className="text-xs text-slate-500 mb-4">Required format: JPS Budget 2026 data.csv</p>
                                     <input type="file" accept=".csv" onChange={e => handleFileUpload(e, true)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer w-full text-slate-600 mb-4" />
-                                </div>
-                                <div className="mt-4 pt-4 border-t border-blue-200">
-                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
-                                    <div className="flex gap-2">
-                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={budgetUrl} onChange={e=>setBudgetUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-blue-400"/>
-                                        <button onClick={()=>handleFetchUrl(budgetUrl, true)} disabled={!budgetUrl || isLoadingUrl.budget} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
-                                            {isLoadingUrl.budget ? 'Fetching...' : 'Fetch'}
-                                        </button>
-                                    </div>
-                                    {rawBudget.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Budget Loaded ({rawBudget.length} rows)</p>}
                                 </div>
                             </div>
                             
@@ -1115,16 +1129,6 @@
                                     <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> 2. Detailed Actuals</h3>
                                     <p className="text-xs text-slate-500 mb-4">Required format: JPS Actuals data.csv</p>
                                     <input type="file" accept=".csv" onChange={e => handleFileUpload(e, false)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer w-full text-slate-600 mb-4" />
-                                </div>
-                                <div className="mt-4 pt-4 border-t border-purple-200">
-                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
-                                    <div className="flex gap-2">
-                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={actualsUrl} onChange={e=>setActualsUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-purple-400"/>
-                                        <button onClick={()=>handleFetchUrl(actualsUrl, false)} disabled={!actualsUrl || isLoadingUrl.actuals} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
-                                            {isLoadingUrl.actuals ? 'Fetching...' : 'Fetch'}
-                                        </button>
-                                    </div>
-                                    {rawActuals.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Actuals Loaded ({rawActuals.length} rows)</p>}
                                 </div>
                             </div>
                         </div>
