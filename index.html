@@ -191,6 +191,10 @@
             const [monthMapping, setMonthMapping] = useState({});
             const [allocOverrides, setAllocOverrides] = useState({});
             
+            // Advanced Overrides Form State (Moved from inner function to avoid hook crashes)
+            const [advOverrideDim, setAdvOverrideDim] = useState('rc');
+            const [advOverrideKey, setAdvOverrideKey] = useState('');
+            const [advOverrideVal, setAdvOverrideVal] = useState('');
             const [advOverrides, setAdvOverrides] = useState({ customer: {}, rc: {}, industry: {}, month: {} });
             
             const [allocationResults, setAllocationResults] = useState([]);
@@ -200,11 +204,12 @@
             const [expandedRow, setExpandedRow] = useState(null);
             const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
 
-            // Pivot State
+            // Pivot State & Explanations
             const [pivotScenario, setPivotScenario] = useState('leMgmt');
             const [moversRC, setMoversRC] = useState('All');
-            const [moversTimeFrame, setMoversTimeFrame] = useState('FY'); // NEW: MTD/YTD/FY Filter
+            const [moversTimeFrame, setMoversTimeFrame] = useState('FY'); 
             const [expandedPivotRC, setExpandedPivotRC] = useState(null);
+            const [varianceComments, setVarianceComments] = useState({}); // Stores explanations
 
             // Version Manager
             const [savedVersions, setSavedVersions] = useState([]);
@@ -262,8 +267,15 @@
                             if (getRes.ok && isMounted) {
                                 const fileData = await getRes.json();
                                 const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
-                                const parsedScenarios = JSON.parse(decodedContent);
-                                setSavedVersions(parsedScenarios);
+                                const parsed = JSON.parse(decodedContent);
+                                
+                                // Support new and legacy config formats
+                                if (Array.isArray(parsed)) {
+                                    setSavedVersions(parsed);
+                                } else {
+                                    setSavedVersions(parsed.versions || []);
+                                    setVarianceComments(parsed.comments || {});
+                                }
                             }
                         } catch (e) {
                             console.log("No cloud scenarios found or failed to fetch config on boot.", e);
@@ -296,9 +308,10 @@
 
             // --- Engine ---
             const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
-                if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
+                // Return an empty template safely if one dataset is missing
+                if (rawActuals.length === 0 && rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
 
-                // Clean and Trim all input data carefully so 'EV ' trailing spaces are caught
+                // Clean and Trim all input data carefully
                 const normA = rawActuals.map(d => ({ 
                     source: d['Source'] || 'Postpaid', 
                     rc: (d['Rate category'] || 'Unassigned').trim(), 
@@ -377,7 +390,6 @@
                     let overridePct = 0;
                     let hasOverride = false;
                     
-                    // Strict Priority Hierarchy: Customer > Month > Industry > RC
                     if (advOverrides.customer && advOverrides.customer[b.name] !== undefined) {
                         overridePct = advOverrides.customer[b.name];
                         hasOverride = true;
@@ -400,12 +412,17 @@
                 const parishes = [...new Set([...normA, ...normB].map(d => d.parish))].sort();
                 const inds = [...new Set(normA.map(d => d.industry))].sort();
                 const years = [...new Set([...normA, ...normB].map(d => d.year))].filter(y=>y>0).sort();
-                
-                // Filter out generic rollups for the customer dropdown so it looks clean
                 const customers = [...new Set([...normA, ...normB].map(d => d.name))].filter(n => n && n !== 'Unassigned' && n !== 'Unallocated').sort();
 
                 return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
             }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides]);
+
+            // Initialize Advanced Override Default Key safely
+            useEffect(() => {
+                if (dimensions.rcs.length > 0 && !advOverrideKey) {
+                    setAdvOverrideKey(dimensions.rcs[0]);
+                }
+            }, [dimensions.rcs, advOverrideKey]);
 
             // Mapping for Allocation Setup
             useEffect(() => {
@@ -659,8 +676,9 @@
                 }
             };
 
-            const pushScenariosToCloud = async (versionsOverride = null) => {
+            const pushScenariosToCloud = async (versionsOverride = null, commentsOverride = null) => {
                 const versionsToPush = versionsOverride || savedVersions;
+                const commentsToPush = commentsOverride || varianceComments;
                 
                 const token = githubConfig.token.trim();
                 const owner = githubConfig.owner.trim();
@@ -670,23 +688,22 @@
                     alert("Please enter your GitHub API credentials in the Data Hub (bottom left tab).");
                     return;
                 }
-                if (versionsToPush.length === 0) {
-                    alert("You have no saved scenarios to push. Save a version first.");
-                    return;
-                }
 
                 setIsSyncingConfigs(true);
                 try {
-                    const payloadToSave = versionsToPush.map(v => ({
-                        id: v.id,
-                        name: v.name,
-                        timestamp: v.timestamp,
-                        isNormalizeHurricane: v.isNormalizeHurricane,
-                        allocOverrides: v.allocOverrides,
-                        advOverrides: v.advOverrides,
-                        monthMapping: v.monthMapping,
-                        isDefault: v.isDefault || false
-                    }));
+                    const payloadToSave = {
+                        versions: versionsToPush.map(v => ({
+                            id: v.id,
+                            name: v.name,
+                            timestamp: v.timestamp,
+                            isNormalizeHurricane: v.isNormalizeHurricane,
+                            allocOverrides: v.allocOverrides,
+                            advOverrides: v.advOverrides,
+                            monthMapping: v.monthMapping,
+                            isDefault: v.isDefault || false
+                        })),
+                        comments: commentsToPush
+                    };
 
                     const jsonString = JSON.stringify(payloadToSave, null, 2);
                     const base64Content = btoa(unescape(encodeURIComponent(jsonString)));
@@ -700,7 +717,7 @@
                         fileSha = fileData.sha;
                     }
 
-                    const body = { message: `Sync dashboard scenarios to cloud`, content: base64Content };
+                    const body = { message: `Sync dashboard scenarios and comments to cloud`, content: base64Content };
                     if (fileSha) body.sha = fileSha;
 
                     const putRes = await fetch(url, {
@@ -739,10 +756,15 @@
                     if (getRes.ok) {
                         const fileData = await getRes.json();
                         const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
-                        const parsedScenarios = JSON.parse(decodedContent);
+                        const parsed = JSON.parse(decodedContent);
                         
-                        setSavedVersions(parsedScenarios);
-                        alert("Cloud scenarios loaded into your Versions menu.");
+                        if (Array.isArray(parsed)) {
+                            setSavedVersions(parsed);
+                        } else {
+                            setSavedVersions(parsed.versions || []);
+                            setVarianceComments(parsed.comments || {});
+                        }
+                        alert("Cloud scenarios and comments loaded successfully.");
                     } else if (getRes.status === 404) {
                         alert("No 'dashboard_scenarios.json' config file found on GitHub. Push a scenario to the cloud first!");
                     } else {
@@ -756,6 +778,21 @@
             };
 
             // --- Handlers ---
+            const handleAddComment = (companyName) => {
+                const commentKey = `${pivotScenario}|${moversTimeFrame}|${companyName}`;
+                const currentVal = varianceComments[commentKey] || '';
+                const newVal = prompt(`Explain the variance for ${companyName} (${moversTimeFrame} vs 2025):`, currentVal);
+                
+                if (newVal !== null) {
+                    const updatedComments = { ...varianceComments, [commentKey]: newVal };
+                    setVarianceComments(updatedComments);
+                    
+                    if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
+                        pushScenariosToCloud(savedVersions, updatedComments);
+                    }
+                }
+            };
+
             const handleFileUpload = (e, isBudget) => {
                 const reader = new FileReader();
                 reader.onload = (evt) => { 
@@ -813,7 +850,7 @@
                 setSavedVersions(updatedVersions);
                 
                 if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                    pushScenariosToCloud(updatedVersions);
+                    pushScenariosToCloud(updatedVersions, varianceComments);
                 } else {
                     alert(`Version "${name}" saved locally!`);
                 }
@@ -836,7 +873,7 @@
                 const updatedVersions = savedVersions.filter(v => v.id !== id);
                 setSavedVersions(updatedVersions);
                 if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                    pushScenariosToCloud(updatedVersions);
+                    pushScenariosToCloud(updatedVersions, varianceComments);
                 }
             };
 
@@ -848,7 +885,7 @@
                 setSavedVersions(updatedVersions);
                 
                 if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                    await pushScenariosToCloud(updatedVersions);
+                    await pushScenariosToCloud(updatedVersions, varianceComments);
                     alert("Default scenario changed and pushed to cloud.");
                 } else {
                     alert("Default scenario set locally. You must configure GitHub credentials to push this setting for your team.");
@@ -920,12 +957,8 @@
                 </div>
             );
 
-            // NEW: Multi-Dimensional Overrides UI
+            // Advanced Overrides UI
             const renderAdvOverridesUI = () => {
-                const [overrideDim, setOverrideDim] = useState('rc');
-                const [overrideKey, setOverrideKey] = useState(dimensions.rcs[0] || '');
-                const [overrideVal, setOverrideVal] = useState('');
-
                 const dimLabels = { rc: 'Rate Class', industry: 'Industry', customer: 'Customer', month: 'Month' };
                 const dimOptions = {
                     rc: dimensions.rcs,
@@ -935,15 +968,15 @@
                 };
 
                 const handleAdd = () => {
-                    if(overrideKey && overrideVal) {
+                    if(advOverrideKey && advOverrideVal) {
                         setAdvOverrides(p => ({
                             ...p,
-                            [overrideDim]: {
-                                ...(p[overrideDim] || {}),
-                                [overrideKey]: parseFloat(overrideVal)
+                            [advOverrideDim]: {
+                                ...(p[advOverrideDim] || {}),
+                                [advOverrideKey]: parseFloat(advOverrideVal)
                             }
                         }));
-                        setOverrideVal('');
+                        setAdvOverrideVal('');
                     }
                 };
 
@@ -971,25 +1004,25 @@
                         
                         <div className="flex flex-wrap md:flex-nowrap gap-2 mb-4 bg-white p-3 rounded-lg border border-indigo-100 shadow-sm items-center">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Apply Rule To:</span>
-                            <select value={overrideDim} onChange={e => {
-                                setOverrideDim(e.target.value);
-                                setOverrideKey(e.target.value === 'month' ? 1 : dimOptions[e.target.value][0]);
+                            <select value={advOverrideDim} onChange={e => {
+                                setAdvOverrideDim(e.target.value);
+                                setAdvOverrideKey(e.target.value === 'month' ? 1 : dimOptions[e.target.value][0]);
                             }} className="border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 font-bold text-slate-700 bg-slate-50">
                                 {Object.entries(dimLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                             </select>
                             
                             <span className="text-slate-300">➜</span>
                             
-                            <select value={overrideKey} onChange={e => setOverrideKey(e.target.value)} className="flex-1 min-w-[200px] border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50">
-                                {overrideDim === 'month' 
+                            <select value={advOverrideKey} onChange={e => setAdvOverrideKey(e.target.value)} className="flex-1 min-w-[200px] border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50">
+                                {advOverrideDim === 'month' 
                                     ? dimOptions.month.map(m => <option key={m.val} value={m.val}>{m.label}</option>)
-                                    : dimOptions[overrideDim].map(o => <option key={o} value={o}>{o}</option>)
+                                    : dimOptions[advOverrideDim].map(o => <option key={o} value={o}>{o}</option>)
                                 }
                             </select>
                             
                             <span className="text-slate-300">@</span>
                             
-                            <input type="number" value={overrideVal} onChange={e => setOverrideVal(e.target.value)} placeholder="e.g. +5.5" className="w-24 border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 text-center font-bold" />
+                            <input type="number" value={advOverrideVal} onChange={e => setAdvOverrideVal(e.target.value)} placeholder="e.g. +5.5" className="w-24 border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 text-center font-bold" />
                             <span className="text-sm font-bold text-slate-400">%</span>
                             
                             <button onClick={handleAdd} className="bg-indigo-600 text-white px-5 py-1.5 rounded font-bold hover:bg-indigo-700 shadow-sm transition ml-auto">Add Rule</button>
@@ -1005,7 +1038,7 @@
                                         <div className="flex flex-wrap gap-2 flex-1">
                                             {Object.entries(configs).map(([k, val]) => (
                                                 <div key={k} className="flex items-center gap-2 text-sm bg-white px-3 py-1 rounded-full border border-indigo-200 shadow-sm">
-                                                    <span className="font-medium text-slate-600 max-w-[150px] truncate" title={k}>{overrideDim === 'month' ? monthNames[parseInt(k)-1] : k}</span>
+                                                    <span className="font-medium text-slate-600 max-w-[150px] truncate" title={k}>{advOverrideDim === 'month' ? monthNames[parseInt(k)-1] : k}</span>
                                                     <span className={`font-black ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</span>
                                                     <button onClick={() => handleRemove(dim, k)} className="text-slate-300 hover:text-red-500 ml-1 transition"><Icons.X /></button>
                                                 </div>
@@ -1365,18 +1398,28 @@
                                                 <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Incline</th>
                                                 <th className="p-2 text-right text-slate-500">% Growth</th>
                                                 <th className="p-2 text-slate-800 pl-4">Account</th>
+                                                <th className="p-2 text-slate-500 w-16">Notes</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {topMovers.map((m, idx) => (
-                                                <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
-                                                    <td className="p-2 text-slate-400">{idx + 1}</td>
-                                                    <td className="p-2 text-right font-bold text-emerald-600">+{m.variance.toFixed(2)}</td>
-                                                    <td className="p-2 text-right font-medium text-emerald-600 bg-emerald-50/30">+{m.pct.toFixed(1)}%</td>
-                                                    <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
-                                                </tr>
-                                            ))}
-                                            {topMovers.length === 0 && <tr><td colSpan="4" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
+                                            {topMovers.map((m, idx) => {
+                                                const commentKey = `${pivotScenario}|${moversTimeFrame}|${m.name}`;
+                                                const hasComment = !!varianceComments[commentKey];
+                                                return (
+                                                    <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
+                                                        <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                        <td className="p-2 text-right font-bold text-emerald-600">+{m.variance.toFixed(2)}</td>
+                                                        <td className="p-2 text-right font-medium text-emerald-600 bg-emerald-50/30">+{m.pct.toFixed(1)}%</td>
+                                                        <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
+                                                        <td className="p-2 text-center">
+                                                            <button onClick={() => handleAddComment(m.name)} className="text-slate-400 hover:text-blue-600 transition" title={hasComment ? varianceComments[commentKey] : "Add explanation"}>
+                                                                {hasComment ? '💬' : '➕'}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {topMovers.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1394,18 +1437,28 @@
                                                 <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Decline</th>
                                                 <th className="p-2 text-right text-slate-500">% Growth</th>
                                                 <th className="p-2 text-slate-800 pl-4">Account</th>
+                                                <th className="p-2 text-slate-500 w-16">Notes</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {bottomMovers.map((m, idx) => (
-                                                <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
-                                                    <td className="p-2 text-slate-400">{idx + 1}</td>
-                                                    <td className="p-2 text-right font-bold text-red-500">{m.variance.toFixed(2)}</td>
-                                                    <td className="p-2 text-right font-medium text-red-500 bg-red-50/30">{m.pct.toFixed(1)}%</td>
-                                                    <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
-                                                </tr>
-                                            ))}
-                                            {bottomMovers.length === 0 && <tr><td colSpan="4" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
+                                            {bottomMovers.map((m, idx) => {
+                                                const commentKey = `${pivotScenario}|${moversTimeFrame}|${m.name}`;
+                                                const hasComment = !!varianceComments[commentKey];
+                                                return (
+                                                    <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
+                                                        <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                        <td className="p-2 text-right font-bold text-red-500">{m.variance.toFixed(2)}</td>
+                                                        <td className="p-2 text-right font-medium text-red-500 bg-red-50/30">{m.pct.toFixed(1)}%</td>
+                                                        <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
+                                                        <td className="p-2 text-center">
+                                                            <button onClick={() => handleAddComment(m.name)} className="text-slate-400 hover:text-blue-600 transition" title={hasComment ? varianceComments[commentKey] : "Add explanation"}>
+                                                                {hasComment ? '💬' : '➕'}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {bottomMovers.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
