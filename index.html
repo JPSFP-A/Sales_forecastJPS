@@ -148,9 +148,11 @@
         };
 
         function App() {
+            // SET OVERVIEW AS THE DEFAULT TAB
             const [activeTab, setActiveTab] = useState('overview');
 
             // --- GITHUB CONFIGURATION ---
+            // Uses localStorage so you don't have to hardcode credentials in the file.
             const [githubConfig, setGithubConfig] = useState(() => {
                 const saved = localStorage.getItem('jps_github_config');
                 return saved ? JSON.parse(saved) : { token: '', owner: '', repo: '' };
@@ -177,7 +179,6 @@
             const [isPushing, setIsPushing] = useState(false);
             const [isSyncingConfigs, setIsSyncingConfigs] = useState(false);
             const [hasAutoRestored, setHasAutoRestored] = useState(false);
-            const [hasAutoAllocated, setHasAutoAllocated] = useState(false);
 
             // Filters & State
             const [ytdMonth, setYtdMonth] = useState('All');
@@ -186,15 +187,10 @@
             const [fRC, setFRC] = useState('All');
             const [fParish, setFParish] = useState('All');
             const [fInd, setFInd] = useState('All');
-            const [fCust, setFCust] = useState('All'); 
 
             const [monthMapping, setMonthMapping] = useState({});
             const [allocOverrides, setAllocOverrides] = useState({});
-            const [advOverrideDim, setAdvOverrideDim] = useState('rc');
-            const [advOverrideKey, setAdvOverrideKey] = useState('');
-            const [advOverrideVal, setAdvOverrideVal] = useState('');
-            const [advOverrides, setAdvOverrides] = useState({ customer: {}, rc: {}, industry: {}, month: {} });
-            
+            const [rcGrowthOverrides, setRcGrowthOverrides] = useState({});
             const [allocationResults, setAllocationResults] = useState([]);
             
             const [varianceDim, setVarianceDim] = useState('rc');
@@ -202,12 +198,10 @@
             const [expandedRow, setExpandedRow] = useState(null);
             const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
 
-            // Pivot State & Explanations
+            // Pivot State
             const [pivotScenario, setPivotScenario] = useState('leMgmt');
             const [moversRC, setMoversRC] = useState('All');
-            const [moversTimeFrame, setMoversTimeFrame] = useState('FY'); 
             const [expandedPivotRC, setExpandedPivotRC] = useState(null);
-            const [varianceComments, setVarianceComments] = useState({}); 
 
             // Version Manager
             const [savedVersions, setSavedVersions] = useState([]);
@@ -225,155 +219,53 @@
                 { key: 'leCust', label: 'LE Cust Vol', activeClass: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
                 { key: 'leRc', label: 'LE RC Vol', activeClass: 'bg-sky-50 text-sky-700 border-sky-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
                 { key: 'leMgmt', label: 'LE Management', activeClass: 'bg-amber-50 text-amber-700 border-amber-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'leCustom', label: 'LE Advanced', activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' }
+                { key: 'leCustom', label: 'LE Custom %', activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' }
             ];
 
-            // 1. DATA LOAD & CLOUD SYNC METHOD
-            const fetchCloudData = async (silent = false) => {
-                const token = githubConfig.token.trim();
-                const owner = githubConfig.owner.trim();
-                const repo = githubConfig.repo.trim();
-
-                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
-                    if (!silent) alert("Please enter valid GitHub API credentials.");
-                    return false;
-                }
-
-                if (!silent) setIsLoadingUrl({ budget: true, actuals: true });
-                let loadedSomething = false;
-
-                try {
-                    const fetchRaw = async (filename) => {
-                        const urls = [
-                            `https://raw.githubusercontent.com/${owner}/${repo}/main/${filename}`,
-                            `https://raw.githubusercontent.com/${owner}/${repo}/master/${filename}`
-                        ];
-                        for (const url of urls) {
-                            const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-                            if (res.ok) return await res.text();
-                        }
-                        return null;
-                    };
-
-                    const actText = await fetchRaw('JPS%20Actuals%20data.csv');
-                    if (actText) {
-                        setRawActuals(parseCSV(actText));
-                        loadedSomething = true;
-                    }
-
-                    const budText = await fetchRaw('JPS%20Budget%202026%20data.csv');
-                    if (budText) {
-                        const pb = parseCSV(budText);
-                        setRawBudget(pb);
-                        setOriginalBudget([...pb]);
-                        loadedSomething = true;
-                    }
-                    
-                    const configRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/dashboard_scenarios.json`, { 
-                        headers: { 'Authorization': `Bearer ${token}` } 
-                    });
-                    
-                    if (configRes.ok) {
-                        const fileData = await configRes.json();
-                        const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
-                        const parsed = JSON.parse(decodedContent);
-                        if (Array.isArray(parsed)) setSavedVersions(parsed);
-                        else {
-                            setSavedVersions(parsed.versions || []);
-                            setVarianceComments(parsed.comments || {});
-                        }
-                    }
-
-                    if (!silent && loadedSomething) alert("Data successfully synced from GitHub!");
-                    else if (!silent && !loadedSomething) alert("Connected to GitHub, but could not find the CSV files in the repository root. Please ensure they are named exactly 'JPS Actuals data.csv' and 'JPS Budget 2026 data.csv'");
-                    
-                    return loadedSomething;
-                } catch (e) {
-                    console.error("Cloud Sync Error", e);
-                    if (!silent) alert("Failed to fetch from GitHub. Check your token permissions and repo details.");
-                    return false;
-                } finally {
-                    if (!silent) setIsLoadingUrl({ budget: false, actuals: false });
-                }
-            };
-
-            // 2. SILENT BOOT SEQUENCE
+            // 1. SILENT BOOT SEQUENCE - AUTO FETCH EVERYTHING
             useEffect(() => {
                 let isMounted = true;
 
                 const bootApp = async () => {
-                    const savedStr = localStorage.getItem('jps_github_config');
-                    const savedCfg = savedStr ? JSON.parse(savedStr) : null;
-                    let cloudSuccess = false;
-
-                    // A: Try Cloud First if configured
-                    if (savedCfg && savedCfg.token && savedCfg.owner && savedCfg.repo && !savedCfg.token.includes('YOUR_TOKEN')) {
-                        try {
-                            const token = savedCfg.token.trim();
-                            const owner = savedCfg.owner.trim();
-                            const repo = savedCfg.repo.trim();
-
-                            const fetchRaw = async (filename) => {
-                                const urls = [
-                                    `https://raw.githubusercontent.com/${owner}/${repo}/main/${filename}`,
-                                    `https://raw.githubusercontent.com/${owner}/${repo}/master/${filename}`
-                                ];
-                                for (const url of urls) {
-                                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-                                    if (res.ok) return await res.text();
-                                }
-                                return null;
-                            };
-
-                            const actText = await fetchRaw('JPS%20Actuals%20data.csv');
-                            if (actText && isMounted) {
-                                setRawActuals(parseCSV(actText));
-                                cloudSuccess = true;
+                    // Step A: Load CSV Data
+                    try {
+                        const actRes = await fetch('./JPS%20Actuals%20data.csv');
+                        if (actRes.ok) {
+                            const actText = await actRes.text();
+                            const parsedAct = parseCSV(actText);
+                            if(parsedAct && parsedAct.length > 0 && isMounted) setRawActuals(parsedAct);
+                        }
+                        
+                        const budRes = await fetch('./JPS%20Budget%202026%20data.csv');
+                        if (budRes.ok) {
+                            const budText = await budRes.text();
+                            const parsedBud = parseCSV(budText);
+                            if(parsedBud && parsedBud.length > 0 && isMounted) {
+                                setRawBudget(parsedBud);
+                                setOriginalBudget([...parsedBud]);
                             }
-
-                            const budText = await fetchRaw('JPS%20Budget%202026%20data.csv');
-                            if (budText && isMounted) {
-                                const pb = parseCSV(budText);
-                                setRawBudget(pb);
-                                setOriginalBudget([...pb]);
-                                cloudSuccess = true;
-                            }
-
-                            const configRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/dashboard_scenarios.json`, { 
-                                headers: { 'Authorization': `Bearer ${token}` } 
-                            });
-                            if (configRes.ok && isMounted) {
-                                const fileData = await configRes.json();
-                                const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
-                                const parsed = JSON.parse(decodedContent);
-                                if (Array.isArray(parsed)) setSavedVersions(parsed);
-                                else {
-                                    setSavedVersions(parsed.versions || []);
-                                    setVarianceComments(parsed.comments || {});
-                                }
-                            }
-                        } catch (e) {
-                            console.log("Boot cloud fetch failed", e);
+                        }
+                    } catch (e) {
+                        console.log("Could not auto-load files from root.", e);
+                        if (window.location.protocol === 'file:' && isMounted) {
+                            setLoadError("Local file fetch blocked by browser security. Please run a local server or use the manual file inputs in the Data Hub.");
                         }
                     }
 
-                    // B: Fallback to local
-                    if (!cloudSuccess && isMounted) {
+                    // Step B: Silently load Scenarios Config from GitHub (if credentials exist)
+                    if (githubConfig.token && githubConfig.owner && githubConfig.repo && !githubConfig.token.includes('YOUR_TOKEN')) {
                         try {
-                            const actRes = await fetch('./JPS%20Actuals%20data.csv');
-                            if (actRes.ok) {
-                                setRawActuals(parseCSV(await actRes.text()));
-                            }
-                            
-                            const budRes = await fetch('./JPS%20Budget%202026%20data.csv');
-                            if (budRes.ok) {
-                                const pb = parseCSV(await budRes.text());
-                                setRawBudget(pb);
-                                setOriginalBudget([...pb]);
+                            const path = `dashboard_scenarios.json`;
+                            const url = `https://api.github.com/repos/${githubConfig.owner.trim()}/${githubConfig.repo.trim()}/contents/${path}`;
+                            const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${githubConfig.token.trim()}` } });
+                            if (getRes.ok && isMounted) {
+                                const fileData = await getRes.json();
+                                const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
+                                const parsedScenarios = JSON.parse(decodedContent);
+                                setSavedVersions(parsedScenarios);
                             }
                         } catch (e) {
-                            console.log("Could not auto-load files locally.", e);
-                            setLoadError("Local fetch blocked by browser. Please configure GitHub Sync or use manual file upload.");
+                            console.log("No cloud scenarios found or failed to fetch config on boot.", e);
                         }
                     }
                 };
@@ -382,50 +274,33 @@
                 return () => { isMounted = false; };
             }, []);
 
-            // 3. AUTO-APPLY DEFAULT SCENARIO
+            // 2. AUTO-APPLY DEFAULT SCENARIO (Once everything is loaded into memory)
             useEffect(() => {
                 if (!hasAutoRestored && originalBudget.length > 0 && rawActuals.length > 0 && savedVersions.length > 0) {
                     const defaultScenario = savedVersions.find(v => v.isDefault);
                     if (defaultScenario) {
+                        console.log("Auto-restoring default scenario:", defaultScenario.name);
+                        
                         setRawBudget([...originalBudget]);
-                        setIsBudgetCommitted(false); 
+                        setIsBudgetCommitted(false); // force re-allocation run
                         setMonthMapping(defaultScenario.monthMapping || {});
                         setAllocOverrides(defaultScenario.allocOverrides || {});
-                        setAdvOverrides(defaultScenario.advOverrides || { customer: {}, rc: {}, industry: {}, month: {} });
+                        setRcGrowthOverrides(defaultScenario.rcGrowthOverrides || {});
                         setIsNormalizeHurricane(defaultScenario.isNormalizeHurricane ?? true);
                         
                         setHasAutoRestored(true);
                     } else {
-                        setHasAutoRestored(true);
+                        setHasAutoRestored(true); // Don't check anymore if there is no default
                     }
                 }
             }, [originalBudget, rawActuals, savedVersions, hasAutoRestored]);
 
             // --- Engine ---
             const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
-                if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
+                if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [] } };
 
-                const normA = rawActuals.map(d => ({ 
-                    source: d['Source'] || 'Postpaid', 
-                    rc: (d['Rate category'] || 'Unassigned').trim(), 
-                    parish: (d['Updated Parish'] || 'Unassigned').trim(), 
-                    acct: (d['JPS A/c'] || 'Unassigned').trim(), 
-                    name: (d['Name'] || 'Unassigned').trim(), 
-                    industry: (d['Industry'] || 'Unassigned').trim(), 
-                    kwh: cleanVal(d['Sum of net_kwh_billed_consump']), 
-                    ...parseTimeStr(d['Month']) 
-                }));
-                
-                const normB = rawBudget.map(d => ({ 
-                    source: d['Source'] || 'Budget', 
-                    rc: (d['Rate category'] || 'Unassigned').trim(), 
-                    parish: (d['Updated Parish'] || 'Unassigned').trim(), 
-                    acct: (d['JPS A/c'] || 'Unallocated').trim(), 
-                    name: (d['Name'] || 'Unallocated').trim(), 
-                    industry: (d['Industry'] || 'Unallocated').trim(), 
-                    kwh: cleanVal(d['Sum of Budget']), 
-                    ...parseTimeStr(d['Month']) 
-                }));
+                const normA = rawActuals.map(d => ({ source: d['Source'] || 'Postpaid', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unassigned', name: d['Name'] || 'Unassigned', industry: d['Industry'] || 'Unassigned', kwh: cleanVal(d['Sum of net_kwh_billed_consump']), ...parseTimeStr(d['Month']) }));
+                const normB = rawBudget.map(d => ({ source: d['Source'] || 'Budget', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unallocated', name: d['Name'] || 'Unallocated', industry: d['Industry'] || 'Unallocated', kwh: cleanVal(d['Sum of Budget']), ...parseTimeStr(d['Month']) }));
 
                 const march26Actuals = normA.filter(d => d.month === 3 && d.year === 2026);
                 const baseline25 = normA.filter(d => d.year === 2025);
@@ -479,42 +354,20 @@
                     const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
                     leMgmtData.push({ ...b, source: 'LE - Management', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
 
-                    let overridePct = 0;
-                    let hasOverride = false;
-                    
-                    if (advOverrides.customer && advOverrides.customer[b.name] !== undefined) {
-                        overridePct = advOverrides.customer[b.name];
-                        hasOverride = true;
-                    } else if (advOverrides.month && advOverrides.month[b.month] !== undefined) {
-                        overridePct = advOverrides.month[b.month];
-                        hasOverride = true;
-                    } else if (advOverrides.industry && advOverrides.industry[b.industry] !== undefined) {
-                        overridePct = advOverrides.industry[b.industry];
-                        hasOverride = true;
-                    } else if (advOverrides.rc && advOverrides.rc[b.rc] !== undefined) {
-                        overridePct = advOverrides.rc[b.rc];
-                        hasOverride = true;
-                    }
-
-                    const customKwh = hasOverride ? Math.max(0, b.kwh * (1 + overridePct / 100)) : b.kwh;
-                    leCustomData.push({ ...b, source: 'LE - Custom', type: 'Forecast', kwh: customKwh });
+                    const customPct = rcGrowthOverrides[b.rc] || 0;
+                    const customKwh = Math.max(0, b.kwh * (1 + customPct / 100));
+                    leCustomData.push({ ...b, source: 'LE - Custom RC %', type: 'Forecast', kwh: customKwh });
                 });
 
                 const rcs = [...new Set([...normA, ...normB].map(d => d.rc))].sort((a,b) => getRcWeight(a) - getRcWeight(b));
                 const parishes = [...new Set([...normA, ...normB].map(d => d.parish))].sort();
                 const inds = [...new Set(normA.map(d => d.industry))].sort();
                 const years = [...new Set([...normA, ...normB].map(d => d.year))].filter(y=>y>0).sort();
-                const customers = [...new Set([...normA, ...normB].map(d => d.name))].filter(n => n && n !== 'Unassigned' && n !== 'Unallocated').sort();
 
-                return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
-            }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides]);
+                return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years } };
+            }, [rawActuals, rawBudget, isNormalizeHurricane, rcGrowthOverrides]);
 
-            useEffect(() => {
-                if (dimensions.rcs.length > 0 && !advOverrideKey) {
-                    setAdvOverrideKey(dimensions.rcs[0]);
-                }
-            }, [dimensions.rcs, advOverrideKey]);
-
+            // Mapping for Allocation Setup
             useEffect(() => {
                 if (rawBudget.length === 0 || isBudgetCommitted) return;
                 const bMonths = [...new Set(rawBudget.map(d => d.Month))].filter(Boolean);
@@ -540,6 +393,7 @@
                 }
             }, [rawBudget, rawActuals, isBudgetCommitted, monthMapping]);
 
+            // Run Proration Engine
             useEffect(() => {
                 if (isBudgetCommitted || rawActuals.length === 0 || rawBudget.length === 0) return;
                 const allResults = [];
@@ -617,11 +471,10 @@
             }, [allocationResults, rawBudget, originalBudget]);
 
             useEffect(() => {
-                if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0 && !hasAutoAllocated) {
+                if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0) {
                     commitAllocation();
-                    setHasAutoAllocated(true);
                 }
-            }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation, hasAutoAllocated]);
+            }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation]);
 
             const unlockAllocation = () => {
                 if(originalBudget.length > 0) {
@@ -630,15 +483,16 @@
                 setIsBudgetCommitted(false);
             };
 
+            // --- Pivot View & Movers Logic ---
             const pivotState = useMemo(() => {
                 if (activeTab !== 'pivot' || actuals.length === 0) return { rcMatrix: {}, topMovers: [], bottomMovers: [] };
 
-                const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
-
+                // 1. Determine target dataset based on dropdown
                 let targetDataset = [];
                 const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
                 
                 if (pivotScenario === 'budgetCombined') {
+                    // Combine actuals YTD with Budget rest of year
                     targetDataset = [
                         ...actuals.filter(a => a.year === 2026 && a.month <= maxActMonth26).map(a => ({...a, source: 'Actual'})),
                         ...budget.filter(b => b.year === 2026 && b.month > maxActMonth26).map(b => ({...b, source: 'Budget'}))
@@ -649,16 +503,19 @@
                 else if (pivotScenario === 'leMgmt') targetDataset = leMgmtGrowth.filter(d=>d.year===2026);
                 else if (pivotScenario === 'leCustom') targetDataset = leCustomGrowth.filter(d=>d.year===2026);
 
+                // 2. Build Pivot Matrix
                 const rcMatrix = {};
                 targetDataset.forEach(d => {
                     const rc = d.rc || 'Unassigned';
+                    // Roll up RT10/RT20/EV names unless we want to see individual resi accounts. Usually we group big classes.
+                    // For UI cleanliness, we'll keep Name blank for massive classes and show accounts for RT40+
                     let acctName = d.name || d.acct || 'Unknown';
                     if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) {
-                        acctName = ''; 
+                        acctName = ''; // Roll these up to save DOM rendering 100k rows
                     }
 
                     const m = d.month;
-                    const val = d.kwh / 1000000;
+                    const val = d.kwh / 1000000; // Convert to GWh
 
                     if (!rcMatrix[rc]) rcMatrix[rc] = { total: 0, months: Array(12).fill(0), customers: {} };
                     
@@ -671,14 +528,12 @@
                     if (m >= 1 && m <= 12) rcMatrix[rc].customers[acctName].months[m - 1] += val;
                 });
 
+                // 3. Build Movers (Variance vs 2025 Actuals)
                 const accVar = {};
                 actuals.filter(a => a.year === 2025).forEach(a => {
-                    if (moversTimeFrame === 'YTD' && a.month > ytdLimit) return;
-                    if (moversTimeFrame === 'MTD' && a.month !== ytdLimit) return;
-
                     const rc = a.rc || 'Unassigned';
                     let acct = a.name || a.acct || 'Unknown';
-                    if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return;
+                    if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return; // Only show commercial movers
                     
                     const val = a.kwh / 1000000;
                     if (!accVar[acct]) accVar[acct] = { name: acct, rc, baseline: 0, target: 0 };
@@ -686,9 +541,6 @@
                 });
 
                 targetDataset.forEach(d => {
-                    if (moversTimeFrame === 'YTD' && d.month > ytdLimit) return;
-                    if (moversTimeFrame === 'MTD' && d.month !== ytdLimit) return;
-
                     const rc = d.rc || 'Unassigned';
                     let acct = d.name || d.acct || 'Unknown';
                     if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return;
@@ -698,18 +550,16 @@
                     accVar[acct].target += val;
                 });
 
-                const variances = Object.values(accVar).map(v => {
-                    const variance = v.target - v.baseline;
-                    const pct = v.baseline > 0 ? (variance / v.baseline) * 100 : (v.target > 0 ? 100 : 0);
-                    return { ...v, variance, pct };
-                }).filter(v => moversRC === 'All' || v.rc === moversRC);
+                const variances = Object.values(accVar).map(v => ({ ...v, variance: v.target - v.baseline }))
+                    .filter(v => moversRC === 'All' || v.rc === moversRC);
 
                 const topMovers = [...variances].sort((a,b) => b.variance - a.variance).filter(v => v.variance > 0).slice(0, 10);
                 const bottomMovers = [...variances].sort((a,b) => a.variance - b.variance).filter(v => v.variance < 0).slice(0, 10);
 
                 return { rcMatrix, topMovers, bottomMovers };
-            }, [activeTab, pivotScenario, moversRC, actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, moversTimeFrame, ytdMonth]);
+            }, [activeTab, pivotScenario, moversRC, actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth]);
 
+            // --- Cloud Functions ---
             const saveForecastToGitHub = async (csvDataArray, filename) => {
                 const token = githubConfig.token.trim();
                 const owner = githubConfig.owner.trim();
@@ -764,31 +614,34 @@
                 }
             };
 
-            const pushScenariosToCloud = async (versionsOverride = null, commentsOverride = null) => {
+            const pushScenariosToCloud = async (versionsOverride = null) => {
                 const versionsToPush = versionsOverride || savedVersions;
-                const commentsToPush = commentsOverride || varianceComments;
                 
                 const token = githubConfig.token.trim();
                 const owner = githubConfig.owner.trim();
                 const repo = githubConfig.repo.trim();
 
-                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) return;
+                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
+                    alert("Please enter your GitHub API credentials in the Data Hub (bottom left tab).");
+                    return;
+                }
+                if (versionsToPush.length === 0) {
+                    alert("You have no saved scenarios to push. Save a version first.");
+                    return;
+                }
 
                 setIsSyncingConfigs(true);
                 try {
-                    const payloadToSave = {
-                        versions: versionsToPush.map(v => ({
-                            id: v.id,
-                            name: v.name,
-                            timestamp: v.timestamp,
-                            isNormalizeHurricane: v.isNormalizeHurricane,
-                            allocOverrides: v.allocOverrides,
-                            advOverrides: v.advOverrides,
-                            monthMapping: v.monthMapping,
-                            isDefault: v.isDefault || false
-                        })),
-                        comments: commentsToPush
-                    };
+                    const payloadToSave = versionsToPush.map(v => ({
+                        id: v.id,
+                        name: v.name,
+                        timestamp: v.timestamp,
+                        isNormalizeHurricane: v.isNormalizeHurricane,
+                        allocOverrides: v.allocOverrides,
+                        rcGrowthOverrides: v.rcGrowthOverrides,
+                        monthMapping: v.monthMapping,
+                        isDefault: v.isDefault || false
+                    }));
 
                     const jsonString = JSON.stringify(payloadToSave, null, 2);
                     const base64Content = btoa(unescape(encodeURIComponent(jsonString)));
@@ -802,7 +655,7 @@
                         fileSha = fileData.sha;
                     }
 
-                    const body = { message: `Sync dashboard scenarios and comments to cloud`, content: base64Content };
+                    const body = { message: `Sync dashboard scenarios to cloud`, content: base64Content };
                     if (fileSha) body.sha = fileSha;
 
                     const putRes = await fetch(url, {
@@ -816,27 +669,48 @@
                         alert(`Failed to sync config to GitHub: ${err.message}`);
                     }
                 } catch (error) {
-                    console.error("Silent sync failed", error);
+                    alert("An unexpected error occurred while communicating with GitHub.");
                 } finally {
                     setIsSyncingConfigs(false);
                 }
             };
 
-            const handleAddComment = (companyName) => {
-                const commentKey = `${pivotScenario}|${moversTimeFrame}|${companyName}`;
-                const currentVal = varianceComments[commentKey] || '';
-                const newVal = prompt(`Explain the variance for ${companyName} (${moversTimeFrame} vs 2025):`, currentVal);
-                
-                if (newVal !== null) {
-                    const updatedComments = { ...varianceComments, [commentKey]: newVal };
-                    setVarianceComments(updatedComments);
-                    
-                    if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                        pushScenariosToCloud(savedVersions, updatedComments);
+            const pullScenariosFromCloud = async () => {
+                const token = githubConfig.token.trim();
+                const owner = githubConfig.owner.trim();
+                const repo = githubConfig.repo.trim();
+
+                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
+                    alert("Please configure your GitHub credentials in the Data Hub first.");
+                    return;
+                }
+
+                setIsSyncingConfigs(true);
+                try {
+                    const path = `dashboard_scenarios.json`;
+                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+                    const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (getRes.ok) {
+                        const fileData = await getRes.json();
+                        const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
+                        const parsedScenarios = JSON.parse(decodedContent);
+                        
+                        setSavedVersions(parsedScenarios);
+                        alert("Cloud scenarios loaded into your Versions menu.");
+                    } else if (getRes.status === 404) {
+                        alert("No 'dashboard_scenarios.json' config file found on GitHub. Push a scenario to the cloud first!");
+                    } else {
+                        alert("Failed to fetch scenarios from GitHub.");
                     }
+                } catch (error) {
+                    alert("An unexpected error occurred while parsing cloud data.");
+                } finally {
+                    setIsSyncingConfigs(false);
                 }
             };
 
+            // --- Handlers ---
             const handleFileUpload = (e, isBudget) => {
                 const reader = new FileReader();
                 reader.onload = (evt) => { 
@@ -852,27 +726,40 @@
                 reader.readAsText(e.target.files[0]);
             };
 
+            const handleFetchUrl = async (url, isBudget) => {
+                if(!url) return;
+                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const text = await response.text();
+                    const data = parseCSV(text);
+                    if (isBudget) { 
+                        setRawBudget(data); 
+                        setOriginalBudget([...data]); 
+                        setIsBudgetCommitted(false); 
+                    } else { 
+                        setRawActuals(data); 
+                    }
+                } catch (e) {
+                    alert('Error fetching file: ' + e.message);
+                } finally {
+                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
+                }
+            };
+
             const handleSaveVersion = () => {
                 const name = prompt("Enter a name for this scenario version:");
                 if (!name) return;
                 
                 const isDefault = savedVersions.length === 0;
-                const newVersion = { 
-                    id: Date.now(), 
-                    name, 
-                    timestamp: new Date().toLocaleString(), 
-                    isDefault, 
-                    monthMapping: { ...monthMapping }, 
-                    allocOverrides: { ...allocOverrides }, 
-                    advOverrides: { ...advOverrides }, 
-                    isNormalizeHurricane 
-                };
+                const newVersion = { id: Date.now(), name, timestamp: new Date().toLocaleString(), isDefault, monthMapping: { ...monthMapping }, allocOverrides: { ...allocOverrides }, rcGrowthOverrides: { ...rcGrowthOverrides }, isNormalizeHurricane };
                 
                 const updatedVersions = [...savedVersions, newVersion];
                 setSavedVersions(updatedVersions);
                 
                 if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                    pushScenariosToCloud(updatedVersions, varianceComments);
+                    pushScenariosToCloud(updatedVersions);
                 } else {
                     alert(`Version "${name}" saved locally!`);
                 }
@@ -885,7 +772,7 @@
                 setIsBudgetCommitted(false); 
                 setMonthMapping(version.monthMapping || {}); 
                 setAllocOverrides(version.allocOverrides || {}); 
-                setAdvOverrides(version.advOverrides || { customer: {}, rc: {}, industry: {}, month: {} }); 
+                setRcGrowthOverrides(version.rcGrowthOverrides || {}); 
                 setIsNormalizeHurricane(version.isNormalizeHurricane ?? true); 
                 setIsVersionModalOpen(false);
             };
@@ -895,7 +782,7 @@
                 const updatedVersions = savedVersions.filter(v => v.id !== id);
                 setSavedVersions(updatedVersions);
                 if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                    pushScenariosToCloud(updatedVersions, varianceComments);
+                    pushScenariosToCloud(updatedVersions);
                 }
             };
 
@@ -907,7 +794,7 @@
                 setSavedVersions(updatedVersions);
                 
                 if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                    await pushScenariosToCloud(updatedVersions, varianceComments);
+                    await pushScenariosToCloud(updatedVersions);
                     alert("Default scenario changed and pushed to cloud.");
                 } else {
                     alert("Default scenario set locally. You must configure GitHub credentials to push this setting for your team.");
@@ -925,11 +812,10 @@
                 setLoadError('');
                 setMonthMapping({});
                 setAllocOverrides({});
-                setAdvOverrides({ customer: {}, rc: {}, industry: {}, month: {} });
+                setRcGrowthOverrides({});
                 setAllocationResults([]);
                 setSavedVersions([]);
                 setHasAutoRestored(false);
-                setHasAutoAllocated(false);
                 setActiveTab('data');
             };
 
@@ -940,10 +826,9 @@
                     if (fRC !== 'All' && d.rc !== fRC) return false;
                     if (fParish !== 'All' && d.parish !== fParish) return false;
                     if (fInd !== 'All' && d.industry !== fInd) return false;
-                    if (fCust !== 'All' && d.name !== fCust) return false;
                     return true;
                 });
-            }, [fYear, fMonth, fRC, fParish, fInd, fCust]);
+            }, [fYear, fMonth, fRC, fParish, fInd]);
 
             const monthlyAggregates = useMemo(() => {
                 if (actuals.length === 0) return [];
@@ -980,114 +865,41 @@
                 </div>
             );
 
-            const renderAdvOverridesUI = () => {
-                const dimLabels = { rc: 'Rate Class', industry: 'Industry', customer: 'Customer', month: 'Month' };
-                const dimOptions = {
-                    rc: dimensions.rcs,
-                    industry: dimensions.inds,
-                    customer: dimensions.customers,
-                    month: [1,2,3,4,5,6,7,8,9,10,11,12].map(m => ({ val: m, label: monthNames[m-1] }))
-                };
-
-                const handleAdd = () => {
-                    if(advOverrideKey && advOverrideVal) {
-                        setAdvOverrides(p => ({
-                            ...p,
-                            [advOverrideDim]: {
-                                ...(p[advOverrideDim] || {}),
-                                [advOverrideKey]: parseFloat(advOverrideVal)
-                            }
-                        }));
-                        setAdvOverrideVal('');
-                    }
-                };
-
-                const handleRemove = (dim, key) => {
-                    setAdvOverrides(p => {
-                        const next = { ...p };
-                        const nextDim = { ...next[dim] };
-                        delete nextDim[key];
-                        next[dim] = nextDim;
-                        return next;
-                    });
-                };
-
-                return (
-                    <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 shadow-sm mb-6">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h4 className="font-bold flex items-center gap-2 text-indigo-800"><Icons.Sliders/> LE: Advanced Scenario Builder</h4>
-                                <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                                    Stack percentage growth rules to dynamically manipulate the baseline budget. 
-                                    <strong> Rules are prioritized: Customer > Month > Industry > Rate Class.</strong>
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <div className="flex flex-wrap md:flex-nowrap gap-2 mb-4 bg-white p-3 rounded-lg border border-indigo-100 shadow-sm items-center">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Apply Rule To:</span>
-                            <select value={advOverrideDim} onChange={e => {
-                                setAdvOverrideDim(e.target.value);
-                                setAdvOverrideKey(e.target.value === 'month' ? 1 : dimOptions[e.target.value][0]);
-                            }} className="border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 font-bold text-slate-700 bg-slate-50">
-                                {Object.entries(dimLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                            </select>
-                            
-                            <span className="text-slate-300">➜</span>
-                            
-                            <select value={advOverrideKey} onChange={e => setAdvOverrideKey(e.target.value)} className="flex-1 min-w-[200px] border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50">
-                                {advOverrideDim === 'month' 
-                                    ? dimOptions.month.map(m => <option key={m.val} value={m.val}>{m.label}</option>)
-                                    : dimOptions[advOverrideDim].map(o => <option key={o} value={o}>{o}</option>)
-                                }
-                            </select>
-                            
-                            <span className="text-slate-300">@</span>
-                            
-                            <input type="number" value={advOverrideVal} onChange={e => setAdvOverrideVal(e.target.value)} placeholder="e.g. +5.5" className="w-24 border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 text-center font-bold" />
-                            <span className="text-sm font-bold text-slate-400">%</span>
-                            
-                            <button onClick={handleAdd} className="bg-indigo-600 text-white px-5 py-1.5 rounded font-bold hover:bg-indigo-700 shadow-sm transition ml-auto">Add Rule</button>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2">
-                            {Object.entries(advOverrides).map(([dim, configs]) => {
-                                const keys = Object.keys(configs);
-                                if(keys.length === 0) return null;
-                                return (
-                                    <div key={dim} className="flex items-start gap-3 text-sm">
-                                        <span className="w-24 shrink-0 text-xs font-bold text-slate-400 uppercase tracking-wider text-right pt-1.5">{dimLabels[dim]} Rules</span>
-                                        <div className="flex flex-wrap gap-2 flex-1">
-                                            {Object.entries(configs).map(([k, val]) => (
-                                                <div key={k} className="flex items-center gap-2 text-sm bg-white px-3 py-1 rounded-full border border-indigo-200 shadow-sm">
-                                                    <span className="font-medium text-slate-600 max-w-[150px] truncate" title={k}>{advOverrideDim === 'month' ? monthNames[parseInt(k)-1] : k}</span>
-                                                    <span className={`font-black ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</span>
-                                                    <button onClick={() => handleRemove(dim, k)} className="text-slate-300 hover:text-red-500 ml-1 transition"><Icons.X /></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                            {!Object.values(advOverrides).some(obj => Object.keys(obj).length > 0) && (
-                                <span className="text-sm text-slate-400 italic flex items-center justify-center py-2 bg-slate-50/50 rounded border border-dashed border-slate-300">No active rules. Forecast equals Granular Base Budget.</span>
-                            )}
-                        </div>
+            const customRcControls = (
+                <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 shadow-sm mb-6">
+                    <h4 className="font-bold mb-4 flex items-center gap-2 text-indigo-800"><Icons.Sliders/> Set Custom % Growth vs Base Budget</h4>
+                    <p className="text-xs text-slate-500 mb-4 max-w-xl">Apply specific percentage increases or decreases to individual rate classes. E.g., Use this to simulate a +5% growth in Residential (RT10) due to warmer temperature projections.</p>
+                    <div className="flex gap-2 mb-4 max-w-md">
+                        <select id="rc-override-sel" className="flex-1 border border-indigo-200 rounded px-3 py-2 text-sm bg-white outline-none focus:border-indigo-400">
+                            {dimensions.rcs.map(r => <option key={r}>{r}</option>)}
+                        </select>
+                        <input id="rc-override-val" type="number" placeholder="%" className="w-20 border border-indigo-200 rounded px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                        <button onClick={() => {
+                            const r = document.getElementById('rc-override-sel').value;
+                            const v = document.getElementById('rc-override-val').value;
+                            if(r && v) setRcGrowthOverrides(p => ({...p, [r]: parseFloat(v)}));
+                        }} className="bg-indigo-600 text-white px-4 rounded font-bold hover:bg-indigo-700 shadow-sm transition">+</button>
                     </div>
-                );
-            };
-
-            const fetchCloudDataFromButton = async () => {
-                await fetchCloudData(false);
-            };
+                    <div className="flex flex-wrap gap-2 min-h-[36px]">
+                        {Object.keys(rcGrowthOverrides).length === 0 && <span className="text-sm text-slate-400 italic flex items-center">No overrides applied. Baseline budget is active.</span>}
+                        {Object.entries(rcGrowthOverrides).map(([rc, val]) => (
+                            <div key={rc} className="flex items-center gap-2 text-sm bg-white px-3 py-1.5 rounded-full border border-indigo-200 shadow-sm">
+                                <span className="font-bold text-slate-700">{rc}</span>
+                                <span className={`font-bold ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</span>
+                                <button onClick={() => { const c = {...rcGrowthOverrides}; delete c[rc]; setRcGrowthOverrides(c); }} className="text-slate-400 hover:text-red-500 ml-1 transition"><Icons.X /></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
 
             // --- TABS ---
             const renderDataTab = () => (
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
                         <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub Team Sync & API Config</h3>
-                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage, not in the HTML file.</strong></p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage, not in the file.</strong></p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
                                 <input type="password" value={githubConfig.token} onChange={e=>updateGithubConfig('token', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
@@ -1101,26 +913,35 @@
                                 <input type="text" value={githubConfig.repo} onChange={e=>updateGithubConfig('repo', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
                             </div>
                         </div>
-                        <button onClick={fetchCloudDataFromButton} disabled={isLoadingUrl.actuals} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2">
-                            <Icons.RefreshCw /> {isLoadingUrl.actuals ? 'Syncing...' : 'Sync All Data & Configs from GitHub'}
-                        </button>
                     </div>
 
                     <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
-                        <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data Manually</h2>
-                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files if you are not using the automated GitHub connection above.</p>
+                        <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data to Engine</h2>
+                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files or let the system fetch directly from GitHub Raw URLs.</p>
                         
-                        {loadError && (
+                        {loadError ? (
                             <p className="text-xs text-red-600 font-bold mb-8 bg-red-50 py-1.5 px-4 rounded-full inline-block border border-red-200">{loadError}</p>
+                        ) : (
+                            <p className="text-xs text-blue-500 font-bold mb-8 bg-blue-50 py-1.5 px-4 rounded-full inline-block">The engine will auto-load files from the root directory if found.</p>
                         )}
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-left mt-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-left">
                             <div className="bg-blue-50/30 p-6 rounded-xl border border-blue-100 flex flex-col justify-between">
                                 <div>
                                     <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Activity/> 1. High-Level Budget</h3>
                                     <p className="text-xs text-slate-500 mb-4">Required format: JPS Budget 2026 data.csv</p>
                                     <input type="file" accept=".csv" onChange={e => handleFileUpload(e, true)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer w-full text-slate-600 mb-4" />
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-blue-200">
+                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={budgetUrl} onChange={e=>setBudgetUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-blue-400"/>
+                                        <button onClick={()=>handleFetchUrl(budgetUrl, true)} disabled={!budgetUrl || isLoadingUrl.budget} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
+                                            {isLoadingUrl.budget ? 'Fetching...' : 'Fetch'}
+                                        </button>
+                                    </div>
+                                    {rawBudget.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Budget Loaded ({rawBudget.length} rows)</p>}
                                 </div>
                             </div>
                             
@@ -1129,6 +950,16 @@
                                     <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> 2. Detailed Actuals</h3>
                                     <p className="text-xs text-slate-500 mb-4">Required format: JPS Actuals data.csv</p>
                                     <input type="file" accept=".csv" onChange={e => handleFileUpload(e, false)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer w-full text-slate-600 mb-4" />
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-purple-200">
+                                    <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase flex items-center gap-1"><Icons.Link/> Or fetch from GitHub Raw URL</p>
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="https://raw.githubusercontent.com/..." value={actualsUrl} onChange={e=>setActualsUrl(e.target.value)} className="text-xs flex-1 border rounded px-2 py-1 outline-none focus:border-purple-400"/>
+                                        <button onClick={()=>handleFetchUrl(actualsUrl, false)} disabled={!actualsUrl || isLoadingUrl.actuals} className="bg-slate-800 text-white text-xs px-3 py-1 rounded font-bold hover:bg-slate-900 disabled:opacity-50 transition">
+                                            {isLoadingUrl.actuals ? 'Fetching...' : 'Fetch'}
+                                        </button>
+                                    </div>
+                                    {rawActuals.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2 flex items-center gap-1"><Icons.CheckCircle/> Actuals Loaded ({rawActuals.length} rows)</p>}
                                 </div>
                             </div>
                         </div>
@@ -1147,35 +978,7 @@
             );
 
             const renderOverviewTab = () => {
-                const totA25 = monthlyAggregates.reduce((s,d)=>s+d.Act25,0);
-                const totB26 = monthlyAggregates.reduce((s,d)=>s+d.Bud26,0);
-                const totMarchLE = monthlyAggregates.reduce((s,d)=>s+d.MarchLE,0);
-                const totLeCust = monthlyAggregates.reduce((s,d)=>s+d.LeCust,0);
-                const totLeRC = monthlyAggregates.reduce((s,d)=>s+d.LeRC,0);
-                const totLeMgmt = monthlyAggregates.reduce((s,d)=>s+d.LeMgmt,0);
-                const totLeCustom = monthlyAggregates.reduce((s,d)=>s+d.LeCustom,0);
-
-                const renderOutlookRow = (title, val, bud, bgClass, textClass, borderClass) => {
-                    const variance = bud ? (val - bud) / bud : 0;
-                    const varText = formatPct(variance);
-                    const varColor = variance >= 0 ? 'text-emerald-600' : 'text-red-500';
-                    const sign = variance > 0 ? '+' : '';
-
-                    return (
-                        <div className={`p-3 rounded-xl border ${bgClass} ${borderClass} flex justify-between items-center`}>
-                            <div>
-                                <div className={`text-[10px] font-bold uppercase mb-0.5 ${textClass}`}>{title}</div>
-                                <div className={`text-xl font-black ${textClass}`}>{formatNum(val)}</div>
-                            </div>
-                            <div className="text-right">
-                                <div className={`text-xs font-bold px-2 py-1 rounded-md bg-white shadow-sm ${varColor}`}>
-                                    {sign}{varText} vs Bud
-                                </div>
-                            </div>
-                        </div>
-                    );
-                };
-
+                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLE = getFiltered(marchLE);
                 return (
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
                         {!isBudgetCommitted && (
@@ -1203,31 +1006,26 @@
                                             {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                             {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                             {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
-                                            {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Advanced" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                            {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Custom %" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
                                         </LineChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
-                            <div className="bg-white rounded-xl border p-5 space-y-4 shadow-sm flex flex-col max-h-[600px]">
-                                <h3 className="font-bold text-slate-800 border-b pb-2 shrink-0">Fiscal Year Outlook</h3>
-                                
-                                <div className="grid grid-cols-2 gap-3 shrink-0">
-                                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-                                        <div className="text-[10px] text-blue-600 font-bold uppercase mb-1">Budget FY</div>
-                                        <div className="text-xl font-black text-blue-800">{formatNum(totB26)}</div>
+                            <div className="bg-white rounded-xl border p-5 space-y-6 shadow-sm">
+                                <h3 className="font-bold text-slate-800 border-b pb-2">Fiscal Year Outlook</h3>
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                                        <div className="text-[10px] text-emerald-600 font-bold uppercase mb-1">March LE (Projected Total)</div>
+                                        <div className="text-2xl font-black text-emerald-800">{formatNum(fLE.reduce((s,d)=>s+d.kwh,0))}</div>
                                     </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">2025 Actuals</div>
-                                        <div className="text-xl font-black text-slate-700">{formatNum(totA25)}</div>
+                                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                        <div className="text-[10px] text-blue-600 font-bold uppercase mb-1">Budget FY (Granular)</div>
+                                        <div className="text-2xl font-black text-blue-800">{formatNum(fBud.reduce((s,d)=>s+d.kwh,0))}</div>
                                     </div>
-                                </div>
-
-                                <div className="space-y-3 overflow-y-auto custom-scroll pr-1 flex-1 pb-2">
-                                    {renderOutlookRow('March LE', totMarchLE, totB26, 'bg-emerald-50', 'text-emerald-800', 'border-emerald-100')}
-                                    {renderOutlookRow('LE Cust Vol', totLeCust, totB26, 'bg-purple-50', 'text-purple-800', 'border-purple-100')}
-                                    {renderOutlookRow('LE RC Vol', totLeRC, totB26, 'bg-sky-50', 'text-sky-800', 'border-sky-100')}
-                                    {renderOutlookRow('LE Mgmt', totLeMgmt, totB26, 'bg-orange-50', 'text-orange-800', 'border-orange-100')}
-                                    {renderOutlookRow('LE Advanced', totLeCustom, totB26, 'bg-indigo-50', 'text-indigo-800', 'border-indigo-100')}
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                        <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">Prior Year Actuals (2025)</div>
+                                        <div className="text-2xl font-black text-slate-600">{formatNum(fAct.filter(d=>d.year===2025).reduce((s,d)=>s+d.kwh,0))}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1260,7 +1058,7 @@
                                         {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                         {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
                                         {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
-                                        {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Advanced" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                        {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Custom %" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
@@ -1284,7 +1082,7 @@
                                             <th className="p-3 text-right text-purple-700">LE Cust Vol</th>
                                             <th className="p-3 text-right text-blue-700">LE RC Vol</th>
                                             <th className="p-3 text-right text-orange-700">LE Mgmt</th>
-                                            <th className="p-3 text-right text-indigo-700 bg-indigo-50">LE Advanced</th>
+                                            <th className="p-3 text-right text-indigo-700 bg-indigo-50">LE Custom %</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1342,10 +1140,7 @@
                             {isBudgetCommitted ? (
                                 <button onClick={unlockAllocation} className="bg-slate-100 text-slate-800 px-6 py-2 rounded-lg font-bold border hover:bg-slate-200 transition shadow-sm">Unlock Allocation</button>
                             ) : (
-                                <div className="flex gap-3">
-                                    <button onClick={commitAllocation} disabled={allocationResults.length === 0} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-emerald-700 transition disabled:opacity-50">Apply Granular Budget</button>
-                                    <button onClick={() => { commitAllocation(); setTimeout(() => handleSaveVersion(), 100); }} disabled={allocationResults.length === 0} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-2"><Icons.Save /> Apply & Save</button>
-                                </div>
+                                <button onClick={commitAllocation} disabled={allocationResults.length === 0} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-emerald-700 transition disabled:opacity-50">Apply Granular Budget</button>
                             )}
                         </div>
                         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${isBudgetCommitted ? 'opacity-60 pointer-events-none' : ''}`}>
@@ -1403,21 +1198,13 @@
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Grid/> Combined Scenario Pivot</h3>
                                 <p className="text-xs text-slate-500">View Actuals combined with selected scenario (GWh).</p>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <span className="text-xs font-bold text-slate-500">Timeframe:</span>
-                                <select value={moversTimeFrame} onChange={e=>setMoversTimeFrame(e.target.value)} className="border rounded-lg px-3 py-1.5 font-bold text-purple-700 bg-white shadow-sm outline-none">
-                                    <option value="FY">Full Year (FY)</option>
-                                    <option value="YTD">YTD (Uses Global Filter)</option>
-                                    <option value="MTD">MTD (Uses Global Filter)</option>
-                                </select>
-                                <span className="text-slate-300">|</span>
-                                <span className="text-xs font-bold text-slate-500">Scenario:</span>
+                            <div className="flex items-center gap-3">
                                 <select value={pivotScenario} onChange={e=>setPivotScenario(e.target.value)} className="border rounded-lg px-3 py-1.5 font-bold text-blue-700 bg-white shadow-sm outline-none">
                                     <option value="leMgmt">LE Management</option>
                                     <option value="marchLE">March LE</option>
                                     <option value="leCust">LE Cust Vol</option>
                                     <option value="leRC">LE RC Vol</option>
-                                    <option value="leCustom">LE Advanced</option>
+                                    <option value="leCustom">LE Custom %</option>
                                     <option value="budgetCombined">Budget + Actuals</option>
                                 </select>
                             </div>
@@ -1439,30 +1226,18 @@
                                             <tr>
                                                 <th className="p-2 text-slate-500">#</th>
                                                 <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Incline</th>
-                                                <th className="p-2 text-right text-slate-500">% Growth</th>
-                                                <th className="p-2 text-slate-800 pl-4">Account</th>
-                                                <th className="p-2 text-slate-500 w-16">Notes</th>
+                                                <th className="p-2 text-slate-800">Account</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {topMovers.map((m, idx) => {
-                                                const commentKey = `${pivotScenario}|${moversTimeFrame}|${m.name}`;
-                                                const hasComment = !!varianceComments[commentKey];
-                                                return (
-                                                    <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
-                                                        <td className="p-2 text-slate-400">{idx + 1}</td>
-                                                        <td className="p-2 text-right font-bold text-emerald-600">+{m.variance.toFixed(2)}</td>
-                                                        <td className="p-2 text-right font-medium text-emerald-600 bg-emerald-50/30">+{m.pct.toFixed(1)}%</td>
-                                                        <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
-                                                        <td className="p-2 text-center">
-                                                            <button onClick={() => handleAddComment(m.name)} className="text-slate-400 hover:text-blue-600 transition" title={hasComment ? varianceComments[commentKey] : "Add explanation"}>
-                                                                {hasComment ? '💬' : '➕'}
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                            {topMovers.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
+                                            {topMovers.map((m, idx) => (
+                                                <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
+                                                    <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                    <td className="p-2 text-right font-medium text-emerald-600">{m.variance.toFixed(2)}</td>
+                                                    <td className="p-2 truncate max-w-[200px] text-slate-700" title={m.name}>{m.name}</td>
+                                                </tr>
+                                            ))}
+                                            {topMovers.length === 0 && <tr><td colSpan="3" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1478,30 +1253,18 @@
                                             <tr>
                                                 <th className="p-2 text-slate-500">#</th>
                                                 <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Decline</th>
-                                                <th className="p-2 text-right text-slate-500">% Growth</th>
-                                                <th className="p-2 text-slate-800 pl-4">Account</th>
-                                                <th className="p-2 text-slate-500 w-16">Notes</th>
+                                                <th className="p-2 text-slate-800">Account</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {bottomMovers.map((m, idx) => {
-                                                const commentKey = `${pivotScenario}|${moversTimeFrame}|${m.name}`;
-                                                const hasComment = !!varianceComments[commentKey];
-                                                return (
-                                                    <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
-                                                        <td className="p-2 text-slate-400">{idx + 1}</td>
-                                                        <td className="p-2 text-right font-bold text-red-500">{m.variance.toFixed(2)}</td>
-                                                        <td className="p-2 text-right font-medium text-red-500 bg-red-50/30">{m.pct.toFixed(1)}%</td>
-                                                        <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
-                                                        <td className="p-2 text-center">
-                                                            <button onClick={() => handleAddComment(m.name)} className="text-slate-400 hover:text-blue-600 transition" title={hasComment ? varianceComments[commentKey] : "Add explanation"}>
-                                                                {hasComment ? '💬' : '➕'}
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                            {bottomMovers.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
+                                            {bottomMovers.map((m, idx) => (
+                                                <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
+                                                    <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                    <td className="p-2 text-right font-medium text-red-500">{Math.abs(m.variance).toFixed(2)}</td>
+                                                    <td className="p-2 truncate max-w-[200px] text-slate-700" title={m.name}>{m.name}</td>
+                                                </tr>
+                                            ))}
+                                            {bottomMovers.length === 0 && <tr><td colSpan="3" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1716,7 +1479,7 @@
                                             <th className="p-2 text-right border-l border-slate-300 text-orange-700 bg-orange-50">LE Mgmt</th>
                                             <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs Bud</th>
                                             <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs PY</th>
-                                            <th className="p-2 text-right border-l border-slate-300 text-indigo-700 bg-indigo-50">LE Advanced</th>
+                                            <th className="p-2 text-right border-l border-slate-300 text-indigo-700 bg-indigo-50">LE Custom %</th>
                                             <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs Bud</th>
                                             <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs PY</th>
                                         </tr>
@@ -1809,7 +1572,7 @@
                                         <th className={`p-3 text-right ${activeMode === 'leCust' ? 'bg-purple-100 text-purple-800' : 'text-purple-600/70'}`}>LE Cust Vol</th>
                                         <th className={`p-3 text-right ${activeMode === 'leRC' ? 'bg-blue-100 text-blue-800' : 'text-blue-600/70'}`}>LE RC Vol</th>
                                         <th className={`p-3 text-right ${activeMode === 'leMgmt' ? 'bg-orange-100 text-orange-800' : 'text-orange-600/70'}`}>LE Mgmt</th>
-                                        <th className={`p-3 text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`}>LE Advanced</th>
+                                        <th className={`p-3 text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`}>LE Custom %</th>
                                         <th className="p-3 text-right border-l border-slate-200">Active LE vs Bud %</th>
                                         <th className="p-3 text-right">Active LE vs PY %</th>
                                     </tr>
@@ -1857,12 +1620,6 @@
                 );
             };
 
-            const renderForecastTab = () => renderGenericForecastTab(marchLE, 'March LE Analysis (Hurricane Corrected)', 'Projection based on March jump-off point normalized for 2025 hurricane impact.', <Icons.Wind className="text-emerald-500"/>, 'emerald', 'text-emerald-700', false, 'marchLE');
-            const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by each Customer\'s average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Users className="text-purple-500"/>, 'purple', 'text-purple-700', true, 'leCust');
-            const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap className="text-blue-500"/>, 'blue', 'text-blue-700', true, 'leRC');
-            const renderLeMgmtTab = () => renderGenericForecastTab(leMgmtGrowth, 'LE: Management Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase className="text-orange-500"/>, 'orange', 'text-orange-700', true, 'leMgmt');
-            const renderLeCustomTab = () => renderGenericForecastTab(leCustomGrowth, 'LE: Advanced Scenario Builder', 'Projection based on multi-dimensional growth adjustments applied to the base budget.', <Icons.Sliders className="text-indigo-500"/>, 'indigo', 'text-indigo-700', true, 'leCustom', renderAdvOverridesUI());
-
             const renderGlossaryTab = () => (
                 <div className="p-10 h-full overflow-y-auto custom-scroll">
                     <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
@@ -1890,9 +1647,9 @@
                                     <p className="text-sm text-slate-700"><strong>Rationale:</strong> Provides a balanced, pragmatic outlook aligned with business operations. The commercial accounts are individually managed and driven by specific business decisions (thus mapped by customer trend), while residential/general classes are better forecasted via smoothed, class-wide macroeconomic trends.</p>
                                 </div>
                                 <div className="bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3 md:col-span-2">
-                                    <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders/> LE: Advanced Scenario Builder</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers that are applied to the remaining Base Budget across various dimensions (Customer, Rate Class, Industry, or Month).</p>
-                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Used to model specific external hypotheses (e.g. "What if temperature drives residential volume 5% higher than budgeted in July?").</p>
+                                    <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders/> LE: Custom RC % Trend</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers that are applied to the remaining Budget for specific Rate Classes.</p>
+                                    <p className="text-sm text-slate-700"><strong>Rationale:</strong> Used to model specific external hypotheses (e.g. "What if temperature drives residential volume 5% higher than budgeted?").</p>
                                 </div>
                             </div>
                         </div>
@@ -1946,7 +1703,7 @@
                                     <button onClick={()=>setActiveTab('leCust')} className={`dashboard-tab ${activeTab==='leCust'?'active':''}`}><Icons.Users/> LE: Cust Vol</button>
                                     <button onClick={()=>setActiveTab('leRC')} className={`dashboard-tab ${activeTab==='leRC'?'active':''}`}><Icons.Zap/> LE: RC Vol</button>
                                     <button onClick={()=>setActiveTab('leMgmt')} className={`dashboard-tab ${activeTab==='leMgmt'?'active':''}`}><Icons.Briefcase/> LE: Mgmt</button>
-                                    <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders/> LE: Advanced</button>
+                                    <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders/> LE: Custom %</button>
                                     
                                     <div className="h-px bg-slate-200 my-3 mx-2"></div>
                                     <button onClick={()=>setActiveTab('pivot')} className={`dashboard-tab ${activeTab==='pivot'?'active':''}`}><Icons.Grid/> Pivot & Movers</button>
@@ -1971,7 +1728,6 @@
                                             {monthNames.map(m=><option key={m} value={m}>YTD: {m}</option>)}
                                         </select>
                                     </div>
-                                    <select value={fCust} onChange={e=>setFCust(e.target.value)} className="bg-transparent outline-none max-w-[150px] truncate pr-2"><option value="All">All Customers</option>{dimensions.customers.map(c=><option key={c} value={c}>{c}</option>)}</select>
                                     <select value={fRC} onChange={e=>setFRC(e.target.value)} className="bg-transparent outline-none"><option value="All">All Rates</option>{dimensions.rcs.map(r=><option key={r}>{r}</option>)}</select>
                                     <select value={fParish} onChange={e=>setFParish(e.target.value)} className="bg-transparent outline-none"><option value="All">All Parishes</option>{dimensions.parishes.map(p=><option key={p}>{p}</option>)}</select>
                                     <select value={fInd} onChange={e=>setFInd(e.target.value)} className="bg-transparent outline-none"><option value="All">All Industries</option>{dimensions.inds.map(i=><option key={i}>{i}</option>)}</select>
@@ -2046,7 +1802,7 @@
                                                         <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                                                             <span><Icons.Calendar className="inline w-3 h-3 mr-1"/> {v.timestamp}</span>
                                                             <span className="text-slate-300">|</span>
-                                                            <span>Overrides: {Object.keys(v.allocOverrides || {}).length + Object.keys(v.advOverrides || {}).length}</span>
+                                                            <span>Overrides: {Object.keys(v.allocOverrides || {}).length + Object.keys(v.rcGrowthOverrides || {}).length}</span>
                                                             <span className="text-slate-300">|</span>
                                                             <span className={v.isNormalizeHurricane ? 'text-emerald-600' : 'text-slate-400'}>Hurricane Norm: {v.isNormalizeHurricane ? 'ON' : 'OFF'}</span>
                                                         </p>
