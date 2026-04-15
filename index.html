@@ -6,8 +6,6 @@
     <title>JPS Sales Analytics & Forecasting Model</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Removed crossorigin attributes to prevent strict CORS blocking on local file:// protocol -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
@@ -21,8 +19,6 @@
         .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .table-pin-col { position: sticky; left: 0; background: white; z-index: 10; border-right: 2px solid #e2e8f0; }
         .table-pin-header { position: sticky; top: 0; background: #f8fafc; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        
-        /* Updated Sidebar Tabs CSS */
         .dashboard-tab { padding: 10px 16px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: #64748b; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; font-weight: 500; }
         .dashboard-tab:hover { background: #f1f5f9; color: #0f172a; }
         .dashboard-tab.active { background: #e0f2fe; color: #0ea5e9; font-weight: 700; }
@@ -35,15 +31,12 @@
         const { useState, useMemo, useEffect, useCallback, Component } = React;
         const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
 
-        // --- Error Boundary to prevent white screens ---
         class ErrorBoundary extends Component {
             constructor(props) {
                 super(props);
                 this.state = { hasError: false, error: null };
             }
-            static getDerivedStateFromError(error) {
-                return { hasError: true, error };
-            }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
             render() {
                 if (this.state.hasError) {
                     return (
@@ -51,9 +44,7 @@
                             <div className="bg-red-50 border border-red-200 p-8 rounded-xl max-w-2xl w-full shadow-lg">
                                 <h1 className="text-2xl font-black text-red-700 mb-4">Oops! The App Crashed</h1>
                                 <p className="text-sm text-red-600 mb-4">Something went wrong during execution. Check the error details below:</p>
-                                <pre className="bg-white p-4 rounded text-xs text-slate-800 overflow-auto shadow-inner">
-                                    {this.state.error && this.state.error.toString()}
-                                </pre>
+                                <pre className="bg-white p-4 rounded text-xs text-slate-800 overflow-auto shadow-inner">{this.state.error && this.state.error.toString()}</pre>
                             </div>
                         </div>
                     );
@@ -62,7 +53,6 @@
             }
         }
 
-        // --- Icons ---
         const Icons = {
             PieChart: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
             Database: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
@@ -74,8 +64,8 @@
             BookOpen: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
             Users: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
             Zap: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-            Building: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>,
             Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+            CheckCircle: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
             Download: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
             Briefcase: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
             Save: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
@@ -83,15 +73,14 @@
             Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
             X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
             Eye: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-            EyeOff: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
-            Link: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
+            Link: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
             Sliders: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>,
-            CheckCircle: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-            RefreshCw: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>,
-            CloudUp: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line></svg>
+            RefreshCw: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>,
+            CloudUp: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line></svg>,
+            CloudDown: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="8 16 12 20 16 16"></polyline><line x1="12" y1="12" x2="12" y2="20"></line></svg>,
+            Star: ({ filled }) => <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
         };
 
-        // --- Utils ---
         const exportCSV = (data, filename) => {
             if (!data || !data.length) return;
             const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object');
@@ -109,23 +98,29 @@
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         const rcOrder = ['RT10', 'RT20', 'EV', 'RT40', 'RT50', 'RT60', 'RT70'];
         const getRcWeight = (rc) => { const index = rcOrder.findIndex(r => r.toLowerCase() === (rc || '').toLowerCase()); return index === -1 ? 999 : index; };
+        
         const parseTimeStr = (str) => {
             if (!str) return { year: 0, month: 0, qtr: 0, sortKey: 0, text: 'Unassigned' };
             const parts = str.split(' ');
             if (parts.length !== 2) return { year: 0, month: 0, qtr: 0, sortKey: 0, text: str };
-            const m = monthMap[parts[0]] || 0; const y = parseInt(parts[1]) || 0; const q = Math.ceil(m / 3);
+            const m = monthMap[parts[0]] || 0;
+            const y = parseInt(parts[1]) || 0;
+            const q = Math.ceil(m / 3);
             return { year: y, month: m, qtr: q, text: str, sortKey: (y * 100) + m, qtrText: `Q${q} ${y}` };
         };
+
         const formatNum = (num, decimals=0) => Number(num||0).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
         const formatPct = (num) => (Number(num||0) * 100).toFixed(1) + '%';
         const cleanVal = (val) => parseFloat((val || '0').toString().replace(/,/g, ''));
+
         const parseCSV = (text) => {
             const rows = []; let currentRow = []; let currentCell = ''; let inQuotes = false;
             for (let i = 0; i < text.length; i++) {
                 const char = text[i];
                 if (inQuotes) {
                     if (char === '"' && text[i + 1] === '"') { currentCell += '"'; i++; }
-                    else if (char === '"') { inQuotes = false; } else { currentCell += char; }
+                    else if (char === '"') { inQuotes = false; }
+                    else { currentCell += char; }
                 } else {
                     if (char === '"') { inQuotes = true; }
                     else if (char === ',') { currentRow.push(currentCell); currentCell = ''; }
@@ -136,35 +131,51 @@
                 }
             }
             if (currentCell || currentRow.length > 0) { currentRow.push(currentCell); rows.push(currentRow); }
-            const headers = rows[0]?.map(h => h.trim()) || []; const data = [];
+            const headers = rows[0]?.map(h => h.trim()) || [];
+            const data = [];
             for (let i = 1; i < rows.length; i++) {
                 if (rows[i].length < 2) continue;
-                const obj = {}; headers.forEach((h, j) => { obj[h] = rows[i][j] ? rows[i][j].trim() : ''; }); data.push(obj);
+                const obj = {};
+                headers.forEach((h, j) => { obj[h] = rows[i][j] ? rows[i][j].trim() : ''; });
+                data.push(obj);
             }
             return data;
         };
 
         function App() {
-            const [activeTab, setActiveTab] = useState('data');
+            // SET OVERVIEW AS THE DEFAULT TAB
+            const [activeTab, setActiveTab] = useState('overview');
+
+            // --- GITHUB CONFIGURATION ---
+            // Uses localStorage so you don't have to hardcode credentials in the file.
+            const [githubConfig, setGithubConfig] = useState(() => {
+                const saved = localStorage.getItem('jps_github_config');
+                return saved ? JSON.parse(saved) : { token: '', owner: '', repo: '' };
+            });
+
+            const updateGithubConfig = (field, value) => {
+                setGithubConfig(prev => {
+                    const next = { ...prev, [field]: value };
+                    localStorage.setItem('jps_github_config', JSON.stringify(next));
+                    return next;
+                });
+            };
+
             const [rawActuals, setRawActuals] = useState([]);
-            
-            // rawBudget stores the active budget (high-level until committed, then granular)
             const [rawBudget, setRawBudget] = useState([]);
-            // Backup the original high-level budget so we can revert if they "Unlock"
             const [originalBudget, setOriginalBudget] = useState([]);
-            
             const [isBudgetCommitted, setIsBudgetCommitted] = useState(false);
             
-            // GitHub Fetch State
             const [budgetUrl, setBudgetUrl] = useState('');
             const [actualsUrl, setActualsUrl] = useState('');
             const [isLoadingUrl, setIsLoadingUrl] = useState({ budget: false, actuals: false });
             const [loadError, setLoadError] = useState('');
             
-            // GitHub Auth & Push Config
-            const [githubConfig, setGithubConfig] = useState({ token: '', owner: '', repo: '' });
             const [isPushing, setIsPushing] = useState(false);
+            const [isSyncingConfigs, setIsSyncingConfigs] = useState(false);
+            const [hasAutoRestored, setHasAutoRestored] = useState(false);
 
+            // Filters & State
             const [ytdMonth, setYtdMonth] = useState('All');
             const [fMonth, setFMonth] = useState('All');
             const [fYear, setFYear] = useState('All');
@@ -176,6 +187,7 @@
             const [allocOverrides, setAllocOverrides] = useState({});
             const [rcGrowthOverrides, setRcGrowthOverrides] = useState({});
             const [allocationResults, setAllocationResults] = useState([]);
+            
             const [varianceDim, setVarianceDim] = useState('rc');
             const [drillDownDim, setDrillDownDim] = useState('name');
             const [expandedRow, setExpandedRow] = useState(null);
@@ -185,7 +197,6 @@
             const [savedVersions, setSavedVersions] = useState([]);
             const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
 
-            // Graph Toggles
             const [graphToggles, setGraphToggles] = useState({
                 act25: true, bud26: true, act26: true, marchLE: true, leCust: true, leRc: true, leMgmt: true, leCustom: true
             });
@@ -201,41 +212,86 @@
                 { key: 'leCustom', label: 'LE Custom %', activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' }
             ];
 
-            // --- Auto-Load Local Files on Init ---
-            // Replaced spaces with %20 to avoid malformed URL errors in strict browsers
+            // 1. SILENT BOOT SEQUENCE - AUTO FETCH EVERYTHING
             useEffect(() => {
-                const autoLoadFiles = async () => {
+                let isMounted = true;
+
+                const bootApp = async () => {
+                    // Step A: Load CSV Data
                     try {
                         const actRes = await fetch('./JPS%20Actuals%20data.csv');
                         if (actRes.ok) {
                             const actText = await actRes.text();
                             const parsedAct = parseCSV(actText);
-                            if(parsedAct && parsedAct.length > 0) setRawActuals(parsedAct);
+                            if(parsedAct && parsedAct.length > 0 && isMounted) setRawActuals(parsedAct);
                         }
                         
                         const budRes = await fetch('./JPS%20Budget%202026%20data.csv');
                         if (budRes.ok) {
                             const budText = await budRes.text();
                             const parsedBud = parseCSV(budText);
-                            if(parsedBud && parsedBud.length > 0) setRawBudget(parsedBud);
+                            if(parsedBud && parsedBud.length > 0 && isMounted) {
+                                setRawBudget(parsedBud);
+                                setOriginalBudget([...parsedBud]);
+                            }
                         }
                     } catch (e) {
-                        // Normally happens when opened via file:/// due to CORS
-                        console.log("Could not auto-load files from root. Manual upload required.", e);
-                        if (window.location.protocol === 'file:') {
-                            setLoadError("Local file fetch blocked by browser. Please upload files manually or run a local web server.");
+                        console.log("Could not auto-load files from root.", e);
+                        if (window.location.protocol === 'file:' && isMounted) {
+                            setLoadError("Local file fetch blocked by browser security. Please run a local server or use the manual file inputs in the Data Hub.");
+                        }
+                    }
+
+                    // Step B: Silently load Scenarios Config from GitHub (if credentials exist)
+                    if (githubConfig.token && githubConfig.owner && githubConfig.repo && !githubConfig.token.includes('YOUR_TOKEN')) {
+                        try {
+                            const path = `dashboard_scenarios.json`;
+                            const url = `https://api.github.com/repos/${githubConfig.owner.trim()}/${githubConfig.repo.trim()}/contents/${path}`;
+                            const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${githubConfig.token.trim()}` } });
+                            if (getRes.ok && isMounted) {
+                                const fileData = await getRes.json();
+                                const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
+                                const parsedScenarios = JSON.parse(decodedContent);
+                                setSavedVersions(parsedScenarios);
+                            }
+                        } catch (e) {
+                            console.log("No cloud scenarios found or failed to fetch config on boot.", e);
                         }
                     }
                 };
-                autoLoadFiles();
+
+                bootApp();
+                return () => { isMounted = false; };
             }, []);
+
+            // 2. AUTO-APPLY DEFAULT SCENARIO (Once everything is loaded into memory)
+            useEffect(() => {
+                if (!hasAutoRestored && originalBudget.length > 0 && rawActuals.length > 0 && savedVersions.length > 0) {
+                    const defaultScenario = savedVersions.find(v => v.isDefault);
+                    if (defaultScenario) {
+                        console.log("Auto-restoring default scenario:", defaultScenario.name);
+                        
+                        setRawBudget([...originalBudget]);
+                        setIsBudgetCommitted(false); // force re-allocation run
+                        setMonthMapping(defaultScenario.monthMapping || {});
+                        setAllocOverrides(defaultScenario.allocOverrides || {});
+                        setRcGrowthOverrides(defaultScenario.rcGrowthOverrides || {});
+                        setIsNormalizeHurricane(defaultScenario.isNormalizeHurricane ?? true);
+                        
+                        setHasAutoRestored(true);
+                    } else {
+                        setHasAutoRestored(true); // Don't check anymore if there is no default
+                    }
+                }
+            }, [originalBudget, rawActuals, savedVersions, hasAutoRestored]);
 
             // --- Engine ---
             const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
+                if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [] } };
+
                 const normA = rawActuals.map(d => ({ source: d['Source'] || 'Postpaid', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unassigned', name: d['Name'] || 'Unassigned', industry: d['Industry'] || 'Unassigned', kwh: cleanVal(d['Sum of net_kwh_billed_consump']), ...parseTimeStr(d['Month']) }));
                 const normB = rawBudget.map(d => ({ source: d['Source'] || 'Budget', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unallocated', name: d['Name'] || 'Unallocated', industry: d['Industry'] || 'Unallocated', kwh: cleanVal(d['Sum of Budget']), ...parseTimeStr(d['Month']) }));
 
-                // 2. MARCH LE
                 const march26Actuals = normA.filter(d => d.month === 3 && d.year === 2026);
                 const baseline25 = normA.filter(d => d.year === 2025);
                 const getNormalizedKwh = (d) => { if (isNormalizeHurricane && (d.month >= 10 && d.month <= 12)) return d.kwh / 0.65; return d.kwh; };
@@ -257,7 +313,6 @@
                     });
                 });
 
-                // 3. Volumetric Scenarios
                 const ytd25Cust = {}; const ytd26Cust = {};
                 const ytd25RC = {};   const ytd26RC = {};
                 normA.filter(d => d.month <= 3).forEach(d => {
@@ -289,7 +344,6 @@
                     const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
                     leMgmtData.push({ ...b, source: 'LE - Management', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
 
-                    // Custom RC % Override Scenario
                     const customPct = rcGrowthOverrides[b.rc] || 0;
                     const customKwh = Math.max(0, b.kwh * (1 + customPct / 100));
                     leCustomData.push({ ...b, source: 'LE - Custom RC %', type: 'Forecast', kwh: customKwh });
@@ -303,7 +357,7 @@
                 return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years } };
             }, [rawActuals, rawBudget, isNormalizeHurricane, rcGrowthOverrides]);
 
-            // Allocation Engine Logic
+            // Mapping for Allocation Setup
             useEffect(() => {
                 if (rawBudget.length === 0 || isBudgetCommitted) return;
                 const bMonths = [...new Set(rawBudget.map(d => d.Month))].filter(Boolean);
@@ -314,19 +368,22 @@
                 }))].filter(Boolean);
 
                 const getRef = (target) => aQuarters.includes(target) ? target : (aMonths.includes(target) ? target : (aQuarters.length > 0 ? aQuarters[aQuarters.length-1] : ''));
-                const newMapping = {};
                 
-                bMonths.forEach(bm => {
-                    const p = parseTimeStr(bm);
-                    if (p.year === 2026 && p.qtr <= 2) {
-                        newMapping[bm] = getRef('Q1 2026 Average');
-                    } else {
-                        newMapping[bm] = getRef('Q4 2025 Average');
-                    }
-                });
-                setMonthMapping(newMapping);
-            }, [rawBudget, rawActuals, isBudgetCommitted]);
+                if (Object.keys(monthMapping).length === 0) {
+                    const newMapping = {};
+                    bMonths.forEach(bm => {
+                        const p = parseTimeStr(bm);
+                        if (p.year === 2026 && p.qtr <= 2) {
+                            newMapping[bm] = getRef('Q1 2026 Average');
+                        } else {
+                            newMapping[bm] = getRef('Q4 2025 Average');
+                        }
+                    });
+                    setMonthMapping(newMapping);
+                }
+            }, [rawBudget, rawActuals, isBudgetCommitted, monthMapping]);
 
+            // Run Proration Engine
             useEffect(() => {
                 if (isBudgetCommitted || rawActuals.length === 0 || rawBudget.length === 0) return;
                 const allResults = [];
@@ -334,6 +391,8 @@
                 
                 bMonths.forEach(tMonth => {
                     const rMonth = monthMapping[tMonth];
+                    if (!rMonth) return;
+
                     const tBud = rawBudget.filter(d => d.Month === tMonth);
                     const bGroups = {};
                     tBud.forEach(b => {
@@ -342,12 +401,6 @@
                         bGroups[key].amount += cleanVal(b['Sum of Budget']);
                     });
                     
-                    if (!rMonth) {
-                        Object.keys(bGroups).forEach(key => { const [rc, parish] = key.split('|'); allResults.push({ targetMonth: tMonth, refMonth: 'NONE', rc, parish, acct: 'UNALLOCATED', name: 'NO MAPPING', industry: 'Unallocated', finalA: bGroups[key].amount, weight: 1, override: '-' }); });
-                        return;
-                    }
-                    
-                    // Support for Quarterly Averages filtering
                     const isQuarter = rMonth.includes('Average');
                     const filteredActs = isQuarter 
                         ? rawActuals.filter(a => {
@@ -399,7 +452,6 @@
             const commitAllocation = useCallback(() => {
                 if (allocationResults.length === 0) return;
                 
-                // Backup original high-level budget before modifying
                 if (originalBudget.length === 0) {
                     setOriginalBudget([...rawBudget]);
                 }
@@ -408,7 +460,6 @@
                 setIsBudgetCommitted(true); 
             }, [allocationResults, rawBudget, originalBudget]);
 
-            // --- Auto-Commit Allocation once Ready ---
             useEffect(() => {
                 if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0) {
                     commitAllocation();
@@ -422,14 +473,14 @@
                 setIsBudgetCommitted(false);
             };
 
-            // --- GitHub API Push Action ---
+            // --- Cloud Functions ---
             const saveForecastToGitHub = async (csvDataArray, filename) => {
                 const token = githubConfig.token.trim();
                 const owner = githubConfig.owner.trim();
                 const repo = githubConfig.repo.trim();
 
-                if (!token || !owner || !repo) {
-                    alert("Please configure your GitHub API Token, Owner, and Repo in the Data Hub first.");
+                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
+                    alert("Please hardcode or enter your correct GitHub API credentials in the Data Hub first.");
                     setActiveTab('data');
                     return;
                 }
@@ -442,39 +493,24 @@
                         ...csvDataArray.map(row => headers.map(h => `"${(row[h] !== undefined && row[h] !== null) ? row[h].toString().replace(/"/g, '""') : ''}"`).join(','))
                     ].join('\n');
 
-                    // Base64 Encoding suitable for GitHub API (safely handles spaces and special chars)
                     const base64Content = btoa(unescape(encodeURIComponent(csvString)));
                     const path = `${filename}.csv`;
                     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
-                    // Check if file exists to get SHA
                     let fileSha = null;
-                    const getRes = await fetch(url, { 
-                        headers: { 
-                            'Authorization': `Bearer ${token}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        } 
-                    });
+                    const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' } });
                     
                     if (getRes.ok) {
                         const fileData = await getRes.json();
                         fileSha = fileData.sha;
                     }
 
-                    // PUT Request body
-                    const body = {
-                        message: `Auto-update ${filename}.csv from Sales Dashboard`,
-                        content: base64Content,
-                    };
+                    const body = { message: `Auto-update ${filename}.csv from Sales Dashboard`, content: base64Content };
                     if (fileSha) body.sha = fileSha;
 
                     const putRes = await fetch(url, {
                         method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Accept': 'application/vnd.github.v3+json',
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
 
@@ -482,20 +518,113 @@
                         alert(`Successfully pushed ${filename}.csv to GitHub repository!`);
                     } else {
                         const err = await putRes.json();
-                        if (putRes.status === 404) {
-                            alert(`Failed to save: "Not Found" (404).\n\nCauses:\n1. Your Personal Access Token does NOT have the 'repo' scope checked.\n2. Typo in Repository Owner or Name.\n3. The token is invalid/expired.`);
-                        } else {
-                            alert(`Failed to save to GitHub: ${err.message}`);
-                        }
+                        if (putRes.status === 404) alert(`Failed to save: "Not Found" (404).\n\nCauses:\n1. Your Personal Access Token does NOT have the 'repo' scope checked.\n2. Typo in Repository Owner or Name.`);
+                        else alert(`Failed to save to GitHub: ${err.message}`);
                     }
                 } catch (error) {
-                    console.error("GitHub API Error:", error);
-                    alert("An unexpected error occurred while communicating with GitHub. Check console.");
+                    alert("An unexpected error occurred while communicating with GitHub.");
                 } finally {
                     setIsPushing(false);
                 }
             };
 
+            const pushScenariosToCloud = async (versionsOverride = null) => {
+                const versionsToPush = versionsOverride || savedVersions;
+                
+                const token = githubConfig.token.trim();
+                const owner = githubConfig.owner.trim();
+                const repo = githubConfig.repo.trim();
+
+                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
+                    alert("Please correct your GitHub API credentials in the Data Hub first.");
+                    return;
+                }
+                if (versionsToPush.length === 0) {
+                    alert("You have no saved scenarios to push. Save a version first.");
+                    return;
+                }
+
+                setIsSyncingConfigs(true);
+                try {
+                    const payloadToSave = versionsToPush.map(v => ({
+                        id: v.id,
+                        name: v.name,
+                        timestamp: v.timestamp,
+                        isNormalizeHurricane: v.isNormalizeHurricane,
+                        allocOverrides: v.allocOverrides,
+                        rcGrowthOverrides: v.rcGrowthOverrides,
+                        monthMapping: v.monthMapping,
+                        isDefault: v.isDefault || false
+                    }));
+
+                    const jsonString = JSON.stringify(payloadToSave, null, 2);
+                    const base64Content = btoa(unescape(encodeURIComponent(jsonString)));
+                    const path = `dashboard_scenarios.json`;
+                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+                    let fileSha = null;
+                    const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (getRes.ok) {
+                        const fileData = await getRes.json();
+                        fileSha = fileData.sha;
+                    }
+
+                    const body = { message: `Sync dashboard scenarios to cloud`, content: base64Content };
+                    if (fileSha) body.sha = fileSha;
+
+                    const putRes = await fetch(url, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (!putRes.ok) {
+                        const err = await putRes.json();
+                        alert(`Failed to sync config to GitHub: ${err.message}`);
+                    }
+                } catch (error) {
+                    alert("An unexpected error occurred while communicating with GitHub.");
+                } finally {
+                    setIsSyncingConfigs(false);
+                }
+            };
+
+            const pullScenariosFromCloud = async () => {
+                const token = githubConfig.token.trim();
+                const owner = githubConfig.owner.trim();
+                const repo = githubConfig.repo.trim();
+
+                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
+                    alert("Please configure your GitHub credentials first.");
+                    return;
+                }
+
+                setIsSyncingConfigs(true);
+                try {
+                    const path = `dashboard_scenarios.json`;
+                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+                    const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (getRes.ok) {
+                        const fileData = await getRes.json();
+                        const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
+                        const parsedScenarios = JSON.parse(decodedContent);
+                        
+                        setSavedVersions(parsedScenarios);
+                        alert("Cloud scenarios loaded into your Versions menu.");
+                    } else if (getRes.status === 404) {
+                        alert("No 'dashboard_scenarios.json' config file found on GitHub. Push a scenario to the cloud first!");
+                    } else {
+                        alert("Failed to fetch scenarios from GitHub.");
+                    }
+                } catch (error) {
+                    alert("An unexpected error occurred while parsing cloud data.");
+                } finally {
+                    setIsSyncingConfigs(false);
+                }
+            };
+
+            // --- Handlers ---
             const handleFileUpload = (e, isBudget) => {
                 const reader = new FileReader();
                 reader.onload = (evt) => { 
@@ -527,7 +656,7 @@
                         setRawActuals(data); 
                     }
                 } catch (e) {
-                    alert('Error fetching file: ' + e.message + '\nMake sure you are using the "Raw" GitHub URL.');
+                    alert('Error fetching file: ' + e.message);
                 } finally {
                     setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
                 }
@@ -536,15 +665,54 @@
             const handleSaveVersion = () => {
                 const name = prompt("Enter a name for this scenario version:");
                 if (!name) return;
-                const newVersion = { id: Date.now(), name, timestamp: new Date().toLocaleString(), rawBudget: [...rawBudget], isBudgetCommitted, monthMapping: { ...monthMapping }, allocOverrides: { ...allocOverrides }, rcGrowthOverrides: { ...rcGrowthOverrides }, isNormalizeHurricane };
-                setSavedVersions(prev => [...prev, newVersion]);
-                alert(`Version "${name}" saved successfully!`);
+                
+                const isDefault = savedVersions.length === 0;
+                const newVersion = { id: Date.now(), name, timestamp: new Date().toLocaleString(), isDefault, monthMapping: { ...monthMapping }, allocOverrides: { ...allocOverrides }, rcGrowthOverrides: { ...rcGrowthOverrides }, isNormalizeHurricane };
+                
+                const updatedVersions = [...savedVersions, newVersion];
+                setSavedVersions(updatedVersions);
+                
+                if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
+                    pushScenariosToCloud(updatedVersions);
+                } else {
+                    alert(`Version "${name}" saved locally!`);
+                }
             };
 
             const handleRestoreVersion = (version) => {
-                if(!confirm(`Are you sure you want to restore "${version.name}"? Any unsaved changes in your current view will be lost.`)) return;
-                setRawBudget([...version.rawBudget]); setIsBudgetCommitted(version.isBudgetCommitted); setMonthMapping({ ...version.monthMapping }); setAllocOverrides({ ...version.allocOverrides }); 
-                setRcGrowthOverrides(version.rcGrowthOverrides || {}); setIsNormalizeHurricane(version.isNormalizeHurricane); setIsVersionModalOpen(false);
+                if (originalBudget.length > 0) {
+                    setRawBudget([...originalBudget]);
+                }
+                setIsBudgetCommitted(false); 
+                setMonthMapping(version.monthMapping || {}); 
+                setAllocOverrides(version.allocOverrides || {}); 
+                setRcGrowthOverrides(version.rcGrowthOverrides || {}); 
+                setIsNormalizeHurricane(version.isNormalizeHurricane ?? true); 
+                setIsVersionModalOpen(false);
+            };
+
+            const handleDeleteVersion = (id) => {
+                if(!confirm("Delete this saved version?")) return;
+                const updatedVersions = savedVersions.filter(v => v.id !== id);
+                setSavedVersions(updatedVersions);
+                if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
+                    pushScenariosToCloud(updatedVersions);
+                }
+            };
+
+            const handleSetDefaultVersion = async (id) => {
+                const updatedVersions = savedVersions.map(v => ({
+                    ...v,
+                    isDefault: v.id === id
+                }));
+                setSavedVersions(updatedVersions);
+                
+                if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
+                    await pushScenariosToCloud(updatedVersions);
+                    alert("Default scenario changed and pushed to cloud.");
+                } else {
+                    alert("Default scenario set locally. You must configure GitHub credentials to push this setting for your team.");
+                }
             };
 
             const handleClearData = () => {
@@ -561,6 +729,7 @@
                 setRcGrowthOverrides({});
                 setAllocationResults([]);
                 setSavedVersions([]);
+                setHasAutoRestored(false);
                 setActiveTab('data');
             };
 
@@ -576,6 +745,7 @@
             }, [fYear, fMonth, fRC, fParish, fInd]);
 
             const monthlyAggregates = useMemo(() => {
+                if (actuals.length === 0) return [];
                 const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth); const fLeCustom = getFiltered(leCustomGrowth);
                 return monthNames.map((m, idx) => {
                     const mNum = idx + 1;
@@ -640,22 +810,21 @@
             // --- TABS ---
             const renderDataTab = () => (
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
-                    {/* GitHub Configuration Form (MOVED TO TOP) */}
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
-                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub API Configuration</h3>
-                        <p className="text-xs text-slate-400 mb-4 max-w-2xl">Enter your credentials to allow the dashboard to fetch data from and push finalized forecasts directly back to your repository. Ensure your Personal Access Token has 'repo' level permissions.</p>
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub Team Sync & API Config</h3>
+                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage, not in the file.</strong></p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
-                                <input type="password" value={githubConfig.token} onChange={e=>setGithubConfig(p=>({...p, token: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
+                                <input type="password" value={githubConfig.token} onChange={e=>updateGithubConfig('token', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
                             </div>
                             <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Owner</label>
-                                <input type="text" value={githubConfig.owner} onChange={e=>setGithubConfig(p=>({...p, owner: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. JohnDoe" />
+                                <input type="text" value={githubConfig.owner} onChange={e=>updateGithubConfig('owner', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. JohnDoe" />
                             </div>
                             <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Name</label>
-                                <input type="text" value={githubConfig.repo} onChange={e=>setGithubConfig(p=>({...p, repo: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
+                                <input type="text" value={githubConfig.repo} onChange={e=>updateGithubConfig('repo', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
                             </div>
                         </div>
                     </div>
@@ -663,7 +832,7 @@
                     <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
                         <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data to Engine</h2>
-                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files or fetch directly from GitHub Raw URLs.</p>
+                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files or let the system fetch directly from GitHub Raw URLs.</p>
                         
                         {loadError ? (
                             <p className="text-xs text-red-600 font-bold mb-8 bg-red-50 py-1.5 px-4 rounded-full inline-block border border-red-200">{loadError}</p>
@@ -820,9 +989,9 @@
                                     <thead className="table-pin-header">
                                         <tr className="bg-slate-100">
                                             <th className="p-3 border-r table-pin-col bg-slate-100 z-30">Month</th>
-                                            <th className="p-3 text-right">2025 Actuals</th>
-                                            <th className="p-3 text-right">2026 Budget</th>
-                                            <th className="p-3 text-right">2026 Actuals</th>
+                                            <th className="p-3 text-right">2025 Act</th>
+                                            <th className="p-3 text-right">2026 Bud</th>
+                                            <th className="p-3 text-right">2026 Act</th>
                                             <th className="p-3 text-right text-emerald-700">March LE</th>
                                             <th className="p-3 text-right text-purple-700">LE Cust Vol</th>
                                             <th className="p-3 text-right text-blue-700">LE RC Vol</th>
@@ -932,8 +1101,6 @@
             };
 
             const renderVarianceTab = () => {
-                if (!isBudgetCommitted) return <div className="p-10 text-center text-slate-400 font-bold">Commit Budget in Allocation Engine to enable Variance Matrix.</div>;
-
                 const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
                 const matrix = {};
 
@@ -1208,7 +1375,7 @@
                 );
             };
 
-            const renderForecastTab = () => renderGenericForecastTab(marchLE, 'March LE Analysis', 'Projection based on March jump-off point normalized for 2025 hurricane impact.', <Icons.Wind className="text-emerald-500"/>, 'emerald', 'text-emerald-700', false, 'marchLE');
+            const renderForecastTab = () => renderGenericForecastTab(marchLE, 'March LE Analysis (Hurricane Corrected)', 'Projection based on March jump-off point normalized for 2025 hurricane impact.', <Icons.Wind className="text-emerald-500"/>, 'emerald', 'text-emerald-700', false, 'marchLE');
             const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by each Customer\'s average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Users className="text-purple-500"/>, 'purple', 'text-purple-700', true, 'leCust');
             const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap className="text-blue-500"/>, 'blue', 'text-blue-700', true, 'leRC');
             const renderLeMgmtTab = () => renderGenericForecastTab(leMgmtGrowth, 'LE: Management Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase className="text-orange-500"/>, 'orange', 'text-orange-700', true, 'leMgmt');
@@ -1291,7 +1458,6 @@
                     <div className="flex flex-1 overflow-hidden">
                         {/* Vertical Sidebar Tabs */}
                         <aside className="w-56 bg-white border-r flex flex-col gap-1 p-4 shrink-0 overflow-y-auto custom-scroll z-10 shadow-sm">
-                            <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database/> Data Hub</button>
                             {rawActuals.length > 0 && (
                                 <>
                                     <button onClick={()=>setActiveTab('overview')} className={`dashboard-tab ${activeTab==='overview'?'active':''}`}><Icons.Activity/> Overview</button>
@@ -1312,6 +1478,10 @@
                                 </>
                             )}
                             <button onClick={()=>setActiveTab('glossary')} className={`dashboard-tab ${activeTab==='glossary'?'active':''}`}><Icons.BookOpen/> Glossary</button>
+                            
+                            <div className="mt-auto"></div>
+                            <div className="h-px bg-slate-200 my-3 mx-2"></div>
+                            <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database/> Data Hub</button>
                         </aside>
 
                         <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
@@ -1333,17 +1503,28 @@
 
                             <div className="flex-1 overflow-hidden relative bg-slate-50/50 z-0">
                                 <ErrorBoundary>
-                                    {activeTab === 'data' && renderDataTab()}
-                                    {activeTab === 'overview' && renderOverviewTab()}
-                                    {activeTab === 'monthly' && renderMonthlyTab()}
-                                    {activeTab === 'allocation' && renderAllocationTab()}
-                                    {activeTab === 'forecast' && renderForecastTab()}
-                                    {activeTab === 'leCust' && renderLeCustTab()}
-                                    {activeTab === 'leRC' && renderLeRCTab()}
-                                    {activeTab === 'leMgmt' && renderLeMgmtTab()}
-                                    {activeTab === 'leCustom' && renderLeCustomTab()}
-                                    {activeTab === 'variance' && renderVarianceTab()}
-                                    {activeTab === 'glossary' && renderGlossaryTab()}
+                                    {rawActuals.length === 0 && activeTab !== 'data' && activeTab !== 'glossary' ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                                            <Icons.CloudDown className="w-12 h-12 mb-4 animate-bounce text-blue-400"/>
+                                            <h2 className="text-xl font-bold mb-2">Fetching Cloud Data...</h2>
+                                            <p className="text-sm mb-6 max-w-md text-center">Auto-loading actuals and budget from your repository. If this takes more than a few seconds, you may need to configure your data sources manually.</p>
+                                            <button onClick={() => setActiveTab('data')} className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-slate-900 transition">Go to Data Hub</button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {activeTab === 'data' && renderDataTab()}
+                                            {activeTab === 'overview' && renderOverviewTab()}
+                                            {activeTab === 'monthly' && renderMonthlyTab()}
+                                            {activeTab === 'allocation' && renderAllocationTab()}
+                                            {activeTab === 'forecast' && renderForecastTab()}
+                                            {activeTab === 'leCust' && renderLeCustTab()}
+                                            {activeTab === 'leRC' && renderLeRCTab()}
+                                            {activeTab === 'leMgmt' && renderLeMgmtTab()}
+                                            {activeTab === 'leCustom' && renderLeCustomTab()}
+                                            {activeTab === 'variance' && renderVarianceTab()}
+                                            {activeTab === 'glossary' && renderGlossaryTab()}
+                                        </>
+                                    )}
                                 </ErrorBoundary>
                             </div>
                         </main>
@@ -1351,40 +1532,65 @@
 
                     {isVersionModalOpen && (
                         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
-                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[80vh]">
+                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[80vh]">
                                 <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
                                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.History/> Saved Scenarios & Versions</h2>
                                     <button onClick={() => setIsVersionModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition"><Icons.X/></button>
                                 </div>
+                                
+                                <div className="bg-slate-800 p-4 flex justify-between items-center text-white shrink-0 shadow-inner">
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <Icons.CloudUp className="text-blue-400"/> 
+                                        <span className="font-bold">Cloud Sync</span>
+                                        <span className="text-slate-400 text-xs ml-2">Pulling manually overwrites unsaved local versions.</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={pullScenariosFromCloud} disabled={isSyncingConfigs} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2"><Icons.CloudDown/> {isSyncingConfigs ? '...' : 'Pull Config from Cloud'}</button>
+                                    </div>
+                                </div>
+
                                 <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
                                     {savedVersions.length === 0 ? (
                                         <div className="text-center py-10 text-slate-500">
                                             <Icons.Save className="w-12 h-12 mx-auto mb-3 text-slate-300"/>
-                                            <p className="font-medium">No versions saved in this session.</p>
-                                            <p className="text-sm mt-1">Save your allocation logic and overrides to quickly switch between scenarios.</p>
+                                            <p className="font-medium">No versions saved locally.</p>
+                                            <p className="text-sm mt-1 mb-4">Save a version from the header, or pull from the cloud.</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-3">
                                             {savedVersions.map(v => (
-                                                <div key={v.id} className="bg-white border rounded-xl p-4 flex items-center justify-between shadow-sm hover:border-blue-300 transition">
+                                                <div key={v.id} className={`bg-white border rounded-xl p-4 flex items-center justify-between shadow-sm transition ${v.isDefault ? 'border-amber-400 bg-amber-50/20' : 'hover:border-blue-300'}`}>
                                                     <div>
-                                                        <h4 className="font-bold text-slate-800 text-lg">{v.name}</h4>
+                                                        <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                                            {v.isDefault && <span className="text-amber-500 flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-100 rounded-full border border-amber-200"><Icons.Star filled /> Default</span>}
+                                                            {v.name}
+                                                        </h4>
                                                         <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                                                            <span><Icons.Calendar className="inline w-3 h-3 mr-1"/> {v.timestamp}</span><span className="text-slate-300">|</span>
-                                                            <span>Overrides: {Object.keys(v.allocOverrides).length + Object.keys(v.rcGrowthOverrides || {}).length}</span><span className="text-slate-300">|</span>
+                                                            <span><Icons.Calendar className="inline w-3 h-3 mr-1"/> {v.timestamp}</span>
+                                                            <span className="text-slate-300">|</span>
+                                                            <span>Overrides: {Object.keys(v.allocOverrides || {}).length + Object.keys(v.rcGrowthOverrides || {}).length}</span>
+                                                            <span className="text-slate-300">|</span>
                                                             <span className={v.isNormalizeHurricane ? 'text-emerald-600' : 'text-slate-400'}>Hurricane Norm: {v.isNormalizeHurricane ? 'ON' : 'OFF'}</span>
                                                         </p>
                                                     </div>
                                                     <div className="flex gap-2">
-                                                        <button onClick={() => handleRestoreVersion(v)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition">Restore</button>
-                                                        <button onClick={() => handleDeleteVersion(v.id)} className="bg-white border hover:bg-red-50 text-red-500 p-2 rounded-lg shadow-sm transition" title="Delete"><Icons.Trash/></button>
+                                                        {!v.isDefault && (
+                                                            <button onClick={() => handleSetDefaultVersion(v.id)} className="bg-white border hover:bg-amber-50 hover:text-amber-600 text-slate-500 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-1" title="Load this scenario automatically for everyone">
+                                                                <Icons.Star /> Make Default
+                                                            </button>
+                                                        )}
+                                                        <button onClick={() => handleRestoreVersion(v)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition">
+                                                            Restore
+                                                        </button>
+                                                        <button onClick={() => handleDeleteVersion(v.id)} className="bg-white border hover:bg-red-50 text-red-500 p-2 rounded-lg shadow-sm transition" title="Delete">
+                                                            <Icons.Trash/>
+                                                        </button>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
                                 </div>
-                                <div className="bg-slate-100 p-4 text-center text-xs text-slate-500 border-t">Note: Saved versions are stored in-memory for the current active browser session.</div>
                             </div>
                         </div>
                     )}
