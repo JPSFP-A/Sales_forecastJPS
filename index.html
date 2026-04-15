@@ -186,12 +186,11 @@
             const [fRC, setFRC] = useState('All');
             const [fParish, setFParish] = useState('All');
             const [fInd, setFInd] = useState('All');
-            const [fCust, setFCust] = useState('All'); // NEW: Customer Filter
+            const [fCust, setFCust] = useState('All'); 
 
             const [monthMapping, setMonthMapping] = useState({});
             const [allocOverrides, setAllocOverrides] = useState({});
             
-            // NEW: Advanced Overrides Structure
             const [advOverrides, setAdvOverrides] = useState({ customer: {}, rc: {}, industry: {}, month: {} });
             
             const [allocationResults, setAllocationResults] = useState([]);
@@ -204,6 +203,7 @@
             // Pivot State
             const [pivotScenario, setPivotScenario] = useState('leMgmt');
             const [moversRC, setMoversRC] = useState('All');
+            const [moversTimeFrame, setMoversTimeFrame] = useState('FY'); // NEW: MTD/YTD/FY Filter
             const [expandedPivotRC, setExpandedPivotRC] = useState(null);
 
             // Version Manager
@@ -298,8 +298,28 @@
             const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
                 if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
 
-                const normA = rawActuals.map(d => ({ source: d['Source'] || 'Postpaid', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unassigned', name: d['Name'] || 'Unassigned', industry: d['Industry'] || 'Unassigned', kwh: cleanVal(d['Sum of net_kwh_billed_consump']), ...parseTimeStr(d['Month']) }));
-                const normB = rawBudget.map(d => ({ source: d['Source'] || 'Budget', rc: d['Rate category'] || 'Unassigned', parish: d['Updated Parish'] || 'Unassigned', acct: d['JPS A/c'] || 'Unallocated', name: d['Name'] || 'Unallocated', industry: d['Industry'] || 'Unallocated', kwh: cleanVal(d['Sum of Budget']), ...parseTimeStr(d['Month']) }));
+                // Clean and Trim all input data carefully so 'EV ' trailing spaces are caught
+                const normA = rawActuals.map(d => ({ 
+                    source: d['Source'] || 'Postpaid', 
+                    rc: (d['Rate category'] || 'Unassigned').trim(), 
+                    parish: (d['Updated Parish'] || 'Unassigned').trim(), 
+                    acct: (d['JPS A/c'] || 'Unassigned').trim(), 
+                    name: (d['Name'] || 'Unassigned').trim(), 
+                    industry: (d['Industry'] || 'Unassigned').trim(), 
+                    kwh: cleanVal(d['Sum of net_kwh_billed_consump']), 
+                    ...parseTimeStr(d['Month']) 
+                }));
+                
+                const normB = rawBudget.map(d => ({ 
+                    source: d['Source'] || 'Budget', 
+                    rc: (d['Rate category'] || 'Unassigned').trim(), 
+                    parish: (d['Updated Parish'] || 'Unassigned').trim(), 
+                    acct: (d['JPS A/c'] || 'Unallocated').trim(), 
+                    name: (d['Name'] || 'Unallocated').trim(), 
+                    industry: (d['Industry'] || 'Unallocated').trim(), 
+                    kwh: cleanVal(d['Sum of Budget']), 
+                    ...parseTimeStr(d['Month']) 
+                }));
 
                 const march26Actuals = normA.filter(d => d.month === 3 && d.year === 2026);
                 const baseline25 = normA.filter(d => d.year === 2025);
@@ -380,7 +400,8 @@
                 const parishes = [...new Set([...normA, ...normB].map(d => d.parish))].sort();
                 const inds = [...new Set(normA.map(d => d.industry))].sort();
                 const years = [...new Set([...normA, ...normB].map(d => d.year))].filter(y=>y>0).sort();
-                // Filter out generic rollups for the customer dropdown
+                
+                // Filter out generic rollups for the customer dropdown so it looks clean
                 const customers = [...new Set([...normA, ...normB].map(d => d.name))].filter(n => n && n !== 'Unassigned' && n !== 'Unallocated').sort();
 
                 return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
@@ -506,6 +527,8 @@
             const pivotState = useMemo(() => {
                 if (activeTab !== 'pivot' || actuals.length === 0) return { rcMatrix: {}, topMovers: [], bottomMovers: [] };
 
+                const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
+
                 let targetDataset = [];
                 const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
                 
@@ -544,6 +567,9 @@
 
                 const accVar = {};
                 actuals.filter(a => a.year === 2025).forEach(a => {
+                    if (moversTimeFrame === 'YTD' && a.month > ytdLimit) return;
+                    if (moversTimeFrame === 'MTD' && a.month !== ytdLimit) return;
+
                     const rc = a.rc || 'Unassigned';
                     let acct = a.name || a.acct || 'Unknown';
                     if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return;
@@ -554,6 +580,9 @@
                 });
 
                 targetDataset.forEach(d => {
+                    if (moversTimeFrame === 'YTD' && d.month > ytdLimit) return;
+                    if (moversTimeFrame === 'MTD' && d.month !== ytdLimit) return;
+
                     const rc = d.rc || 'Unassigned';
                     let acct = d.name || d.acct || 'Unknown';
                     if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return;
@@ -565,7 +594,6 @@
 
                 const variances = Object.values(accVar).map(v => {
                     const variance = v.target - v.baseline;
-                    // Calculate % growth. Prevent infinity if baseline is 0.
                     const pct = v.baseline > 0 ? (variance / v.baseline) * 100 : (v.target > 0 ? 100 : 0);
                     return { ...v, variance, pct };
                 }).filter(v => moversRC === 'All' || v.rc === moversRC);
@@ -574,7 +602,7 @@
                 const bottomMovers = [...variances].sort((a,b) => a.variance - b.variance).filter(v => v.variance < 0).slice(0, 10);
 
                 return { rcMatrix, topMovers, bottomMovers };
-            }, [activeTab, pivotScenario, moversRC, actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth]);
+            }, [activeTab, pivotScenario, moversRC, actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, moversTimeFrame, ytdMonth]);
 
             // --- Cloud Functions ---
             const saveForecastToGitHub = async (csvDataArray, filename) => {
@@ -898,7 +926,6 @@
                 const [overrideKey, setOverrideKey] = useState(dimensions.rcs[0] || '');
                 const [overrideVal, setOverrideVal] = useState('');
 
-                // Map state to human-readable labels
                 const dimLabels = { rc: 'Rate Class', industry: 'Industry', customer: 'Customer', month: 'Month' };
                 const dimOptions = {
                     rc: dimensions.rcs,
@@ -1300,7 +1327,15 @@
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Grid/> Combined Scenario Pivot</h3>
                                 <p className="text-xs text-slate-500">View Actuals combined with selected scenario (GWh).</p>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <span className="text-xs font-bold text-slate-500">Timeframe:</span>
+                                <select value={moversTimeFrame} onChange={e=>setMoversTimeFrame(e.target.value)} className="border rounded-lg px-3 py-1.5 font-bold text-purple-700 bg-white shadow-sm outline-none">
+                                    <option value="FY">Full Year (FY)</option>
+                                    <option value="YTD">YTD (Uses Global Filter)</option>
+                                    <option value="MTD">MTD (Uses Global Filter)</option>
+                                </select>
+                                <span className="text-slate-300">|</span>
+                                <span className="text-xs font-bold text-slate-500">Scenario:</span>
                                 <select value={pivotScenario} onChange={e=>setPivotScenario(e.target.value)} className="border rounded-lg px-3 py-1.5 font-bold text-blue-700 bg-white shadow-sm outline-none">
                                     <option value="leMgmt">LE Management</option>
                                     <option value="marchLE">March LE</option>
