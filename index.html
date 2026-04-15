@@ -73,12 +73,13 @@
             Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
             X: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
             Eye: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
-            Link: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
+            Link: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>,
             Sliders: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>,
             RefreshCw: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>,
-            CloudUp: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line></svg>,
-            CloudDown: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="8 16 12 20 16 16"></polyline><line x1="12" y1="12" x2="12" y2="20"></line></svg>,
-            Star: ({ filled }) => <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            CloudUp: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line></svg>,
+            CloudDown: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="8 16 12 20 16 16"></polyline><line x1="12" y1="12" x2="12" y2="20"></line></svg>,
+            Star: ({ filled }) => <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>,
+            Grid: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         };
 
         const exportCSV = (data, filename) => {
@@ -90,13 +91,17 @@
             ];
             const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = filename;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         };
 
         const monthMap = {"January":1,"February":2,"March":3,"April":4,"May":5,"June":6,"July":7,"August":8,"September":9,"October":10,"November":11,"December":12};
         const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        const rcOrder = ['RT10', 'RT20', 'EV', 'RT40', 'RT50', 'RT60', 'RT70'];
+        const rcOrder = ['BU', 'EV', 'RT10', 'RT20', 'RT40', 'RT50', 'RT60', 'RT70'];
         const getRcWeight = (rc) => { const index = rcOrder.findIndex(r => r.toLowerCase() === (rc || '').toLowerCase()); return index === -1 ? 999 : index; };
         
         const parseTimeStr = (str) => {
@@ -192,6 +197,11 @@
             const [drillDownDim, setDrillDownDim] = useState('name');
             const [expandedRow, setExpandedRow] = useState(null);
             const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
+
+            // Pivot State
+            const [pivotScenario, setPivotScenario] = useState('leMgmt');
+            const [moversRC, setMoversRC] = useState('All');
+            const [expandedPivotRC, setExpandedPivotRC] = useState(null);
 
             // Version Manager
             const [savedVersions, setSavedVersions] = useState([]);
@@ -473,6 +483,82 @@
                 setIsBudgetCommitted(false);
             };
 
+            // --- Pivot View & Movers Logic ---
+            const pivotState = useMemo(() => {
+                if (activeTab !== 'pivot' || actuals.length === 0) return { rcMatrix: {}, topMovers: [], bottomMovers: [] };
+
+                // 1. Determine target dataset based on dropdown
+                let targetDataset = [];
+                const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
+                
+                if (pivotScenario === 'budgetCombined') {
+                    // Combine actuals YTD with Budget rest of year
+                    targetDataset = [
+                        ...actuals.filter(a => a.year === 2026 && a.month <= maxActMonth26).map(a => ({...a, source: 'Actual'})),
+                        ...budget.filter(b => b.year === 2026 && b.month > maxActMonth26).map(b => ({...b, source: 'Budget'}))
+                    ];
+                } else if (pivotScenario === 'marchLE') targetDataset = marchLE.filter(d=>d.year===2026);
+                else if (pivotScenario === 'leCust') targetDataset = leCustGrowth.filter(d=>d.year===2026);
+                else if (pivotScenario === 'leRC') targetDataset = leRCGrowth.filter(d=>d.year===2026);
+                else if (pivotScenario === 'leMgmt') targetDataset = leMgmtGrowth.filter(d=>d.year===2026);
+                else if (pivotScenario === 'leCustom') targetDataset = leCustomGrowth.filter(d=>d.year===2026);
+
+                // 2. Build Pivot Matrix
+                const rcMatrix = {};
+                targetDataset.forEach(d => {
+                    const rc = d.rc || 'Unassigned';
+                    // Roll up RT10/RT20/EV names unless we want to see individual resi accounts. Usually we group big classes.
+                    // For UI cleanliness, we'll keep Name blank for massive classes and show accounts for RT40+
+                    let acctName = d.name || d.acct || 'Unknown';
+                    if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) {
+                        acctName = ''; // Roll these up to save DOM rendering 100k rows
+                    }
+
+                    const m = d.month;
+                    const val = d.kwh / 1000000; // Convert to GWh
+
+                    if (!rcMatrix[rc]) rcMatrix[rc] = { total: 0, months: Array(12).fill(0), customers: {} };
+                    
+                    rcMatrix[rc].total += val;
+                    if (m >= 1 && m <= 12) rcMatrix[rc].months[m - 1] += val;
+
+                    if (!rcMatrix[rc].customers[acctName]) rcMatrix[rc].customers[acctName] = { total: 0, months: Array(12).fill(0) };
+                    
+                    rcMatrix[rc].customers[acctName].total += val;
+                    if (m >= 1 && m <= 12) rcMatrix[rc].customers[acctName].months[m - 1] += val;
+                });
+
+                // 3. Build Movers (Variance vs 2025 Actuals)
+                const accVar = {};
+                actuals.filter(a => a.year === 2025).forEach(a => {
+                    const rc = a.rc || 'Unassigned';
+                    let acct = a.name || a.acct || 'Unknown';
+                    if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return; // Only show commercial movers
+                    
+                    const val = a.kwh / 1000000;
+                    if (!accVar[acct]) accVar[acct] = { name: acct, rc, baseline: 0, target: 0 };
+                    accVar[acct].baseline += val;
+                });
+
+                targetDataset.forEach(d => {
+                    const rc = d.rc || 'Unassigned';
+                    let acct = d.name || d.acct || 'Unknown';
+                    if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return;
+                    
+                    const val = d.kwh / 1000000;
+                    if (!accVar[acct]) accVar[acct] = { name: acct, rc, baseline: 0, target: 0 };
+                    accVar[acct].target += val;
+                });
+
+                const variances = Object.values(accVar).map(v => ({ ...v, variance: v.target - v.baseline }))
+                    .filter(v => moversRC === 'All' || v.rc === moversRC);
+
+                const topMovers = [...variances].sort((a,b) => b.variance - a.variance).filter(v => v.variance > 0).slice(0, 10);
+                const bottomMovers = [...variances].sort((a,b) => a.variance - b.variance).filter(v => v.variance < 0).slice(0, 10);
+
+                return { rcMatrix, topMovers, bottomMovers };
+            }, [activeTab, pivotScenario, moversRC, actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth]);
+
             // --- Cloud Functions ---
             const saveForecastToGitHub = async (csvDataArray, filename) => {
                 const token = githubConfig.token.trim();
@@ -480,7 +566,7 @@
                 const repo = githubConfig.repo.trim();
 
                 if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
-                    alert("Please hardcode or enter your correct GitHub API credentials in the Data Hub first.");
+                    alert("Please enter your GitHub API credentials in the Data Hub (bottom left tab).");
                     setActiveTab('data');
                     return;
                 }
@@ -536,7 +622,7 @@
                 const repo = githubConfig.repo.trim();
 
                 if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
-                    alert("Please correct your GitHub API credentials in the Data Hub first.");
+                    alert("Please enter your GitHub API credentials in the Data Hub (bottom left tab).");
                     return;
                 }
                 if (versionsToPush.length === 0) {
@@ -595,7 +681,7 @@
                 const repo = githubConfig.repo.trim();
 
                 if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
-                    alert("Please configure your GitHub credentials first.");
+                    alert("Please configure your GitHub credentials in the Data Hub first.");
                     return;
                 }
 
@@ -1100,6 +1186,165 @@
                 );
             };
 
+            const renderPivotTab = () => {
+                if (actuals.length === 0) return null;
+
+                const { rcMatrix, topMovers, bottomMovers } = pivotState;
+
+                return (
+                    <div className="p-6 h-full flex flex-col space-y-6 overflow-hidden">
+                        <div className="bg-white rounded-xl border shadow-sm p-4 flex flex-col md:flex-row gap-4 justify-between shrink-0">
+                            <div>
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Grid/> Combined Scenario Pivot</h3>
+                                <p className="text-xs text-slate-500">View Actuals combined with selected scenario (GWh).</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <select value={pivotScenario} onChange={e=>setPivotScenario(e.target.value)} className="border rounded-lg px-3 py-1.5 font-bold text-blue-700 bg-white shadow-sm outline-none">
+                                    <option value="leMgmt">LE Management</option>
+                                    <option value="marchLE">March LE</option>
+                                    <option value="leCust">LE Cust Vol</option>
+                                    <option value="leRC">LE RC Vol</option>
+                                    <option value="leCustom">LE Custom %</option>
+                                    <option value="budgetCombined">Budget + Actuals</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Top / Bottom Performers */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 shrink-0">
+                            <div className="bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden max-h-[300px]">
+                                <div className="p-3 border-b bg-slate-50 flex justify-between items-center text-sm">
+                                    <h4 className="font-bold text-slate-800 underline decoration-blue-500 decoration-2 underline-offset-4">Top Performers</h4>
+                                    <select value={moversRC} onChange={e=>setMoversRC(e.target.value)} className="bg-white border rounded px-2 py-0.5 outline-none text-xs text-blue-700 font-bold">
+                                        <option value="All">All Rates</option>
+                                        {dimensions.rcs.filter(r=>!['RT10','RT20','EV','BU'].includes(r)).map(r=><option key={r}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <div className="overflow-auto custom-scroll">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_#e2e8f0]">
+                                            <tr>
+                                                <th className="p-2 text-slate-500">#</th>
+                                                <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Incline</th>
+                                                <th className="p-2 text-slate-800">Account</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {topMovers.map((m, idx) => (
+                                                <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
+                                                    <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                    <td className="p-2 text-right font-medium text-emerald-600">{m.variance.toFixed(2)}</td>
+                                                    <td className="p-2 truncate max-w-[200px] text-slate-700" title={m.name}>{m.name}</td>
+                                                </tr>
+                                            ))}
+                                            {topMovers.length === 0 && <tr><td colSpan="3" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden max-h-[300px]">
+                                <div className="p-3 border-b bg-slate-50 flex justify-between items-center text-sm">
+                                    <h4 className="font-bold text-slate-800 underline decoration-red-500 decoration-2 underline-offset-4">Bottom Performers</h4>
+                                </div>
+                                <div className="overflow-auto custom-scroll">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_#e2e8f0]">
+                                            <tr>
+                                                <th className="p-2 text-slate-500">#</th>
+                                                <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Decline</th>
+                                                <th className="p-2 text-slate-800">Account</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bottomMovers.map((m, idx) => (
+                                                <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
+                                                    <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                    <td className="p-2 text-right font-medium text-red-500">{Math.abs(m.variance).toFixed(2)}</td>
+                                                    <td className="p-2 truncate max-w-[200px] text-slate-700" title={m.name}>{m.name}</td>
+                                                </tr>
+                                            ))}
+                                            {bottomMovers.length === 0 && <tr><td colSpan="3" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Wide Pivot Table */}
+                        <div className="bg-white rounded-xl border shadow-sm flex-1 flex flex-col overflow-hidden">
+                            <div className="p-3 border-b bg-cyan-500 text-white font-bold flex justify-between items-center text-sm shrink-0">
+                                <span>net_kwh_billed_consump (GWh)</span>
+                            </div>
+                            <div className="flex-1 overflow-auto custom-scroll relative">
+                                <table className="w-full text-xs text-right whitespace-nowrap">
+                                    <thead className="table-pin-header">
+                                        <tr className="bg-slate-800 text-white">
+                                            <th className="p-2 text-left border-r border-slate-700 table-pin-col bg-slate-800 z-30">Rate category</th>
+                                            <th className="p-2 text-left border-r border-slate-700 bg-slate-800 sticky left-[100px] z-30 w-64 max-w-xs">Name</th>
+                                            {monthNames.map(m => <th key={m} className="p-2 border-r border-slate-700">{m.substring(0,3)}</th>)}
+                                            <th className="p-2 font-black bg-slate-900">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(rcMatrix).sort((a,b) => getRcWeight(a[0]) - getRcWeight(b[0])).map(([rc, rcData]) => {
+                                            const isExpanded = expandedPivotRC === rc;
+                                            const hasCusts = Object.keys(rcData.customers).filter(c => c).length > 0;
+                                            
+                                            return (
+                                                <React.Fragment key={rc}>
+                                                    <tr className={`border-b hover:bg-slate-50 transition ${hasCusts ? 'cursor-pointer' : ''}`} onClick={() => hasCusts && setExpandedPivotRC(isExpanded ? null : rc)}>
+                                                        <td className="p-2 text-left font-bold border-r table-pin-col bg-white z-20 whitespace-nowrap">
+                                                            <div className="flex items-center gap-1 w-[90px]">
+                                                                {hasCusts ? <span className="text-[10px] text-slate-400 w-3">{isExpanded ? '▼' : '▶'}</span> : <span className="w-3"></span>}
+                                                                {rc}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-2 text-left border-r bg-white sticky left-[100px] z-20 w-64 max-w-xs text-slate-400 italic">
+                                                            {hasCusts ? `[${Object.keys(rcData.customers).length} Accounts]` : 'Aggregated'}
+                                                        </td>
+                                                        {rcData.months.map((val, i) => (
+                                                            <td key={i} className="p-2 border-r border-slate-100 font-bold">{val !== 0 ? val.toFixed(2) : '0.00'}</td>
+                                                        ))}
+                                                        <td className="p-2 font-black bg-slate-50 text-blue-800">{rcData.total.toFixed(2)}</td>
+                                                    </tr>
+                                                    {isExpanded && Object.entries(rcData.customers).sort((a,b) => b[1].total - a[1].total).map(([custName, custData]) => {
+                                                        if (!custName) return null;
+                                                        return (
+                                                            <tr key={`${rc}-${custName}`} className="border-b bg-slate-50/50 hover:bg-slate-100 transition">
+                                                                <td className="p-2 border-r table-pin-col bg-slate-50/95 z-10 text-transparent">_</td>
+                                                                <td className="p-2 text-left border-r bg-slate-50/95 sticky left-[100px] z-10 w-64 max-w-xs truncate" title={custName}>
+                                                                    {custName}
+                                                                </td>
+                                                                {custData.months.map((val, i) => (
+                                                                    <td key={i} className="p-2 border-r border-slate-200 text-slate-600">{val !== 0 ? val.toFixed(2) : '0.00'}</td>
+                                                                ))}
+                                                                <td className="p-2 font-bold bg-slate-100">{custData.total.toFixed(2)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-30">
+                                        <tr>
+                                            <td className="p-2 text-left border-r table-pin-col bg-slate-200 z-40">TOTAL</td>
+                                            <td className="p-2 border-r bg-slate-200 sticky left-[100px] z-40"></td>
+                                            {Array(12).fill(0).map((_, i) => {
+                                                const sum = Object.values(rcMatrix).reduce((s, rc) => s + rc.months[i], 0);
+                                                return <td key={i} className="p-2 border-r border-slate-300 text-blue-900">{sum.toFixed(2)}</td>;
+                                            })}
+                                            <td className="p-2 text-blue-900 bg-slate-300">{Object.values(rcMatrix).reduce((s, rc) => s + rc.total, 0).toFixed(2)}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
             const renderVarianceTab = () => {
                 const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
                 const matrix = {};
@@ -1375,12 +1620,6 @@
                 );
             };
 
-            const renderForecastTab = () => renderGenericForecastTab(marchLE, 'March LE Analysis (Hurricane Corrected)', 'Projection based on March jump-off point normalized for 2025 hurricane impact.', <Icons.Wind className="text-emerald-500"/>, 'emerald', 'text-emerald-700', false, 'marchLE');
-            const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by each Customer\'s average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Users className="text-purple-500"/>, 'purple', 'text-purple-700', true, 'leCust');
-            const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap className="text-blue-500"/>, 'blue', 'text-blue-700', true, 'leRC');
-            const renderLeMgmtTab = () => renderGenericForecastTab(leMgmtGrowth, 'LE: Management Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase className="text-orange-500"/>, 'orange', 'text-orange-700', true, 'leMgmt');
-            const renderLeCustomTab = () => renderGenericForecastTab(leCustomGrowth, 'LE: Custom RC % Trend', 'Projection based on user-defined percentage adjustments applied to the remaining Budget by Rate Class.', <Icons.Sliders className="text-indigo-500"/>, 'indigo', 'text-indigo-700', true, 'leCustom', customRcControls);
-
             const renderGlossaryTab = () => (
                 <div className="p-10 h-full overflow-y-auto custom-scroll">
                     <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
@@ -1412,13 +1651,6 @@
                                     <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers that are applied to the remaining Budget for specific Rate Classes.</p>
                                     <p className="text-sm text-slate-700"><strong>Rationale:</strong> Used to model specific external hypotheses (e.g. "What if temperature drives residential volume 5% higher than budgeted?").</p>
                                 </div>
-                            </div>
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Core Engine Mechanics</h2>
-                            <div className="space-y-4 text-sm text-slate-600">
-                                <section><h3 className="font-bold text-slate-800">Budget Proration Engine</h3><p>High-level targets are redistributed to the account level using historical weights from the "Reference Actuals" month selected in the Allocation Engine.</p></section>
-                                <section><h3 className="font-bold text-slate-800">Hurricane Normalization Toggle</h3><p>When enabled, it grosses up Oct–Dec 2025 historical volumes (e.g., dividing by 0.65 to reverse a 35% drop) to ensure the seasonal ratios used in the March LE projection represent true business-as-usual behavior.</p></section>
                             </div>
                         </div>
                     </div>
@@ -1474,6 +1706,7 @@
                                     <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders/> LE: Custom %</button>
                                     
                                     <div className="h-px bg-slate-200 my-3 mx-2"></div>
+                                    <button onClick={()=>setActiveTab('pivot')} className={`dashboard-tab ${activeTab==='pivot'?'active':''}`}><Icons.Grid/> Pivot & Movers</button>
                                     <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp/> Variance Matrix</button>
                                 </>
                             )}
@@ -1485,7 +1718,7 @@
                         </aside>
 
                         <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                             {rawActuals.length > 0 && ['overview', 'monthly', 'forecast', 'leCust', 'leRC', 'leMgmt', 'leCustom', 'variance'].includes(activeTab) && (
+                             {rawActuals.length > 0 && ['overview', 'monthly', 'forecast', 'leCust', 'leRC', 'leMgmt', 'leCustom', 'variance', 'pivot'].includes(activeTab) && (
                                 <div className="bg-white border-b px-6 py-3 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto z-10 relative">
                                     <Icons.Filter className="w-3 h-3"/> 
                                     <div className="flex items-center gap-1 border-r pr-3">
@@ -1521,6 +1754,7 @@
                                             {activeTab === 'leRC' && renderLeRCTab()}
                                             {activeTab === 'leMgmt' && renderLeMgmtTab()}
                                             {activeTab === 'leCustom' && renderLeCustomTab()}
+                                            {activeTab === 'pivot' && renderPivotTab()}
                                             {activeTab === 'variance' && renderVarianceTab()}
                                             {activeTab === 'glossary' && renderGlossaryTab()}
                                         </>
