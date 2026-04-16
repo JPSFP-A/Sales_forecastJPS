@@ -28,34 +28,54 @@
         .table-pin-header { position: sticky; top: 0; background: #f8fafc; z-index: 20; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         
         .dashboard-tab {
-            padding: 12px 20px;
-            font-size: 14px;
+            padding: 10px 16px;
+            font-size: 13px;
             cursor: pointer;
             border: none;
             background: transparent;
             color: #64748b;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -1px;
-            white-space: nowrap;
+            border-radius: 8px;
             transition: all 0.2s;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
+            text-align: left;
+            width: 100%;
+            font-weight: 500;
         }
-        .dashboard-tab:hover { color: #0f172a; }
-        .dashboard-tab.active {
-            color: #0ea5e9;
-            border-bottom-color: #0ea5e9;
-            font-weight: 600;
-        }
+        .dashboard-tab:hover { background: #f1f5f9; color: #0f172a; }
+        .dashboard-tab.active { background: #e0f2fe; color: #0ea5e9; font-weight: 700; }
+        th.sortable:hover { background-color: #e2e8f0; cursor: pointer; transition: background-color 0.2s; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans h-screen overflow-hidden flex flex-col">
     <div id="root" class="h-full flex flex-col"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect, useCallback } = React;
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } = window.Recharts;
+        const { useState, useMemo, useEffect, useCallback, Component } = React;
+        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
+
+        class ErrorBoundary extends Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="flex h-full w-full items-center justify-center p-6 bg-slate-100">
+                            <div className="bg-red-50 border border-red-200 p-8 rounded-xl max-w-2xl w-full shadow-lg">
+                                <h1 className="text-2xl font-black text-red-700 mb-4">Oops! The App Crashed</h1>
+                                <p className="text-sm text-red-600 mb-4">Something went wrong during execution. Check the error details below:</p>
+                                <pre className="bg-white p-4 rounded text-xs text-slate-800 overflow-auto shadow-inner">{this.state.error && this.state.error.toString()}</pre>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
 
         // --- Icons ---
         const Icons = {
@@ -64,7 +84,6 @@
             Activity: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
             TrendingUp: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
             Calculator: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M8 18h.01"/><path d="M12 14h.01"/><path d="M12 18h.01"/></svg>,
-            Wind: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2"/><path d="M12.59 19.41A2 2 0 1 0 14 16H2"/><path d="M15.83 7.17a2 2 0 1 0-1.41 3.42H20"/></svg>,
             Filter: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
             BookOpen: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
             Users: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
@@ -87,6 +106,60 @@
             Star: ({ filled }) => <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>,
             Grid: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         };
+
+        // --- Data Definitions ---
+        const forecastScenarios = [
+            { key: 'leCust', label: 'LE Cust Vol', color: 'purple' },
+            { key: 'leRc', label: 'LE RC Vol', color: 'blue' },
+            { key: 'leBase', label: 'LE Base', color: 'orange' },
+            { key: 'leCustom', label: 'LE Advanced', color: 'indigo' }
+        ];
+
+        // --- Custom Hooks ---
+        function useSortableData(items, config = null) {
+            const [sortConfig, setSortConfig] = useState(config);
+
+            const sortedItems = useMemo(() => {
+                let sortableItems = [...items];
+                if (sortConfig !== null) {
+                    sortableItems.sort((a, b) => {
+                        let aVal = a[sortConfig.key];
+                        let bVal = b[sortConfig.key];
+                        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+                        if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
+                        if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
+                        return 0;
+                    });
+                }
+                return sortableItems;
+            }, [items, sortConfig]);
+
+            const requestSort = (key) => {
+                let direction = 'ascending';
+                if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+                    direction = 'descending';
+                }
+                setSortConfig({ key, direction });
+            };
+
+            return { items: sortedItems, requestSort, sortConfig };
+        }
+
+        const SortIcon = ({ columnKey, sortConfig }) => {
+            if (!sortConfig || sortConfig.key !== columnKey) return <span className="ml-1 opacity-20 inline-block w-2">↕</span>;
+            return sortConfig.direction === 'ascending' ? <span className="ml-1 text-blue-500 inline-block w-2">▲</span> : <span className="ml-1 text-blue-500 inline-block w-2">▼</span>;
+        };
+
+        const SortHeader = ({ label, columnKey, currentSort, requestSort, className="" }) => (
+            <th className={`sortable p-2 ${className}`} onClick={() => requestSort(columnKey)}>
+                <div className={`flex items-center gap-1 ${className.includes('text-right') ? 'justify-end' : ''}`}>
+                    <span>{label}</span>
+                    <SortIcon columnKey={columnKey} sortConfig={currentSort} />
+                </div>
+            </th>
+        );
 
         // --- Utils ---
         const exportCSV = (data, filename) => {
@@ -158,7 +231,6 @@
         };
 
         function App() {
-            // SET OVERVIEW AS THE DEFAULT TAB
             const [activeTab, setActiveTab] = useState('overview');
 
             // --- GITHUB CONFIGURATION ---
@@ -214,8 +286,12 @@
             const [expandedRow, setExpandedRow] = useState(null);
             const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
 
+            // Exec Summary Overview State
+            const [overviewScenario, setOverviewScenario] = useState('leBase');
+            const [overviewComments, setOverviewComments] = useState('');
+
             // Pivot State & Explanations
-            const [pivotScenario, setPivotScenario] = useState('leMgmt');
+            const [pivotScenario, setPivotScenario] = useState('leBase');
             const [moversRC, setMoversRC] = useState('All');
             const [moversTimeFrame, setMoversTimeFrame] = useState('FY'); 
             const [expandedPivotRC, setExpandedPivotRC] = useState(null);
@@ -226,19 +302,8 @@
             const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
 
             const [graphToggles, setGraphToggles] = useState({
-                act25: true, bud26: true, act26: true, marchLE: true, leCust: true, leRc: true, leMgmt: true, leCustom: true
+                act25: true, bud26: true, act26: true, leCust: true, leRc: true, leBase: true, leCustom: true
             });
-
-            const toggleConfig = [
-                { key: 'act25', label: '2025 Actuals', activeClass: 'bg-slate-100 text-slate-700 border-slate-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'bud26', label: '2026 Budget', activeClass: 'bg-blue-50 text-blue-700 border-blue-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'act26', label: '2026 Actuals', activeClass: 'bg-purple-50 text-purple-700 border-purple-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'marchLE', label: 'March LE', activeClass: 'bg-emerald-50 text-emerald-700 border-emerald-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'leCust', label: 'LE Cust Vol', activeClass: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'leRc', label: 'LE RC Vol', activeClass: 'bg-sky-50 text-sky-700 border-sky-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'leMgmt', label: 'LE Management', activeClass: 'bg-amber-50 text-amber-700 border-amber-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
-                { key: 'leCustom', label: 'LE Advanced', activeClass: 'bg-indigo-50 text-indigo-700 border-indigo-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' }
-            ];
 
             // 1. DATA LOAD & CLOUD SYNC METHOD
             const fetchCloudData = async (silent = false) => {
@@ -256,7 +321,6 @@
 
                 try {
                     const fetchRaw = async (filename) => {
-                        // Upgraded to use official GitHub API raw endpoint (bypasses raw.githubusercontent issues)
                         const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}`;
                         const res = await fetch(url, { 
                             headers: { 
@@ -307,6 +371,7 @@
                         else {
                             setSavedVersions(parsed.versions || []);
                             setVarianceComments(parsed.comments || {});
+                            setOverviewComments(parsed.overviewComments || '');
                         }
                     }
 
@@ -331,7 +396,6 @@
                     const savedCfg = savedStr ? JSON.parse(savedStr) : null;
                     let cloudSuccess = false;
 
-                    // A: Try Cloud First if configured
                     if (savedCfg && savedCfg.token && savedCfg.owner && savedCfg.repo && !savedCfg.token.includes('YOUR_TOKEN')) {
                         try {
                             const token = savedCfg.token.trim();
@@ -375,6 +439,7 @@
                                 else {
                                     setSavedVersions(parsed.versions || []);
                                     setVarianceComments(parsed.comments || {});
+                                    setOverviewComments(parsed.overviewComments || '');
                                 }
                             }
                         } catch (e) {
@@ -382,7 +447,6 @@
                         }
                     }
 
-                    // B: Fallback to local
                     if (!cloudSuccess && isMounted) {
                         try {
                             const actRes = await fetch('./JPS%20Actuals%20data.csv');
@@ -426,9 +490,22 @@
                 }
             }, [originalBudget, rawActuals, savedVersions, hasAutoRestored]);
 
+            // Global Filter Logic
+            const getFiltered = useCallback((data) => {
+                return data.filter(d => {
+                    if (fYear !== 'All' && d.year.toString() !== fYear) return false;
+                    if (fMonth !== 'All' && monthNames[d.month-1] !== fMonth) return false;
+                    if (fRC !== 'All' && d.rc !== fRC) return false;
+                    if (fParish !== 'All' && d.parish !== fParish) return false;
+                    if (fInd !== 'All' && d.industry !== fInd) return false;
+                    if (fCust !== 'All' && d.name !== fCust) return false;
+                    return true;
+                });
+            }, [fYear, fMonth, fRC, fParish, fInd, fCust]);
+
             // --- Engine ---
-            const { actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, dimensions } = useMemo(() => {
-                if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], marchLE: [], leCustGrowth: [], leRCGrowth: [], leMgmtGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
+            const { actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, dimensions } = useMemo(() => {
+                if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], leCustGrowth: [], leRCGrowth: [], leBaseGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
 
                 const normA = rawActuals.map(d => ({ 
                     source: d['Source'] || 'Postpaid', 
@@ -452,27 +529,6 @@
                     ...parseTimeStr(d['Month']) 
                 }));
 
-                const march26Actuals = normA.filter(d => d.month === 3 && d.year === 2026);
-                const baseline25 = normA.filter(d => d.year === 2025);
-                const getNormalizedKwh = (d) => { if (isNormalizeHurricane && (d.month >= 10 && d.month <= 12)) return d.kwh / 0.65; return d.kwh; };
-
-                const march25Map = {}; 
-                baseline25.filter(d => d.month === 3).forEach(d => { march25Map[`${d.acct}|${d.rc}`] = (march25Map[`${d.acct}|${d.rc}`] || 0) + d.kwh; });
-
-                const forecastData = [];
-                normA.filter(d => d.year === 2026 && d.month <= 3).forEach(d => { forecastData.push({ ...d, source: 'March LE', type: 'Actual' }); });
-
-                [4,5,6,7,8,9,10,11,12].forEach(mNum => {
-                    const targetMonth25 = baseline25.filter(d => d.month === mNum);
-                    march26Actuals.forEach(curr => {
-                        const m25Val = march25Map[`${curr.acct}|${curr.rc}`] || 0;
-                        const hist = targetMonth25.find(h => h.acct === curr.acct && h.rc === curr.rc);
-                        let seasonality = 1.0;
-                        if (m25Val > 0 && hist) { seasonality = getNormalizedKwh(hist) / m25Val; }
-                        forecastData.push({ ...curr, source: 'March LE', type: 'Forecast', month: mNum, year: 2026, text: `${monthNames[mNum-1]} 2026`, sortKey: 202600 + mNum, qtr: Math.ceil(mNum/3), qtrText: `Q${Math.ceil(mNum/3)} 2026`, kwh: curr.kwh * seasonality });
-                    });
-                });
-
                 const ytd25Cust = {}; const ytd26Cust = {};
                 const ytd25RC = {};   const ytd26RC = {};
                 normA.filter(d => d.month <= 3).forEach(d => {
@@ -481,7 +537,7 @@
                 });
 
                 const q1Actuals26 = normA.filter(d => d.year === 2026 && d.month <= 3).map(d => ({...d, source: 'LE Forecast', type: 'Actual'}));
-                const leCustData = [...q1Actuals26]; const leRCData = [...q1Actuals26]; const leMgmtData = [...q1Actuals26]; const leCustomData = [...q1Actuals26];
+                const leCustData = [...q1Actuals26]; const leRCData = [...q1Actuals26]; const leBaseData = [...q1Actuals26]; const leCustomData = [...q1Actuals26];
 
                 const bRcTotal = {}; const bCustTotal = {};
                 normB.filter(d => d.year === 2026 && d.month >= 4).forEach(b => {
@@ -502,7 +558,7 @@
                     leRCData.push({ ...b, source: 'LE - RC Vol Growth', type: 'Forecast', kwh: rcKwh });
                     
                     const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
-                    leMgmtData.push({ ...b, source: 'LE - Management', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
+                    leBaseData.push({ ...b, source: 'LE - Base', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
 
                     let overridePct = 0;
                     let hasOverride = false;
@@ -531,7 +587,7 @@
                 const years = [...new Set([...normA, ...normB].map(d => d.year))].filter(y=>y>0).sort();
                 const customers = [...new Set([...normA, ...normB].map(d => d.name))].filter(n => n && n !== 'Unassigned' && n !== 'Unallocated').sort();
 
-                return { actuals: normA, budget: normB, marchLE: forecastData, leCustGrowth: leCustData, leRCGrowth: leRCData, leMgmtGrowth: leMgmtData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
+                return { actuals: normA, budget: normB, leCustGrowth: leCustData, leRCGrowth: leRCData, leBaseGrowth: leBaseData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
             }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides]);
 
             useEffect(() => {
@@ -663,16 +719,21 @@
                 let targetDataset = [];
                 const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
                 
+                const fActuals = getFiltered(actuals);
+                const fBudget = getFiltered(budget);
+
                 if (pivotScenario === 'budgetCombined') {
                     targetDataset = [
-                        ...actuals.filter(a => a.year === 2026 && a.month <= maxActMonth26).map(a => ({...a, source: 'Actual'})),
-                        ...budget.filter(b => b.year === 2026 && b.month > maxActMonth26).map(b => ({...b, source: 'Budget'}))
+                        ...fActuals.filter(a => a.year === 2026 && a.month <= maxActMonth26).map(a => ({...a, source: 'Actual'})),
+                        ...fBudget.filter(b => b.year === 2026 && b.month > maxActMonth26).map(b => ({...b, source: 'Budget'}))
                     ];
-                } else if (pivotScenario === 'marchLE') targetDataset = marchLE.filter(d=>d.year===2026);
-                else if (pivotScenario === 'leCust') targetDataset = leCustGrowth.filter(d=>d.year===2026);
-                else if (pivotScenario === 'leRC') targetDataset = leRCGrowth.filter(d=>d.year===2026);
-                else if (pivotScenario === 'leMgmt') targetDataset = leMgmtGrowth.filter(d=>d.year===2026);
-                else if (pivotScenario === 'leCustom') targetDataset = leCustomGrowth.filter(d=>d.year===2026);
+                } else {
+                    const mappedScenario = pivotScenario === 'leCust' ? leCustGrowth :
+                                           pivotScenario === 'leRC' ? leRCGrowth :
+                                           pivotScenario === 'leBase' ? leBaseGrowth :
+                                           leCustomGrowth;
+                    targetDataset = getFiltered(mappedScenario).filter(d=>d.year===2026);
+                }
 
                 const rcMatrix = {};
                 targetDataset.forEach(d => {
@@ -697,7 +758,7 @@
                 });
 
                 const accVar = {};
-                actuals.filter(a => a.year === 2025).forEach(a => {
+                fActuals.filter(a => a.year === 2025).forEach(a => {
                     if (moversTimeFrame === 'YTD' && a.month > ytdLimit) return;
                     if (moversTimeFrame === 'MTD' && a.month !== ytdLimit) return;
 
@@ -733,11 +794,12 @@
                 const bottomMovers = [...variances].sort((a,b) => a.variance - b.variance).filter(v => v.variance < 0).slice(0, 10);
 
                 return { rcMatrix, topMovers, bottomMovers };
-            }, [activeTab, pivotScenario, moversRC, actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, moversTimeFrame, ytdMonth]);
+            }, [activeTab, pivotScenario, moversRC, actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, moversTimeFrame, ytdMonth, getFiltered]);
 
-            const pushScenariosToCloud = async (versionsOverride = null, commentsOverride = null) => {
+            const pushScenariosToCloud = async (versionsOverride = null, commentsOverride = null, overviewCmtOverride = null) => {
                 const versionsToPush = versionsOverride || savedVersions;
                 const commentsToPush = commentsOverride || varianceComments;
+                const ocToPush = overviewCmtOverride !== null ? overviewCmtOverride : overviewComments;
                 
                 const token = githubConfig.token.trim();
                 const owner = githubConfig.owner.trim();
@@ -758,7 +820,8 @@
                             monthMapping: v.monthMapping,
                             isDefault: v.isDefault || false
                         })),
-                        comments: commentsToPush
+                        comments: commentsToPush,
+                        overviewComments: ocToPush
                     };
 
                     const jsonString = JSON.stringify(payloadToSave, null, 2);
@@ -931,36 +994,44 @@
                 setActiveTab('data');
             };
 
-            const getFiltered = useCallback((data) => {
-                return data.filter(d => {
-                    if (fYear !== 'All' && d.year.toString() !== fYear) return false;
-                    if (fMonth !== 'All' && monthNames[d.month-1] !== fMonth) return false;
-                    if (fRC !== 'All' && d.rc !== fRC) return false;
-                    if (fParish !== 'All' && d.parish !== fParish) return false;
-                    if (fInd !== 'All' && d.industry !== fInd) return false;
-                    if (fCust !== 'All' && d.name !== fCust) return false;
-                    return true;
-                });
-            }, [fYear, fMonth, fRC, fParish, fInd, fCust]);
-
-            const monthlyAggregates = useMemo(() => {
+            const monthlyAggregatesRaw = useMemo(() => {
                 if (actuals.length === 0) return [];
-                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth); const fLeCustom = getFiltered(leCustomGrowth);
+                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeBase = getFiltered(leBaseGrowth); const fLeCustom = getFiltered(leCustomGrowth);
                 return monthNames.map((m, idx) => {
                     const mNum = idx + 1;
                     const a25 = fAct.filter(d => d.year === 2025 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
                     const b26 = fBud.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
                     const a26 = fAct.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
-                    const le26 = fMarchLE.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
                     const leCust26 = fLeCust.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
                     const leRC26 = fLeRC.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
-                    const leMgmt26 = fLeMgmt.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
+                    const leBase26 = fLeBase.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
                     const leCustom26 = fLeCustom.filter(d => d.year === 2026 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
-                    return { month: m.substring(0,3), monthFull: m, Act25: a25, Bud26: b26, Act26: a26 > 0 ? a26 : null, MarchLE: le26, LeCust: leCust26, LeRC: leRC26, LeMgmt: leMgmt26, LeCustom: leCustom26 };
+                    return { monthFull: m, month: m.substring(0,3), Act25: a25, Bud26: b26, Act26: a26 > 0 ? a26 : null, LeCust: leCust26, LeRC: leRC26, LeBase: leBase26, LeCustom: leCustom26 };
                 });
-            }, [actuals, budget, marchLE, leCustGrowth, leRCGrowth, leMgmtGrowth, leCustomGrowth, getFiltered]);
+            }, [actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, getFiltered]);
+
+            // --- SORTING HOOKS FOR TABLES ---
+            const { items: monthlyAggregates, requestSort: sortMonthly, sortConfig: monthlySort } = useSortableData(monthlyAggregatesRaw, {key: null, direction: 'asc'});
+            const { items: topMovers, requestSort: sortTopMovers, sortConfig: topSort } = useSortableData(pivotState.topMovers, {key: 'variance', direction: 'descending'});
+            const { items: bottomMovers, requestSort: sortBottomMovers, sortConfig: botSort } = useSortableData(pivotState.bottomMovers, {key: 'variance', direction: 'ascending'});
 
             // --- UI Components ---
+            const varScenarios = [
+                { key: 'LeCust', label: 'LE Cust Vol', bg: 'bg-purple-50', text: 'text-purple-600', headBg: 'bg-purple-100', headText: 'text-purple-800', lightBg: 'bg-purple-50/20' },
+                { key: 'LeRC', label: 'LE RC Vol', bg: 'bg-blue-50', text: 'text-blue-600', headBg: 'bg-blue-100', headText: 'text-blue-800', lightBg: 'bg-blue-50/20' },
+                { key: 'LeBase', label: 'LE Base', bg: 'bg-orange-50', text: 'text-orange-600', headBg: 'bg-orange-100', headText: 'text-orange-800', lightBg: 'bg-orange-50/20' },
+                { key: 'LeCustom', label: 'LE Advanced', bg: 'bg-indigo-50', text: 'text-indigo-600', headBg: 'bg-indigo-100', headText: 'text-indigo-800', lightBg: 'bg-indigo-50/20' }
+            ];
+
+            const renderEmptyBudgetWarning = () => (
+                <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
+                    <Icons.Calculator className="w-16 h-16 text-slate-300 mb-4" />
+                    <h2 className="text-xl font-bold text-slate-700 mb-2">Budget Not Committed</h2>
+                    <p className="text-sm mb-6 max-w-md text-center">To view this forecast, you must first commit the granular budget in the Allocation Engine.</p>
+                    <button onClick={() => setActiveTab('allocation')} className="bg-orange-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-700 transition">Go to Engine</button>
+                </div>
+            );
+
             const renderGraphToggles = () => (
                 <div className="flex flex-wrap items-center gap-3 mb-4 bg-slate-50 p-2 rounded-lg border border-slate-200">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 ml-2"><Icons.Eye className="w-3 h-3"/> Map Scenarios:</span>
@@ -972,8 +1043,8 @@
                         </label>
                     ))}
                     <div className="flex gap-2 ml-auto pr-2">
-                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-blue-600 transition" onClick={() => setGraphToggles({act25:true, bud26:true, act26:true, marchLE:true, leCust:true, leRc:true, leMgmt:true, leCustom:true})}>All On</button>
-                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-red-500 transition" onClick={() => setGraphToggles({act25:false, bud26:false, act26:false, marchLE:false, leCust:false, leRc:false, leMgmt:false, leCustom:false})}>All Off</button>
+                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-blue-600 transition" onClick={() => setGraphToggles({act25:true, bud26:true, act26:true, leCust:true, leRc:true, leBase:true, leCustom:true})}>All On</button>
+                        <button className="text-[10px] uppercase tracking-wider font-bold text-slate-500 hover:text-red-500 transition" onClick={() => setGraphToggles({act25:false, bud26:false, act26:false, leCust:false, leRc:false, leBase:false, leCustom:false})}>All Off</button>
                     </div>
                 </div>
             );
@@ -1141,87 +1212,108 @@
             );
 
             const renderOverviewTab = () => {
-                const totA25 = monthlyAggregates.reduce((s,d)=>s+d.Act25,0);
-                const totB26 = monthlyAggregates.reduce((s,d)=>s+d.Bud26,0);
-                const totMarchLE = monthlyAggregates.reduce((s,d)=>s+d.MarchLE,0);
-                const totLeCust = monthlyAggregates.reduce((s,d)=>s+d.LeCust,0);
-                const totLeRC = monthlyAggregates.reduce((s,d)=>s+d.LeRC,0);
-                const totLeMgmt = monthlyAggregates.reduce((s,d)=>s+d.LeMgmt,0);
-                const totLeCustom = monthlyAggregates.reduce((s,d)=>s+d.LeCustom,0);
+                const activeLeData =
+                    overviewScenario === 'leCust' ? leCustGrowth :
+                    overviewScenario === 'leRC' ? leRCGrowth :
+                    overviewScenario === 'leBase' ? leBaseGrowth :
+                    leCustomGrowth; 
 
-                const renderOutlookRow = (title, val, bud, bgClass, textClass, borderClass) => {
-                    const variance = bud ? (val - bud) / bud : 0;
-                    const varText = formatPct(variance);
-                    const varColor = variance >= 0 ? 'text-emerald-600' : 'text-red-500';
-                    const sign = variance > 0 ? '+' : '';
+                const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
 
-                    return (
-                        <div className={`p-3 rounded-xl border ${bgClass} ${borderClass} flex justify-between items-center`}>
-                            <div>
-                                <div className={`text-[10px] font-bold uppercase mb-0.5 ${textClass}`}>{title}</div>
-                                <div className={`text-xl font-black ${textClass}`}>{formatNum(val)}</div>
-                            </div>
-                            <div className="text-right">
-                                <div className={`text-xs font-bold px-2 py-1 rounded-md bg-white shadow-sm ${varColor}`}>
-                                    {sign}{varText} vs Bud
-                                </div>
-                            </div>
-                        </div>
-                    );
-                };
+                const projData = [
+                    ...actuals.filter(a => a.year === 2026 && a.month <= maxActMonth26).map(d=>({...d, combinedType: 'Actual'})),
+                    ...activeLeData.filter(d => d.year === 2026 && d.month > maxActMonth26).map(d=>({...d, combinedType: 'Forecast'}))
+                ];
+
+                const fProj = getFiltered(projData);
+                const fAct25 = getFiltered(actuals).filter(d => d.year === 2025);
+                const fBud26 = getFiltered(budget).filter(d => d.year === 2026);
+
+                const totProj = fProj.reduce((s,d)=>s+d.kwh,0);
+                const totBud = fBud26.reduce((s,d)=>s+d.kwh,0);
+                const totAct25 = fAct25.reduce((s,d)=>s+d.kwh,0);
+
+                const varBud = totBud ? (totProj - totBud) / totBud : 0;
+                const varAct = totAct25 ? (totProj - totAct25) / totAct25 : 0;
+
+                const rcSummary = dimensions.rcs.map(rc => {
+                    const b26 = fBud26.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0) / 1000000;
+                    const p26 = fProj.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0) / 1000000;
+                    return { rc, Budget: b26, Projection: p26 };
+                }).filter(rc => rc.Budget > 0 || rc.Projection > 0);
 
                 return (
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
-                        {!isBudgetCommitted && (
-                            <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded flex items-center justify-between">
-                                <div className="text-orange-800 text-sm font-bold">Warning: Budget is unallocated. Granular tracking disabled until committed in Allocation Engine.</div>
-                                <button onClick={()=>setActiveTab('allocation')} className="bg-orange-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow-sm">Go to Engine</button>
+                        <div className="bg-white rounded-xl border p-4 shadow-sm flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800">Executive Summary</h2>
+                                <p className="text-sm text-slate-500">Projected FY 2026 Year-End Trajectory.</p>
                             </div>
-                        )}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 bg-white rounded-xl border p-5 flex flex-col min-h-[500px] shadow-sm">
-                                <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Scenario Trend Overlay (kWh)</div>
-                                {renderGraphToggles()}
-                                <div className="flex-1 min-h-0 mt-2">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={monthlyAggregates}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                            <XAxis dataKey="month" tick={{fontSize: 11}} />
-                                            <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
-                                            <Tooltip formatter={(v) => formatNum(v)} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                            <Legend wrapperStyle={{paddingTop: '10px'}} />
-                                            {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
-                                            {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
-                                            {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
-                                            {graphToggles.marchLE && <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />}
-                                            {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
-                                            {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
-                                            {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
-                                            {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Advanced" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Scenario:</span>
+                                <select value={overviewScenario} onChange={e=>setOverviewScenario(e.target.value)} className="border-2 border-blue-200 rounded-lg px-4 py-2 font-bold text-blue-700 bg-blue-50 shadow-sm outline-none">
+                                    <option value="leBase">LE Base</option>
+                                    <option value="leCust">LE Cust Vol</option>
+                                    <option value="leRC">LE RC Vol</option>
+                                    <option value="leCustom">LE Advanced</option>
+                                </select>
                             </div>
-                            <div className="bg-white rounded-xl border p-5 space-y-4 shadow-sm flex flex-col max-h-[600px]">
-                                <h3 className="font-bold text-slate-800 border-b pb-2 shrink-0">Fiscal Year Outlook</h3>
-                                
-                                <div className="grid grid-cols-2 gap-3 shrink-0">
-                                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-                                        <div className="text-[10px] text-blue-600 font-bold uppercase mb-1">Budget FY</div>
-                                        <div className="text-xl font-black text-blue-800">{formatNum(totB26)}</div>
-                                    </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase mb-1">2025 Actuals</div>
-                                        <div className="text-xl font-black text-slate-700">{formatNum(totA25)}</div>
-                                    </div>
-                                </div>
+                        </div>
 
-                                <div className="space-y-3 overflow-y-auto custom-scroll pr-1 flex-1 pb-2">
-                                    {renderOutlookRow('March LE', totMarchLE, totB26, 'bg-emerald-50', 'text-emerald-800', 'border-emerald-100')}
-                                    {renderOutlookRow('LE Cust Vol', totLeCust, totB26, 'bg-purple-50', 'text-purple-800', 'border-purple-100')}
-                                    {renderOutlookRow('LE RC Vol', totLeRC, totB26, 'bg-sky-50', 'text-sky-800', 'border-sky-100')}
-                                    {renderOutlookRow('LE Mgmt', totLeMgmt, totB26, 'bg-orange-50', 'text-orange-800', 'border-orange-100')}
-                                    {renderOutlookRow('LE Advanced', totLeCustom, totB26, 'bg-indigo-50', 'text-indigo-800', 'border-indigo-100')}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div className="bg-white rounded-xl border p-5 shadow-sm">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">FY 2026 Projection</div>
+                                <div className="text-3xl font-black text-slate-800">{formatNum(totProj)} <span className="text-sm font-bold text-slate-400">kWh</span></div>
+                            </div>
+                            <div className="bg-white rounded-xl border p-5 shadow-sm">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">FY 2026 Budget</div>
+                                <div className="text-3xl font-black text-blue-700">{formatNum(totBud)} <span className="text-sm font-bold text-blue-400">kWh</span></div>
+                            </div>
+                            <div className="bg-white rounded-xl border p-5 shadow-sm">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Variance vs Budget</div>
+                                <div className={`text-3xl font-black flex items-center gap-2 ${totProj - totBud >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                    {totProj - totBud > 0 ? '+' : ''}{formatNum(totProj - totBud)}
+                                    <span className="text-sm px-2 py-1 rounded bg-slate-100">{formatPct(varBud)}</span>
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-xl border p-5 shadow-sm">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Variance vs 2025 Act</div>
+                                <div className={`text-3xl font-black flex items-center gap-2 ${totProj - totAct25 >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
+                                    {totProj - totAct25 > 0 ? '+' : ''}{formatNum(totProj - totAct25)}
+                                    <span className="text-sm px-2 py-1 rounded bg-slate-100">{formatPct(varAct)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[400px]">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.BookOpen/> Executive Comments & Action Items</h3>
+                                    <button onClick={() => pushScenariosToCloud(savedVersions, varianceComments, overviewComments)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1">
+                                        <Icons.Save className="w-3 h-3"/> Save Comments
+                                    </button>
+                                </div>
+                                <textarea
+                                    className="flex-1 w-full border border-slate-200 rounded-lg p-3 text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-none custom-scroll"
+                                    placeholder="Enter executive summary, variance explanations, or action items here... (Saves directly to GitHub Config)"
+                                    value={overviewComments}
+                                    onChange={e => setOverviewComments(e.target.value)}
+                                />
+                            </div>
+                            <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[400px]">
+                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity/> FY Breakdown by Rate Class (GWh)</h3>
+                                <div className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={rcSummary}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                            <XAxis dataKey="rc" tick={{fontSize: 11}} />
+                                            <YAxis tickFormatter={v => v.toFixed(0)} tick={{fontSize: 11}} />
+                                            <Tooltip formatter={(v) => v.toFixed(2)} cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                                            <Legend wrapperStyle={{paddingTop: '10px'}} />
+                                            <Bar dataKey="Budget" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                            <Bar dataKey="Projection" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
                                 </div>
                             </div>
                         </div>
@@ -1230,10 +1322,8 @@
             };
 
             const renderMonthlyTab = () => {
-                const totA25 = monthlyAggregates.reduce((s,d)=>s+d.Act25,0); const totB26 = monthlyAggregates.reduce((s,d)=>s+d.Bud26,0); const totA26 = monthlyAggregates.reduce((s,d)=>s+(d.Act26||0),0);
-                const totMarchLE = monthlyAggregates.reduce((s,d)=>s+d.MarchLE,0); const totLeCust = monthlyAggregates.reduce((s,d)=>s+d.LeCust,0); const totLeRC = monthlyAggregates.reduce((s,d)=>s+d.LeRC,0); 
-                const totLeMgmt = monthlyAggregates.reduce((s,d)=>s+d.LeMgmt,0); const totLeCustom = monthlyAggregates.reduce((s,d)=>s+d.LeCustom,0);
-
+                const totA25 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Act25,0); const totB26 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Bud26,0); const totA26 = monthlyAggregatesRaw.reduce((s,d)=>s+(d.Act26||0),0);
+                
                 return (
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
                         <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[450px] shrink-0 shadow-sm">
@@ -1241,7 +1331,7 @@
                             {renderGraphToggles()}
                             <div className="w-full h-[400px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={monthlyAggregates}>
+                                    <LineChart data={monthlyAggregatesRaw}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis dataKey="month" tick={{fontSize: 11}} />
                                         <YAxis tickFormatter={v => (v/1000).toFixed(0)+'k'} tick={{fontSize: 11}} />
@@ -1250,11 +1340,7 @@
                                         {graphToggles.act25 && <Line type="monotone" dataKey="Act25" name="2025 Actuals" stroke="#94a3b8" strokeDasharray="5 5" dot={false} />}
                                         {graphToggles.bud26 && <Line type="monotone" dataKey="Bud26" name="2026 Budget" stroke="#3b82f6" strokeWidth={2} dot={false} />}
                                         {graphToggles.act26 && <Line type="monotone" dataKey="Act26" name="2026 Actuals" stroke="#8b5cf6" strokeWidth={3} dot={{r:4}} />}
-                                        {graphToggles.marchLE && <Line type="monotone" dataKey="MarchLE" name="March LE Forecast" stroke="#10b981" strokeWidth={3} strokeDasharray="3 3" dot={false} />}
-                                        {graphToggles.leCust && <Line type="monotone" dataKey="LeCust" name="LE Cust Vol" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
-                                        {graphToggles.leRc && <Line type="monotone" dataKey="LeRC" name="LE RC Vol" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} />}
-                                        {graphToggles.leMgmt && <Line type="monotone" dataKey="LeMgmt" name="LE Management" stroke="#f59e0b" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
-                                        {graphToggles.leCustom && <Line type="monotone" dataKey="LeCustom" name="LE Advanced" stroke="#6366f1" strokeWidth={3} strokeDasharray="4 4" dot={false} />}
+                                        {varScenarios.map(sc => graphToggles[sc.key.replace('Le', 'le')] && <Line key={sc.key} type="monotone" dataKey={sc.key} name={sc.label} stroke={sc.key==='LeBase'?'#f59e0b':sc.key==='LeCust'?'#d946ef':sc.key==='LeRC'?'#0ea5e9':'#6366f1'} strokeWidth={sc.key==='LeBase'?3:2} strokeDasharray="4 4" dot={false} />)}
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
@@ -1262,7 +1348,7 @@
                         <div className="bg-white rounded-xl border shadow-sm flex flex-col">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Database/> Monthly Data Matrix</h3>
-                                <button onClick={() => exportCSV(monthlyAggregates, 'Monthly_Scenarios_Summary.csv')} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded font-bold text-sm flex items-center gap-2 border border-blue-200 transition">
+                                <button onClick={() => exportCSV(monthlyAggregatesRaw, 'Monthly_Scenarios_Summary.csv')} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded font-bold text-sm flex items-center gap-2 border border-blue-200 transition">
                                     <Icons.Download/> Export Summary
                                 </button>
                             </div>
@@ -1270,33 +1356,23 @@
                                 <table className="w-full text-sm text-left whitespace-nowrap">
                                     <thead className="table-pin-header">
                                         <tr className="bg-slate-100">
-                                            <th className="p-3 border-r table-pin-col bg-slate-100 z-30">Month</th>
-                                            <th className="p-3 text-right">2025 Act</th>
-                                            <th className="p-3 text-right">2026 Bud</th>
-                                            <th className="p-3 text-right">2026 Act</th>
-                                            <th className="p-3 text-right text-emerald-700">March LE</th>
-                                            <th className="p-3 text-right text-purple-700">LE Cust Vol</th>
-                                            <th className="p-3 text-right text-blue-700">LE RC Vol</th>
-                                            <th className="p-3 text-right text-orange-700">LE Mgmt</th>
-                                            <th className="p-3 text-right text-indigo-700 bg-indigo-50">LE Advanced</th>
+                                            <SortHeader label="Month" columnKey="monthFull" currentSort={monthlySort} requestSort={sortMonthly} className="border-r table-pin-col bg-slate-100 z-30" />
+                                            <SortHeader label="2025 Act" columnKey="Act25" currentSort={monthlySort} requestSort={sortMonthly} className="text-right" />
+                                            <SortHeader label="2026 Bud" columnKey="Bud26" currentSort={monthlySort} requestSort={sortMonthly} className="text-right" />
+                                            <SortHeader label="2026 Act" columnKey="Act26" currentSort={monthlySort} requestSort={sortMonthly} className="text-right" />
+                                            {varScenarios.map(sc => <SortHeader key={sc.key} label={sc.label} columnKey={sc.key} currentSort={monthlySort} requestSort={sortMonthly} className={`text-right ${sc.text}`} />)}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {monthlyAggregates.map(row => {
-                                            return (
-                                                <tr key={row.monthFull} className="border-b hover:bg-slate-50">
-                                                    <td className="p-3 font-bold border-r table-pin-col bg-white">{row.monthFull}</td>
-                                                    <td className="p-3 text-right text-slate-500">{formatNum(row.Act25)}</td>
-                                                    <td className="p-3 text-right text-blue-600">{formatNum(row.Bud26)}</td>
-                                                    <td className="p-3 text-right font-bold text-purple-700">{row.Act26 ? formatNum(row.Act26) : '-'}</td>
-                                                    <td className="p-3 text-right font-medium text-emerald-600">{formatNum(row.MarchLE)}</td>
-                                                    <td className="p-3 text-right font-medium text-purple-600">{formatNum(row.LeCust)}</td>
-                                                    <td className="p-3 text-right font-medium text-blue-600">{formatNum(row.LeRC)}</td>
-                                                    <td className="p-3 text-right font-bold text-orange-600">{formatNum(row.LeMgmt)}</td>
-                                                    <td className="p-3 text-right font-bold text-indigo-600 bg-indigo-50/50">{formatNum(row.LeCustom)}</td>
-                                                </tr>
-                                            );
-                                        })}
+                                        {monthlyAggregates.map(row => (
+                                            <tr key={row.monthFull} className="border-b hover:bg-slate-50">
+                                                <td className="p-3 font-bold border-r table-pin-col bg-white">{row.monthFull}</td>
+                                                <td className="p-3 text-right text-slate-500">{formatNum(row.Act25)}</td>
+                                                <td className="p-3 text-right text-blue-600">{formatNum(row.Bud26)}</td>
+                                                <td className="p-3 text-right font-bold text-purple-700">{row.Act26 ? formatNum(row.Act26) : '-'}</td>
+                                                {varScenarios.map(sc => <td key={sc.key} className={`p-3 text-right font-bold ${sc.text}`}>{formatNum(row[sc.key])}</td>)}
+                                            </tr>
+                                        ))}
                                     </tbody>
                                     <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-20">
                                         <tr>
@@ -1304,11 +1380,7 @@
                                             <td className="p-3 text-right text-slate-600">{formatNum(totA25)}</td>
                                             <td className="p-3 text-right text-blue-800">{formatNum(totB26)}</td>
                                             <td className="p-3 text-right text-purple-800">{formatNum(totA26)}</td>
-                                            <td className="p-3 text-right text-emerald-800">{formatNum(totMarchLE)}</td>
-                                            <td className="p-3 text-right text-purple-800">{formatNum(totLeCust)}</td>
-                                            <td className="p-3 text-right text-blue-800">{formatNum(totLeRC)}</td>
-                                            <td className="p-3 text-right text-orange-800">{formatNum(totLeMgmt)}</td>
-                                            <td className="p-3 text-right text-indigo-800 bg-indigo-100">{formatNum(totLeCustom)}</td>
+                                            {varScenarios.map(sc => <td key={sc.key} className={`p-3 text-right ${sc.text}`}>{formatNum(monthlyAggregatesRaw.reduce((s,d)=>s+(d[sc.key]||0),0))}</td>)}
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -1387,6 +1459,7 @@
 
             const renderPivotTab = () => {
                 if (actuals.length === 0) return null;
+                if (!isBudgetCommitted) return renderEmptyBudgetWarning();
 
                 const { rcMatrix, topMovers, bottomMovers } = pivotState;
 
@@ -1407,8 +1480,7 @@
                                 <span className="text-slate-300">|</span>
                                 <span className="text-xs font-bold text-slate-500">Scenario:</span>
                                 <select value={pivotScenario} onChange={e=>setPivotScenario(e.target.value)} className="border rounded-lg px-3 py-1.5 font-bold text-blue-700 bg-white shadow-sm outline-none">
-                                    <option value="leMgmt">LE Management</option>
-                                    <option value="marchLE">March LE</option>
+                                    <option value="leBase">LE Base</option>
                                     <option value="leCust">LE Cust Vol</option>
                                     <option value="leRC">LE RC Vol</option>
                                     <option value="leCustom">LE Advanced</option>
@@ -1431,10 +1503,12 @@
                                     <table className="w-full text-xs text-left">
                                         <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_#e2e8f0]">
                                             <tr>
-                                                <th className="p-2 text-slate-500">#</th>
-                                                <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Incline</th>
-                                                <th className="p-2 text-right text-slate-500">% Growth</th>
-                                                <th className="p-2 text-slate-800 pl-4">Account</th>
+                                                <SortHeader label="#" columnKey="null" currentSort={topSort} requestSort={sortTopMovers} className="text-slate-500" />
+                                                <SortHeader label="2025 Base" columnKey="baseline" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-500" />
+                                                <SortHeader label="2026 Target" columnKey="target" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-500" />
+                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Incline`} columnKey="variance" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-800" />
+                                                <SortHeader label="% Growth" columnKey="pct" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-500" />
+                                                <SortHeader label="Account" columnKey="name" currentSort={topSort} requestSort={sortTopMovers} className="text-slate-800 pl-4" />
                                                 <th className="p-2 text-slate-500 w-16">Notes</th>
                                             </tr>
                                         </thead>
@@ -1445,9 +1519,11 @@
                                                 return (
                                                     <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
                                                         <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                        <td className="p-2 text-right font-medium text-slate-500">{m.baseline.toFixed(2)}</td>
+                                                        <td className="p-2 text-right font-medium text-slate-500">{m.target.toFixed(2)}</td>
                                                         <td className="p-2 text-right font-bold text-emerald-600">+{m.variance.toFixed(2)}</td>
                                                         <td className="p-2 text-right font-medium text-emerald-600 bg-emerald-50/30">+{m.pct.toFixed(1)}%</td>
-                                                        <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
+                                                        <td className="p-2 truncate max-w-[150px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
                                                         <td className="p-2 text-center">
                                                             <button onClick={() => handleAddComment(m.name)} className="text-slate-400 hover:text-blue-600 transition" title={hasComment ? varianceComments[commentKey] : "Add explanation"}>
                                                                 {hasComment ? '💬' : '➕'}
@@ -1456,7 +1532,7 @@
                                                     </tr>
                                                 );
                                             })}
-                                            {topMovers.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
+                                            {topMovers.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1470,10 +1546,12 @@
                                     <table className="w-full text-xs text-left">
                                         <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_#e2e8f0]">
                                             <tr>
-                                                <th className="p-2 text-slate-500">#</th>
-                                                <th className="p-2 text-right text-slate-800">{moversRC === 'All' ? '' : moversRC} GWh Decline</th>
-                                                <th className="p-2 text-right text-slate-500">% Growth</th>
-                                                <th className="p-2 text-slate-800 pl-4">Account</th>
+                                                <SortHeader label="#" columnKey="null" currentSort={botSort} requestSort={sortBottomMovers} className="text-slate-500" />
+                                                <SortHeader label="2025 Base" columnKey="baseline" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-500" />
+                                                <SortHeader label="2026 Target" columnKey="target" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-500" />
+                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Decline`} columnKey="variance" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-800" />
+                                                <SortHeader label="% Growth" columnKey="pct" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-500" />
+                                                <SortHeader label="Account" columnKey="name" currentSort={botSort} requestSort={sortBottomMovers} className="text-slate-800 pl-4" />
                                                 <th className="p-2 text-slate-500 w-16">Notes</th>
                                             </tr>
                                         </thead>
@@ -1484,9 +1562,11 @@
                                                 return (
                                                     <tr key={m.name} className="border-b last:border-0 hover:bg-slate-50">
                                                         <td className="p-2 text-slate-400">{idx + 1}</td>
+                                                        <td className="p-2 text-right font-medium text-slate-500">{m.baseline.toFixed(2)}</td>
+                                                        <td className="p-2 text-right font-medium text-slate-500">{m.target.toFixed(2)}</td>
                                                         <td className="p-2 text-right font-bold text-red-500">{m.variance.toFixed(2)}</td>
                                                         <td className="p-2 text-right font-medium text-red-500 bg-red-50/30">{m.pct.toFixed(1)}%</td>
-                                                        <td className="p-2 truncate max-w-[200px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
+                                                        <td className="p-2 truncate max-w-[150px] text-slate-700 pl-4" title={m.name}>{m.name}</td>
                                                         <td className="p-2 text-center">
                                                             <button onClick={() => handleAddComment(m.name)} className="text-slate-400 hover:text-blue-600 transition" title={hasComment ? varianceComments[commentKey] : "Add explanation"}>
                                                                 {hasComment ? '💬' : '➕'}
@@ -1495,7 +1575,7 @@
                                                     </tr>
                                                 );
                                             })}
-                                            {bottomMovers.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
+                                            {bottomMovers.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1577,25 +1657,26 @@
             };
 
             const renderVarianceTab = () => {
+                if (!isBudgetCommitted) return renderEmptyBudgetWarning();
+                
                 const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
-                const matrix = {};
+                const matrixObj = {};
 
                 const initMatrix = (dim) => { 
-                    if(!matrix[dim]) matrix[dim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0, leCustom:0, sub: {} }; 
+                    if(!matrixObj[dim]) matrixObj[dim] = { dim, a25:0, a26:0, b26:0, leCust:0, leRc:0, leBase:0, leCustom:0, sub: {} }; 
                 };
                 const initSubMatrix = (dim, subDim) => { 
-                    if(!matrix[dim].sub[subDim]) matrix[dim].sub[subDim] = { a25:0, a26:0, b26:0, mle:0, leCust:0, leRc:0, leMgmt:0, leCustom:0 }; 
+                    if(!matrixObj[dim].sub[subDim]) matrixObj[dim].sub[subDim] = { dim: subDim, a25:0, a26:0, b26:0, leCust:0, leRc:0, leBase:0, leCustom:0 }; 
                 };
 
                 const datasets = [
-                    { data: actuals, year: 2025, field: 'a25' },
-                    { data: actuals, year: 2026, field: 'a26' },
-                    { data: budget, year: 2026, field: 'b26' },
-                    { data: marchLE, year: null, field: 'mle' },
-                    { data: leCustGrowth, year: null, field: 'leCust' },
-                    { data: leRCGrowth, year: null, field: 'leRc' },
-                    { data: leMgmtGrowth, year: null, field: 'leMgmt' },
-                    { data: leCustomGrowth, year: null, field: 'leCustom' },
+                    { data: getFiltered(actuals), year: 2025, field: 'a25' },
+                    { data: getFiltered(actuals), year: 2026, field: 'a26' },
+                    { data: getFiltered(budget), year: 2026, field: 'b26' },
+                    { data: getFiltered(leCustGrowth), year: null, field: 'leCust' },
+                    { data: getFiltered(leRCGrowth), year: null, field: 'leRc' },
+                    { data: getFiltered(leBaseGrowth), year: null, field: 'leBase' },
+                    { data: getFiltered(leCustomGrowth), year: null, field: 'leCustom' },
                 ];
 
                 datasets.forEach(({ data, year, field }) => {
@@ -1605,19 +1686,22 @@
                         
                         const dimVal = d[varianceDim] || 'Unassigned';
                         initMatrix(dimVal);
-                        matrix[dimVal][field] += d.kwh;
+                        matrixObj[dimVal][field] += d.kwh;
 
                         if (drillDownDim !== 'none') {
                             const subDimVal = d[drillDownDim] || 'Unassigned';
                             initSubMatrix(dimVal, subDimVal);
-                            matrix[dimVal].sub[subDimVal][field] += d.kwh;
+                            matrixObj[dimVal].sub[subDimVal][field] += d.kwh;
                         }
                     });
                 });
 
-                const totA25 = Object.values(matrix).reduce((s,v)=>s+v.a25,0); const totB26 = Object.values(matrix).reduce((s,v)=>s+v.b26,0); const totA26 = Object.values(matrix).reduce((s,v)=>s+v.a26,0);
-                const totMle = Object.values(matrix).reduce((s,v)=>s+v.mle,0); const totLeCust = Object.values(matrix).reduce((s,v)=>s+v.leCust,0); const totLeRc = Object.values(matrix).reduce((s,v)=>s+v.leRc,0); 
-                const totLeMgmt = Object.values(matrix).reduce((s,v)=>s+v.leMgmt,0); const totLeCustom = Object.values(matrix).reduce((s,v)=>s+v.leCustom,0);
+                const matrixArr = Object.values(matrixObj);
+                const { items: sortedMatrix, requestSort: sortMatrix, sortConfig: varSort } = useSortableData(matrixArr, {key: 'a26', direction: 'descending'});
+
+                const totA25 = matrixArr.reduce((s,v)=>s+v.a25,0); const totB26 = matrixArr.reduce((s,v)=>s+v.b26,0); const totA26 = matrixArr.reduce((s,v)=>s+v.a26,0);
+                const totLeCust = matrixArr.reduce((s,v)=>s+v.leCust,0); const totLeRc = matrixArr.reduce((s,v)=>s+v.leRc,0); 
+                const totLeBase = matrixArr.reduce((s,v)=>s+v.leBase,0); const totLeCustom = matrixArr.reduce((s,v)=>s+v.leCustom,0);
 
                 const renderVarPct = (val, base) => formatPct(base ? (val - base) / base : 0);
                 const colorPct = (val, base) => { const pct = base ? (val - base) / base : 0; return pct >= 0 ? 'text-emerald-600' : 'text-red-500'; };
@@ -1631,29 +1715,17 @@
                         <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${colorPct(v.a26, v.b26)}`}>{renderVarPct(v.a26, v.b26)}</td>
                         <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${colorPct(v.a26, v.a25)}`}>{renderVarPct(v.a26, v.a25)}</td>
                         
-                        <td className={`p-2 text-right border-l border-slate-200 bg-emerald-50/20 ${isSub ? 'text-emerald-600 text-xs opacity-80' : 'text-emerald-700'}`}>{formatNum(v.mle)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-emerald-50/20 ${colorPct(v.mle, v.b26)}`}>{renderVarPct(v.mle, v.b26)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-emerald-50/20 ${colorPct(v.mle, v.a25)}`}>{renderVarPct(v.mle, v.a25)}</td>
-                        
-                        <td className={`p-2 text-right border-l border-slate-200 bg-purple-50/20 ${isSub ? 'text-purple-600 text-xs opacity-80' : 'text-purple-700'}`}>{formatNum(v.leCust)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-purple-50/20 ${colorPct(v.leCust, v.b26)}`}>{renderVarPct(v.leCust, v.b26)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-purple-50/20 ${colorPct(v.leCust, v.a25)}`}>{renderVarPct(v.leCust, v.a25)}</td>
-                        
-                        <td className={`p-2 text-right border-l border-slate-200 bg-blue-50/20 ${isSub ? 'text-blue-600 text-xs opacity-80' : 'text-blue-700'}`}>{formatNum(v.leRc)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-blue-50/20 ${colorPct(v.leRc, v.b26)}`}>{renderVarPct(v.leRc, v.b26)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-blue-50/20 ${colorPct(v.leRc, v.a25)}`}>{renderVarPct(v.leRc, v.a25)}</td>
-                        
-                        <td className={`p-2 text-right border-l border-slate-200 bg-orange-50/20 ${isSub ? 'text-orange-600 text-xs opacity-80' : 'text-orange-700'}`}>{formatNum(v.leMgmt)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-orange-50/20 ${colorPct(v.leMgmt, v.b26)}`}>{renderVarPct(v.leMgmt, v.b26)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-orange-50/20 ${colorPct(v.leMgmt, v.a25)}`}>{renderVarPct(v.leMgmt, v.a25)}</td>
-                        
-                        <td className={`p-2 text-right border-l border-slate-200 bg-indigo-50/20 ${isSub ? 'text-indigo-600 text-xs opacity-80' : 'text-indigo-700'}`}>{formatNum(v.leCustom)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-indigo-50/20 ${colorPct(v.leCustom, v.b26)}`}>{renderVarPct(v.leCustom, v.b26)}</td>
-                        <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} bg-indigo-50/20 ${colorPct(v.leCustom, v.a25)}`}>{renderVarPct(v.leCustom, v.a25)}</td>
+                        {varScenarios.map(sc => (
+                            <React.Fragment key={sc.key}>
+                                <td className={`p-2 text-right border-l border-slate-200 ${sc.lightBg} ${isSub ? sc.text.replace('600','600 text-xs opacity-80') : sc.text.replace('600','700')}`}>{formatNum(v[sc.key.replace('Le', 'le')])}</td>
+                                <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${sc.lightBg} ${colorPct(v[sc.key.replace('Le', 'le')], v.b26)}`}>{renderVarPct(v[sc.key.replace('Le', 'le')], v.b26)}</td>
+                                <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${sc.lightBg} ${colorPct(v[sc.key.replace('Le', 'le')], v.a25)}`}>{renderVarPct(v[sc.key.replace('Le', 'le')], v.a25)}</td>
+                            </React.Fragment>
+                        ))}
                     </React.Fragment>
                 );
 
-                const totalsObj = { a25: totA25, b26: totB26, a26: totA26, mle: totMle, leCust: totLeCust, leRc: totLeRc, leMgmt: totLeMgmt, leCustom: totLeCustom };
+                const totalsObj = { a25: totA25, b26: totB26, a26: totA26, leCust: totLeCust, leRc: totLeRc, leBase: totLeBase, leCustom: totLeCustom };
 
                 return (
                     <div className="p-6 h-full flex flex-col">
@@ -1692,34 +1764,30 @@
                                 <table className="w-full text-sm text-left whitespace-nowrap">
                                     <thead className="table-pin-header">
                                         <tr className="bg-slate-100">
-                                            <th className="p-2 border-r table-pin-col bg-slate-100 z-30">{varianceDim.toUpperCase()}</th>
-                                            <th className="p-2 text-right">2025 Act</th>
-                                            <th className="p-2 text-right">2026 Bud</th>
-                                            <th className="p-2 text-right border-l border-slate-300">2026 Act</th>
+                                            <SortHeader label={varianceDim.toUpperCase()} columnKey="dim" currentSort={varSort} requestSort={sortMatrix} className="border-r table-pin-col bg-slate-100 z-30" />
+                                            <SortHeader label="2025 Act" columnKey="a25" currentSort={varSort} requestSort={sortMatrix} className="text-right" />
+                                            <SortHeader label="2026 Bud" columnKey="b26" currentSort={varSort} requestSort={sortMatrix} className="text-right" />
+                                            <SortHeader label="2026 Act" columnKey="a26" currentSort={varSort} requestSort={sortMatrix} className="text-right border-l border-slate-300" />
                                             <th className="p-2 text-right text-xs text-slate-500">vs Bud</th>
                                             <th className="p-2 text-right text-xs text-slate-500">vs PY</th>
-                                            <th className="p-2 text-right border-l border-slate-300 text-emerald-700 bg-emerald-50">March LE</th>
-                                            <th className="p-2 text-right text-xs text-emerald-600 bg-emerald-50">vs Bud</th>
-                                            <th className="p-2 text-right text-xs text-emerald-600 bg-emerald-50">vs PY</th>
-                                            <th className="p-2 text-right border-l border-slate-300 text-purple-700 bg-purple-50">LE Cust Vol</th>
-                                            <th className="p-2 text-right text-xs text-purple-600 bg-purple-50">vs Bud</th>
-                                            <th className="p-2 text-right text-xs text-purple-600 bg-purple-50">vs PY</th>
-                                            <th className="p-2 text-right border-l border-slate-300 text-blue-700 bg-blue-50">LE RC Vol</th>
-                                            <th className="p-2 text-right text-xs text-blue-600 bg-blue-50">vs Bud</th>
-                                            <th className="p-2 text-right text-xs text-blue-600 bg-blue-50">vs PY</th>
-                                            <th className="p-2 text-right border-l border-slate-300 text-orange-700 bg-orange-50">LE Mgmt</th>
-                                            <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs Bud</th>
-                                            <th className="p-2 text-right text-xs text-orange-600 bg-orange-50">vs PY</th>
-                                            <th className="p-2 text-right border-l border-slate-300 text-indigo-700 bg-indigo-50">LE Advanced</th>
-                                            <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs Bud</th>
-                                            <th className="p-2 text-right text-xs text-indigo-600 bg-indigo-50">vs PY</th>
+                                            {varScenarios.map(sc => (
+                                                <React.Fragment key={sc.key}>
+                                                    <SortHeader label={sc.label} columnKey={sc.key.replace('Le', 'le')} currentSort={varSort} requestSort={sortMatrix} className={`text-right border-l border-slate-300 ${sc.headText} ${sc.headBg}`} />
+                                                    <th className={`p-2 text-right text-xs ${sc.text.replace('600', '500')} ${sc.headBg}`}>vs Bud</th>
+                                                    <th className={`p-2 text-right text-xs ${sc.text.replace('600', '500')} ${sc.headBg}`}>vs PY</th>
+                                                </React.Fragment>
+                                            ))}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {Object.entries(matrix).sort((a,b) => b[1].a26 - a[1].a26).map(([dim, v]) => {
+                                        {sortedMatrix.map(v => {
+                                            const dim = v.dim;
                                             const isExpanded = expandedRow === dim;
                                             const hasSub = drillDownDim !== 'none' && Object.keys(v.sub).length > 0;
                                             
+                                            // Ensure subrows are sorted by a26 desc
+                                            const subItems = Object.values(v.sub).sort((a,b) => b.a26 - a.a26).slice(0,100);
+
                                             return (
                                                 <React.Fragment key={dim}>
                                                     <tr className={`border-b hover:bg-slate-50 transition ${hasSub ? 'cursor-pointer' : ''}`} onClick={() => hasSub && setExpandedRow(isExpanded ? null : dim)}>
@@ -1733,12 +1801,12 @@
                                                         </td>
                                                         {renderVarRowCells(v, false)}
                                                     </tr>
-                                                    {isExpanded && Object.entries(v.sub).sort((a,b) => b[1].a26 - a[1].a26).slice(0, 100).map(([subDim, sv]) => (
-                                                        <tr key={`${dim}-${subDim}`} className="border-b bg-slate-50/80 hover:bg-slate-100 text-xs transition">
+                                                    {isExpanded && subItems.map(sv => (
+                                                        <tr key={`${dim}-${sv.dim}`} className="border-b bg-slate-50/80 hover:bg-slate-100 text-xs transition">
                                                             <td className="p-2 font-medium border-r table-pin-col bg-slate-50/95 whitespace-nowrap text-slate-600 z-10">
                                                                 <div className="flex items-center gap-2 pl-5 max-w-[200px]">
                                                                     <span className="w-2 h-2 border-l-2 border-b-2 border-slate-300 inline-block mb-1 opacity-60 flex-shrink-0"></span>
-                                                                    <span className="truncate" title={subDim}>{subDim}</span>
+                                                                    <span className="truncate" title={sv.dim}>{sv.dim}</span>
                                                                 </div>
                                                             </td>
                                                             {renderVarRowCells(sv, true)}
@@ -1761,16 +1829,26 @@
                 );
             };
 
-            const renderGenericForecastTab = (leDataset, title, description, iconNode, colorClass, textClass, requireBudget = false, activeMode = '', customControls = null) => {
-                if (requireBudget && !isBudgetCommitted) return <div className="p-10 text-center text-slate-400 font-bold">Commit Budget in Allocation Engine to enable this Forecast Method.</div>;
+            const renderGenericForecastTab = (leDataset, title, description, iconNode, colorClass, activeMode = '', customControls = null) => {
+                if (!isBudgetCommitted) return renderEmptyBudgetWarning();
                 
                 const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLE = getFiltered(leDataset);
-                const fMarchLE = getFiltered(marchLE); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeMgmt = getFiltered(leMgmtGrowth); const fLeCustom = getFiltered(leCustomGrowth);
+                const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeBase = getFiltered(leBaseGrowth); const fLeCustom = getFiltered(leCustomGrowth);
 
                 const totA25 = fAct.filter(d => d.year === 2025).reduce((s,d)=>s+d.kwh,0); const totB26 = fBud.filter(d => d.year === 2026).reduce((s,d)=>s+d.kwh,0);
-                const totLE = fLE.reduce((s,d)=>s+d.kwh,0); const totMarchLE = fMarchLE.reduce((s,d)=>s+d.kwh,0); const totLeCust = fLeCust.reduce((s,d)=>s+d.kwh,0);
-                const totLeRC = fLeRC.reduce((s,d)=>s+d.kwh,0); const totLeMgmt = fLeMgmt.reduce((s,d)=>s+d.kwh,0); const totLeCustom = fLeCustom.reduce((s,d)=>s+d.kwh,0);
-                const totVsBud = totB26 ? (totLE - totB26) / totB26 : 0; const totVsPY = totA25 ? (totLE - totA25) / totA25 : 0;
+                const totLE = fLE.reduce((s,d)=>s+d.kwh,0);
+
+                // For sorting
+                const mappedRcs = dimensions.rcs.map(rc => {
+                    const a25 = fAct.filter(d => d.rc === rc && d.year === 2025).reduce((s,d)=>s+d.kwh,0); const b26 = fBud.filter(d => d.rc === rc && d.year === 2026).reduce((s,d)=>s+d.kwh,0);
+                    const le26 = fLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
+                    const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
+                    const lBase26 = fLeBase.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lCustom26 = fLeCustom.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
+                    const vsBud = b26 ? (le26-b26)/b26 : 0; const vsPY = a25 ? (le26-a25)/a25 : 0;
+                    return { rc, a25, b26, le26, lCust26, lRc26, lBase26, lCustom26, vsBud, vsPY };
+                });
+
+                const { items: sortedRcs, requestSort: sortRc, sortConfig: rcSort } = useSortableData(mappedRcs, {key: 'rc', direction: 'asc'});
 
                 return (
                     <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
@@ -1796,53 +1874,43 @@
                             <table className="w-full text-sm text-left whitespace-nowrap">
                                 <thead className="bg-slate-100 text-slate-600 font-bold">
                                     <tr>
-                                        <th className="p-3">Rate Category</th>
-                                        <th className="p-3 text-right">2025 Act</th>
-                                        <th className="p-3 text-right">2026 Bud</th>
-                                        <th className={`p-3 text-right ${activeMode === 'marchLE' ? 'bg-emerald-100 text-emerald-800' : 'text-emerald-600/70'}`}>March LE (F)</th>
-                                        <th className={`p-3 text-right ${activeMode === 'leCust' ? 'bg-purple-100 text-purple-800' : 'text-purple-600/70'}`}>LE Cust Vol</th>
-                                        <th className={`p-3 text-right ${activeMode === 'leRC' ? 'bg-blue-100 text-blue-800' : 'text-blue-600/70'}`}>LE RC Vol</th>
-                                        <th className={`p-3 text-right ${activeMode === 'leMgmt' ? 'bg-orange-100 text-orange-800' : 'text-orange-600/70'}`}>LE Mgmt</th>
-                                        <th className={`p-3 text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`}>LE Advanced</th>
-                                        <th className="p-3 text-right border-l border-slate-200">Active LE vs Bud %</th>
-                                        <th className="p-3 text-right">Active LE vs PY %</th>
+                                        <SortHeader label="Rate Category" columnKey="rc" currentSort={rcSort} requestSort={sortRc} />
+                                        <SortHeader label="2025 Act" columnKey="a25" currentSort={rcSort} requestSort={sortRc} className="text-right" />
+                                        <SortHeader label="2026 Bud" columnKey="b26" currentSort={rcSort} requestSort={sortRc} className="text-right" />
+                                        <SortHeader label="LE Cust Vol" columnKey="lCust26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leCust' ? 'bg-purple-100 text-purple-800' : 'text-purple-600/70'}`} />
+                                        <SortHeader label="LE RC Vol" columnKey="lRc26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leRC' ? 'bg-blue-100 text-blue-800' : 'text-blue-600/70'}`} />
+                                        <SortHeader label="LE Base" columnKey="lBase26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leBase' ? 'bg-orange-100 text-orange-800' : 'text-orange-600/70'}`} />
+                                        <SortHeader label="LE Advanced" columnKey="lCustom26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`} />
+                                        <SortHeader label="Active LE vs Bud %" columnKey="vsBud" currentSort={rcSort} requestSort={sortRc} className="text-right border-l border-slate-200" />
+                                        <SortHeader label="Active LE vs PY %" columnKey="vsPY" currentSort={rcSort} requestSort={sortRc} className="text-right" />
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {dimensions.rcs.map(rc => {
-                                        const a25 = fAct.filter(d => d.rc === rc && d.year === 2025).reduce((s,d)=>s+d.kwh,0); const b26 = fBud.filter(d => d.rc === rc && d.year === 2026).reduce((s,d)=>s+d.kwh,0);
-                                        const le26 = fLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const mle26 = fMarchLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
-                                        const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
-                                        const lMgmt26 = fLeMgmt.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lCustom26 = fLeCustom.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
-                                        const vsBud = b26 ? (le26-b26)/b26 : 0; const vsPY = a25 ? (le26-a25)/a25 : 0;
-                                        return (
-                                            <tr key={rc} className="border-b hover:bg-slate-50">
-                                                <td className="p-3 font-bold">{rc}</td>
-                                                <td className="p-3 text-right text-slate-400">{formatNum(a25)}</td>
-                                                <td className="p-3 text-right text-blue-600">{formatNum(b26)}</td>
-                                                <td className={`p-3 text-right ${activeMode === 'marchLE' ? 'font-black text-emerald-600 bg-emerald-50/50' : 'text-emerald-500'}`}>{formatNum(mle26)}</td>
-                                                <td className={`p-3 text-right ${activeMode === 'leCust' ? 'font-black text-purple-600 bg-purple-50/50' : 'text-purple-500'}`}>{formatNum(lCust26)}</td>
-                                                <td className={`p-3 text-right ${activeMode === 'leRC' ? 'font-black text-blue-600 bg-blue-50/50' : 'text-blue-500'}`}>{formatNum(lRc26)}</td>
-                                                <td className={`p-3 text-right ${activeMode === 'leMgmt' ? 'font-black text-orange-600 bg-orange-50/50' : 'text-orange-500'}`}>{formatNum(lMgmt26)}</td>
-                                                <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'font-black text-indigo-600 bg-indigo-50/50' : 'text-indigo-500'}`}>{formatNum(lCustom26)}</td>
-                                                <td className={`p-3 text-right font-bold border-l border-slate-100 ${vsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(vsBud)}</td>
-                                                <td className={`p-3 text-right font-bold ${vsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(vsPY)}</td>
-                                            </tr>
-                                        );
-                                    })}
+                                    {sortedRcs.map(r => (
+                                        <tr key={r.rc} className="border-b hover:bg-slate-50">
+                                            <td className="p-3 font-bold">{r.rc}</td>
+                                            <td className="p-3 text-right text-slate-400">{formatNum(r.a25)}</td>
+                                            <td className="p-3 text-right text-blue-600">{formatNum(r.b26)}</td>
+                                            <td className={`p-3 text-right ${activeMode === 'leCust' ? 'font-black text-purple-600 bg-purple-50/50' : 'text-purple-500'}`}>{formatNum(r.lCust26)}</td>
+                                            <td className={`p-3 text-right ${activeMode === 'leRC' ? 'font-black text-blue-600 bg-blue-50/50' : 'text-blue-500'}`}>{formatNum(r.lRc26)}</td>
+                                            <td className={`p-3 text-right ${activeMode === 'leBase' ? 'font-black text-orange-600 bg-orange-50/50' : 'text-orange-500'}`}>{formatNum(r.lBase26)}</td>
+                                            <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'font-black text-indigo-600 bg-indigo-50/50' : 'text-indigo-500'}`}>{formatNum(r.lCustom26)}</td>
+                                            <td className={`p-3 text-right font-bold border-l border-slate-100 ${r.vsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(r.vsBud)}</td>
+                                            <td className={`p-3 text-right font-bold ${r.vsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(r.vsPY)}</td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                                 <tfoot className="bg-slate-100 font-black text-slate-800 border-t-2 border-slate-300">
                                     <tr>
                                         <td className="p-3">TOTAL</td>
                                         <td className="p-3 text-right text-slate-500">{formatNum(totA25)}</td>
                                         <td className="p-3 text-right text-blue-700">{formatNum(totB26)}</td>
-                                        <td className={`p-3 text-right ${activeMode === 'marchLE' ? 'text-emerald-800 bg-emerald-100' : 'text-emerald-700'}`}>{formatNum(totMarchLE)}</td>
-                                        <td className={`p-3 text-right ${activeMode === 'leCust' ? 'text-purple-800 bg-purple-100' : 'text-purple-700'}`}>{formatNum(totLeCust)}</td>
-                                        <td className={`p-3 text-right ${activeMode === 'leRC' ? 'text-blue-800 bg-blue-100' : 'text-blue-700'}`}>{formatNum(totLeRC)}</td>
-                                        <td className={`p-3 text-right ${activeMode === 'leMgmt' ? 'text-orange-800 bg-orange-100' : 'text-orange-700'}`}>{formatNum(totLeMgmt)}</td>
-                                        <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'text-indigo-800 bg-indigo-100' : 'text-indigo-700'}`}>{formatNum(totLeCustom)}</td>
-                                        <td className={`p-3 text-right border-l border-slate-200 ${totVsBud>=0?'text-emerald-600':'text-red-500'}`}>{formatPct(totVsBud)}</td>
-                                        <td className={`p-3 text-right ${totVsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(totVsPY)}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leCust' ? 'text-purple-800 bg-purple-100' : 'text-purple-700'}`}>{formatNum(monthlyAggregatesRaw.reduce((s,d)=>s+d.LeCust,0))}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leRC' ? 'text-blue-800 bg-blue-100' : 'text-blue-700'}`}>{formatNum(monthlyAggregatesRaw.reduce((s,d)=>s+d.LeRC,0))}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leBase' ? 'text-orange-800 bg-orange-100' : 'text-orange-700'}`}>{formatNum(monthlyAggregatesRaw.reduce((s,d)=>s+d.LeBase,0))}</td>
+                                        <td className={`p-3 text-right ${activeMode === 'leCustom' ? 'text-indigo-800 bg-indigo-100' : 'text-indigo-700'}`}>{formatNum(monthlyAggregatesRaw.reduce((s,d)=>s+d.LeCustom,0))}</td>
+                                        <td className={`p-3 text-right border-l border-slate-200 ${totB26 ? ((totLE - totB26) / totB26 >= 0 ? 'text-emerald-600' : 'text-red-500') : ''}`}>{formatPct(totB26 ? (totLE - totB26) / totB26 : 0)}</td>
+                                        <td className={`p-3 text-right ${totA25 ? ((totLE - totA25) / totA25 >= 0 ? 'text-blue-600' : 'text-red-500') : ''}`}>{formatPct(totA25 ? (totLE - totA25) / totA25 : 0)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -1851,16 +1919,17 @@
                 );
             };
 
+            const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by each Customer\'s average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Users className="text-purple-500"/>, 'purple', 'leCust');
+            const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap className="text-blue-500"/>, 'blue', 'leRC');
+            const renderLeBaseTab = () => renderGenericForecastTab(leBaseGrowth, 'LE: Base Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase className="text-orange-500"/>, 'orange', 'leBase');
+            const renderLeCustomTab = () => renderGenericForecastTab(leCustomGrowth, 'LE: Advanced Scenario Builder', 'Projection based on multi-dimensional growth adjustments applied to the base budget.', <Icons.Sliders className="text-indigo-500"/>, 'indigo', 'leCustom', renderAdvOverridesUI());
+
             const renderGlossaryTab = () => (
                 <div className="p-10 h-full overflow-y-auto custom-scroll">
                     <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
                         <div>
                             <h2 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><Icons.BookOpen className="text-blue-600"/> Forecasting Scenarios Glossary</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-emerald-50/50 border border-emerald-200 p-6 rounded-xl space-y-3">
-                                    <h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Icons.Wind/> March LE (Run-Rate Method)</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Projects April–December 2026 using the <em>actual</em> billed volumes from March 2026 as the jumping-off point. It shapes the remaining months by applying the 2025 seasonality curve to that March baseline.</p>
-                                </div>
                                 <div className="bg-purple-50/50 border border-purple-200 p-6 rounded-xl space-y-3">
                                     <h3 className="text-lg font-bold text-purple-800 flex items-center gap-2"><Icons.Users/> LE: Customer Volumetric Trend</h3>
                                     <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for <em>each individual customer</em> (Q1 2026 vs Q1 2025). This absolute volumetric difference is then added to or subtracted from that customer's remaining budgeted months.</p>
@@ -1870,12 +1939,19 @@
                                     <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for the <em>entire Rate Class</em> (Q1 2026 vs Q1 2025). This aggregate class variance is then spread proportionally across all customers in that class based on their budget share.</p>
                                 </div>
                                 <div className="bg-orange-50/50 border border-orange-200 p-6 rounded-xl space-y-3">
-                                    <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2"><Icons.Briefcase/> LE: Management Trend (Hybrid)</h3>
+                                    <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2"><Icons.Briefcase/> LE: Base Trend (Hybrid)</h3>
                                     <p className="text-sm text-slate-700"><strong>Definition:</strong> A blended approach. It uses the <em>Customer Volumetric Trend</em> for specific commercial/industrial classes (RT10, RT20, RT60) and uses the <em>Rate Class Volumetric Trend</em> for all other classes.</p>
                                 </div>
-                                <div className="bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3 md:col-span-2">
+                                <div className="bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3">
                                     <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders/> LE: Advanced Scenario Builder</h3>
                                     <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers that are applied to the remaining Base Budget across various dimensions (Customer, Rate Class, Industry, or Month).</p>
+                                </div>
+                                <div className="bg-slate-50 border border-slate-200 p-6 rounded-xl space-y-3 md:col-span-2">
+                                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Icons.Grid/> Pivot & Movers: Top/Bottom Performers</h3>
+                                    <p className="text-sm text-slate-700"><strong>Calculation:</strong> The Top and Bottom Performers tables identify the largest volumetric inclines and declines (in GWh) between 2025 Actuals and your selected 2026 Scenario.</p>
+                                    <p className="text-sm text-slate-700"><strong>Formula:</strong> <code>Variance (GWh) = 2026 Target Scenario - 2025 Base Actuals</code>.</p>
+                                    <p className="text-sm text-slate-700"><strong>Timeframe Filter:</strong> The timeframe dropdown controls the window. 'FY' compares the full 12 months. 'YTD' compares January up to the global month filter, and 'MTD' compares only the specific global month.</p>
+                                    <p className="text-sm text-slate-700"><strong>Note:</strong> Aggregated classes (RT10, RT20, EV, BU) are excluded from the Movers list to focus on individually managed commercial/industrial accounts.</p>
                                 </div>
                             </div>
                         </div>
@@ -1913,64 +1989,91 @@
                         </div>
                     </header>
 
-                    <div className="bg-white border-b px-6 flex gap-2 overflow-x-auto shrink-0 z-10">
-                        <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database/> Data Hub</button>
-                        {rawActuals.length > 0 && (
-                            <>
-                                <button onClick={()=>setActiveTab('overview')} className={`dashboard-tab ${activeTab==='overview'?'active':''}`}><Icons.Activity/> Overview</button>
-                                <button onClick={()=>setActiveTab('monthly')} className={`dashboard-tab ${activeTab==='monthly'?'active':''}`}><Icons.Calendar/> Monthly Graph & Data</button>
-                                <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator/> Allocation Engine</button>
-                                <button onClick={()=>setActiveTab('forecast')} className={`dashboard-tab ${activeTab==='forecast'?'active':''}`}><Icons.Wind/> March LE Forecast</button>
-                                <button onClick={()=>setActiveTab('leCust')} className={`dashboard-tab ${activeTab==='leCust'?'active':''}`}><Icons.Users/> LE: Cust Budget</button>
-                                <button onClick={()=>setActiveTab('leRC')} className={`dashboard-tab ${activeTab==='leRC'?'active':''}`}><Icons.Zap/> LE: RC Budget</button>
-                                <button onClick={()=>setActiveTab('leMgmt')} className={`dashboard-tab ${activeTab==='leMgmt'?'active':''}`}><Icons.Briefcase/> LE: Management</button>
-                                <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp/> Variance Matrix</button>
-                                <button onClick={()=>setActiveTab('pivot')} className={`dashboard-tab ${activeTab==='pivot'?'active':''}`}><Icons.Grid/> Pivot & Movers</button>
-                            </>
-                        )}
-                        <button onClick={()=>setActiveTab('glossary')} className={`dashboard-tab ${activeTab==='glossary'?'active':''}`}><Icons.BookOpen/> Glossary</button>
-                    </div>
+                    <div className="flex flex-1 overflow-hidden">
+                        {/* Vertical Sidebar Tabs */}
+                        <aside className="w-56 bg-white border-r flex flex-col gap-1 p-4 shrink-0 overflow-y-auto custom-scroll z-10 shadow-sm">
+                            {rawActuals.length > 0 && (
+                                <>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 mt-2">Executive</div>
+                                    <button onClick={()=>setActiveTab('overview')} className={`dashboard-tab ${activeTab==='overview'?'active':''}`}><Icons.Building/> Overview</button>
+                                    <button onClick={()=>setActiveTab('monthly')} className={`dashboard-tab ${activeTab==='monthly'?'active':''}`}><Icons.Calendar/> Monthly Trend</button>
+                                    <button onClick={()=>setActiveTab('pivot')} className={`dashboard-tab ${activeTab==='pivot'?'active':''}`}><Icons.Grid/> Pivot & Movers</button>
+                                    
+                                    <div className="h-px bg-slate-200 my-3 mx-2"></div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Forecast Scenarios</div>
+                                    
+                                    <button onClick={()=>setActiveTab('leCust')} className={`dashboard-tab ${activeTab==='leCust'?'active':''}`}><Icons.Users/> LE: Cust Vol</button>
+                                    <button onClick={()=>setActiveTab('leRC')} className={`dashboard-tab ${activeTab==='leRC'?'active':''}`}><Icons.Zap/> LE: RC Vol</button>
+                                    <button onClick={()=>setActiveTab('leBase')} className={`dashboard-tab ${activeTab==='leBase'?'active':''}`}><Icons.Briefcase/> LE: Base</button>
+                                    <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders/> LE: Advanced</button>
+                                    
+                                    <div className="h-px bg-slate-200 my-3 mx-2"></div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Analysis Engine</div>
+                                    
+                                    <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator/> Allocations</button>
+                                    <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp/> Variance Matrix</button>
+                                </>
+                            )}
+                            
+                            <div className="mt-auto"></div>
+                            <button onClick={()=>setActiveTab('glossary')} className={`dashboard-tab ${activeTab==='glossary'?'active':''}`}><Icons.BookOpen/> Glossary</button>
+                            <div className="h-px bg-slate-200 my-3 mx-2"></div>
+                            <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database/> Data Hub</button>
+                        </aside>
 
-                    <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-                         {rawActuals.length > 0 && ['overview', 'monthly', 'forecast', 'leCust', 'leRC', 'leMgmt', 'leCustom', 'variance', 'pivot'].includes(activeTab) && (
-                            <div className="bg-white border-b px-6 py-2 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto">
-                                <Icons.Filter className="w-3 h-3"/> 
-                                <div className="flex items-center gap-1 border-r pr-3">
-                                    <Icons.Calendar />
-                                    <select value={ytdMonth} onChange={e=>setYtdMonth(e.target.value)} className="bg-transparent text-blue-700 outline-none">
-                                        <option value="All">Full Year (YTD)</option>
-                                        {monthNames.map(m=><option key={m} value={m}>YTD: {m}</option>)}
+                        <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+                             {rawActuals.length > 0 && ['overview', 'monthly', 'leCust', 'leRC', 'leBase', 'leCustom', 'variance', 'pivot'].includes(activeTab) && (
+                                <div className="bg-white border-b px-6 py-2 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto">
+                                    <Icons.Filter className="w-3 h-3"/> 
+                                    <div className="flex items-center gap-1 border-r pr-3">
+                                        <Icons.Calendar />
+                                        <select value={ytdMonth} onChange={e=>setYtdMonth(e.target.value)} className="bg-transparent text-blue-700 outline-none">
+                                            <option value="All">Full Year (YTD)</option>
+                                            {monthNames.map(m=><option key={m} value={m}>YTD: {m}</option>)}
+                                        </select>
+                                    </div>
+                                    <select value={fCust} onChange={e=>setFCust(e.target.value)} className="bg-transparent outline-none max-w-[150px] truncate pr-2">
+                                        <option value="All">All Customers</option>{dimensions.customers.map(c=><option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <select value={fRC} onChange={e=>setFRC(e.target.value)} className="bg-transparent outline-none">
+                                        <option value="All">All Rates</option>{dimensions.rcs.map(r=><option key={r}>{r}</option>)}
+                                    </select>
+                                    <select value={fParish} onChange={e=>setFParish(e.target.value)} className="bg-transparent outline-none">
+                                        <option value="All">All Parishes</option>{dimensions.parishes.map(p=><option key={p}>{p}</option>)}
+                                    </select>
+                                    <select value={fInd} onChange={e=>setFInd(e.target.value)} className="bg-transparent outline-none">
+                                        <option value="All">All Industries</option>{dimensions.inds.map(i=><option key={i}>{i}</option>)}
                                     </select>
                                 </div>
-                                <select value={fRC} onChange={e=>setFRC(e.target.value)} className="bg-transparent outline-none">
-                                    <option value="All">All Rates</option>{dimensions.rcs.map(r=><option key={r}>{r}</option>)}
-                                </select>
-                                <select value={fParish} onChange={e=>setFParish(e.target.value)} className="bg-transparent outline-none">
-                                    <option value="All">All Parishes</option>{dimensions.parishes.map(p=><option key={p}>{p}</option>)}
-                                </select>
-                                <select value={fInd} onChange={e=>setFInd(e.target.value)} className="bg-transparent outline-none">
-                                    <option value="All">All Industries</option>{dimensions.inds.map(i=><option key={i}>{i}</option>)}
-                                </select>
-                                <select value={fCust} onChange={e=>setFCust(e.target.value)} className="bg-transparent outline-none max-w-[150px] truncate pr-2">
-                                    <option value="All">All Customers</option>{dimensions.customers.map(c=><option key={c} value={c}>{c}</option>)}
-                                </select>
-                            </div>
-                         )}
+                             )}
 
-                        <div className="flex-1 overflow-hidden relative bg-slate-50/50">
-                            {activeTab === 'data' && renderDataTab()}
-                            {activeTab === 'overview' && renderOverviewTab()}
-                            {activeTab === 'monthly' && renderMonthlyTab()}
-                            {activeTab === 'allocation' && renderAllocationTab()}
-                            {activeTab === 'forecast' && renderForecastTab()}
-                            {activeTab === 'leCust' && renderLeCustTab()}
-                            {activeTab === 'leRC' && renderLeRCTab()}
-                            {activeTab === 'leMgmt' && renderLeMgmtTab()}
-                            {activeTab === 'leCustom' && renderLeCustomTab()}
-                            {activeTab === 'pivot' && renderPivotTab()}
-                            {activeTab === 'variance' && renderVarianceTab()}
-                            {activeTab === 'glossary' && renderGlossaryTab()}
-                        </div>
+                            <div className="flex-1 overflow-hidden relative bg-slate-50/50">
+                                <ErrorBoundary>
+                                    {rawActuals.length === 0 && activeTab !== 'data' && activeTab !== 'glossary' ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                                            <Icons.CloudDown className="w-12 h-12 mb-4 animate-bounce text-blue-400"/>
+                                            <h2 className="text-xl font-bold mb-2">Fetching Cloud Data...</h2>
+                                            <p className="text-sm mb-6 max-w-md text-center">Auto-loading actuals and budget from your repository. If this takes more than a few seconds, you may need to configure your data sources manually.</p>
+                                            <button onClick={() => setActiveTab('data')} className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-slate-900 transition">Go to Data Hub</button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {activeTab === 'data' && renderDataTab()}
+                                            {activeTab === 'overview' && renderOverviewTab()}
+                                            {activeTab === 'monthly' && renderMonthlyTab()}
+                                            {activeTab === 'allocation' && renderAllocationTab()}
+                                            {activeTab === 'leCust' && renderLeCustTab()}
+                                            {activeTab === 'leRC' && renderLeRCTab()}
+                                            {activeTab === 'leBase' && renderLeBaseTab()}
+                                            {activeTab === 'leCustom' && renderLeCustomTab()}
+                                            {activeTab === 'pivot' && renderPivotTab()}
+                                            {activeTab === 'variance' && renderVarianceTab()}
+                                            {activeTab === 'glossary' && renderGlossaryTab()}
+                                        </>
+                                    )}
+                                </ErrorBoundary>
+                            </div>
+                        </main>
                     </div>
 
                     {/* Version Manager Modal */}
