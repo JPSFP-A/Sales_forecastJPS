@@ -8,6 +8,9 @@
     <!-- Tailwind CSS for Styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -225,16 +228,16 @@
         function App() {
             const [activeTab, setActiveTab] = useState('overview');
 
-            // --- GITHUB CONFIGURATION ---
-            const [githubConfig, setGithubConfig] = useState(() => {
-                const saved = localStorage.getItem('jps_github_config');
-                return saved ? JSON.parse(saved) : { token: '', owner: '', repo: '' };
+            // --- SUPABASE CONFIGURATION ---
+            const [supabaseConfig, setSupabaseConfig] = useState(() => {
+                const saved = localStorage.getItem('jps_supabase_config');
+                return saved ? JSON.parse(saved) : { url: '', key: '' };
             });
 
-            const updateGithubConfig = (field, value) => {
-                setGithubConfig(prev => {
+            const updateSupabaseConfig = (field, value) => {
+                setSupabaseConfig(prev => {
                     const next = { ...prev, [field]: value };
-                    localStorage.setItem('jps_github_config', JSON.stringify(next));
+                    localStorage.setItem('jps_supabase_config', JSON.stringify(next));
                     return next;
                 });
             };
@@ -245,8 +248,6 @@
             const [originalBudget, setOriginalBudget] = useState([]);
             const [isBudgetCommitted, setIsBudgetCommitted] = useState(false);
             
-            const [budgetUrl, setBudgetUrl] = useState('');
-            const [actualsUrl, setActualsUrl] = useState('');
             const [isLoadingUrl, setIsLoadingUrl] = useState({ budget: false, actuals: false });
             const [loadError, setLoadError] = useState('');
             
@@ -326,14 +327,13 @@
                     .sort((a,b) => a.acct.localeCompare(b.acct));
             }, [rawActuals, rawBudget]);
 
-            // 1. DATA LOAD & CLOUD SYNC METHOD
+            // 1. DATA LOAD & CLOUD SYNC METHOD (Supabase)
             const fetchCloudData = async (silent = false) => {
-                const token = githubConfig.token.trim();
-                const owner = githubConfig.owner.trim();
-                const repo = githubConfig.repo.trim();
+                const url = supabaseConfig.url.trim();
+                const key = supabaseConfig.key.trim();
 
-                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) {
-                    if (!silent) alert("Please enter valid GitHub API credentials.");
+                if (!url || !key) {
+                    if (!silent) alert("Please enter valid Supabase Project URL and Anon Key.");
                     return false;
                 }
 
@@ -341,32 +341,33 @@
                 let loadedSomething = false;
 
                 try {
-                    const fetchRaw = async (filename) => {
-                        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}`;
-                        const res = await fetch(url, { 
-                            headers: { 
-                                'Authorization': `Bearer ${token}`,
-                                'Accept': 'application/vnd.github.v3.raw'
-                            } 
-                        });
-                        if (res.ok) return await res.text();
+                    const supabaseClient = window.supabase.createClient(url, key);
+
+                    // Fetch CSVs from storage bucket 'jps_data'
+                    const downloadCSV = async (filename) => {
+                        const { data, error } = await supabaseClient.storage.from('jps_data').download(filename);
+                        if (error) {
+                            console.error(`Failed downloading ${filename}`, error);
+                            return null;
+                        }
+                        if (data) return await data.text();
                         return null;
                     };
 
-                    const actText = await fetchRaw('JPS Actuals data.csv');
+                    const actText = await downloadCSV('actuals.csv');
                     if (actText) {
                         const parsedAct = parseCSV(actText);
                         if (parsedAct.length > 0) {
                             setRawActuals(parsedAct);
                             loadedSomething = true;
                         } else if (!silent) {
-                            alert("Actuals file found, but it appears to be empty or improperly formatted. Check your column headers.");
+                            alert("actuals.csv found, but it appears to be empty or improperly formatted.");
                         }
                     } else if (!silent) {
-                        alert("Could not find 'JPS Actuals data.csv' in GitHub. Check spelling exactly.");
+                        alert("Could not find 'actuals.csv' in the Supabase 'jps_data' bucket.");
                     }
 
-                    const budText = await fetchRaw('JPS Budget 2026 data.csv');
+                    const budText = await downloadCSV('budget.csv');
                     if (budText) {
                         const pb = parseCSV(budText);
                         if (pb.length > 0) {
@@ -374,20 +375,21 @@
                             setOriginalBudget([...pb]);
                             loadedSomething = true;
                         } else if (!silent) {
-                            alert("Budget file found, but it appears to be empty.");
+                            alert("budget.csv found, but it appears to be empty.");
                         }
                     } else if (!silent) {
-                        alert("Could not find 'JPS Budget 2026 data.csv' in GitHub. Check spelling exactly.");
+                        alert("Could not find 'budget.csv' in the Supabase 'jps_data' bucket.");
                     }
                     
-                    const configRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/dashboard_scenarios.json`, { 
-                        headers: { 'Authorization': `Bearer ${token}` } 
-                    });
+                    // Fetch config from table 'dashboard_state'
+                    const { data: configData, error: configError } = await supabaseClient
+                        .from('dashboard_state')
+                        .select('payload')
+                        .eq('id', 1)
+                        .single();
                     
-                    if (configRes.ok) {
-                        const fileData = await configRes.json();
-                        const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
-                        const parsed = JSON.parse(decodedContent);
+                    if (configData && configData.payload) {
+                        const parsed = configData.payload;
                         if (Array.isArray(parsed)) setSavedVersions(parsed);
                         else {
                             setSavedVersions(parsed.versions || []);
@@ -397,12 +399,12 @@
                         }
                     }
 
-                    if (!silent && loadedSomething) alert("Data successfully synced from GitHub!");
+                    if (!silent && loadedSomething) alert("Data successfully synced from Supabase!");
                     
                     return loadedSomething;
                 } catch (e) {
                     console.error("Cloud Sync Error", e);
-                    if (!silent) alert("Failed to fetch from GitHub. Check your token permissions and repo details.");
+                    if (!silent) alert("Failed to fetch from Supabase. Check your URL, Key, and ensure table/bucket exist.");
                     return false;
                 } finally {
                     if (!silent) setIsLoadingUrl({ budget: false, actuals: false });
@@ -414,35 +416,27 @@
                 let isMounted = true;
 
                 const bootApp = async () => {
-                    const savedStr = localStorage.getItem('jps_github_config');
+                    const savedStr = localStorage.getItem('jps_supabase_config');
                     const savedCfg = savedStr ? JSON.parse(savedStr) : null;
                     let cloudSuccess = false;
 
-                    if (savedCfg && savedCfg.token && savedCfg.owner && savedCfg.repo && !savedCfg.token.includes('YOUR_TOKEN')) {
+                    if (savedCfg && savedCfg.url && savedCfg.key) {
                         try {
-                            const token = savedCfg.token.trim();
-                            const owner = savedCfg.owner.trim();
-                            const repo = savedCfg.repo.trim();
+                            const supabaseClient = window.supabase.createClient(savedCfg.url.trim(), savedCfg.key.trim());
 
-                            const fetchRaw = async (filename) => {
-                                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}`;
-                                const res = await fetch(url, { 
-                                    headers: { 
-                                        'Authorization': `Bearer ${token}`,
-                                        'Accept': 'application/vnd.github.v3.raw'
-                                    } 
-                                });
-                                if (res.ok) return await res.text();
+                            const downloadCSV = async (filename) => {
+                                const { data, error } = await supabaseClient.storage.from('jps_data').download(filename);
+                                if (data) return await data.text();
                                 return null;
                             };
 
-                            const actText = await fetchRaw('JPS Actuals data.csv');
+                            const actText = await downloadCSV('actuals.csv');
                             if (actText && isMounted) {
                                 setRawActuals(parseCSV(actText));
                                 cloudSuccess = true;
                             }
 
-                            const budText = await fetchRaw('JPS Budget 2026 data.csv');
+                            const budText = await downloadCSV('budget.csv');
                             if (budText && isMounted) {
                                 const pb = parseCSV(budText);
                                 setRawBudget(pb);
@@ -450,13 +444,9 @@
                                 cloudSuccess = true;
                             }
 
-                            const configRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/dashboard_scenarios.json`, { 
-                                headers: { 'Authorization': `Bearer ${token}` } 
-                            });
-                            if (configRes.ok && isMounted) {
-                                const fileData = await configRes.json();
-                                const decodedContent = decodeURIComponent(escape(atob(fileData.content)));
-                                const parsed = JSON.parse(decodedContent);
+                            const { data: configData } = await supabaseClient.from('dashboard_state').select('payload').eq('id', 1).single();
+                            if (configData && configData.payload && isMounted) {
+                                const parsed = configData.payload;
                                 if (Array.isArray(parsed)) setSavedVersions(parsed);
                                 else {
                                     setSavedVersions(parsed.versions || []);
@@ -485,7 +475,7 @@
                             }
                         } catch (e) {
                             console.log("Could not auto-load files locally.", e);
-                            setLoadError("Local fetch blocked by browser. Please configure GitHub Sync or use manual file upload.");
+                            setLoadError("Local fetch blocked by browser. Please configure Supabase Sync or use manual file upload.");
                         }
                     }
                 };
@@ -856,11 +846,10 @@
                 const ocToPush = overviewCmtOverride !== null ? overviewCmtOverride : overviewComments;
                 const mapToPush = accountNameMapOverride || accountNameMap;
                 
-                const token = githubConfig.token.trim();
-                const owner = githubConfig.owner.trim();
-                const repo = githubConfig.repo.trim();
+                const url = supabaseConfig.url.trim();
+                const key = supabaseConfig.key.trim();
 
-                if (!token || !owner || !repo || token.includes('YOUR_TOKEN')) return;
+                if (!url || !key) return;
 
                 setIsSyncingConfigs(true);
                 try {
@@ -880,33 +869,15 @@
                         accountNameMap: mapToPush
                     };
 
-                    const jsonString = JSON.stringify(payloadToSave, null, 2);
-                    const base64Content = btoa(unescape(encodeURIComponent(jsonString)));
-                    const path = `dashboard_scenarios.json`;
-                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+                    const supabaseClient = window.supabase.createClient(url, key);
+                    const { error } = await supabaseClient
+                        .from('dashboard_state')
+                        .upsert({ id: 1, payload: payloadToSave });
 
-                    let fileSha = null;
-                    const getRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-                    if (getRes.ok) {
-                        const fileData = await getRes.json();
-                        fileSha = fileData.sha;
-                    }
-
-                    const body = { message: `Sync dashboard scenarios and comments to cloud`, content: base64Content };
-                    if (fileSha) body.sha = fileSha;
-
-                    const putRes = await fetch(url, {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-
-                    if (!putRes.ok) {
-                        const err = await putRes.json();
-                        alert(`Failed to sync config to GitHub: ${err.message}`);
-                    }
+                    if (error) throw error;
                 } catch (error) {
                     console.error("Silent sync failed", error);
+                    alert("Failed to sync to Supabase: " + error.message);
                 } finally {
                     setIsSyncingConfigs(false);
                 }
@@ -920,10 +891,7 @@
                 if (newVal !== null) {
                     const updatedComments = { ...varianceComments, [commentKey]: newVal };
                     setVarianceComments(updatedComments);
-                    
-                    if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
-                        pushScenariosToCloud(savedVersions, updatedComments);
-                    }
+                    pushScenariosToCloud(savedVersions, updatedComments);
                 }
             };
 
@@ -947,28 +915,6 @@
                 reader.readAsText(e.target.files[0]);
             };
 
-            const handleFetchUrl = async (url, isBudget) => {
-                if(!url) return;
-                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const text = await response.text();
-                    const data = parseCSV(text);
-                    if (isBudget) { 
-                        setRawBudget(data); 
-                        setOriginalBudget([...data]); 
-                        setIsBudgetCommitted(false); 
-                    } else { 
-                        setRawActuals(data); 
-                    }
-                } catch (e) {
-                    alert('Error fetching file: ' + e.message);
-                } finally {
-                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
-                }
-            };
-
             const handleSaveVersion = () => {
                 const name = prompt("Enter a name for this scenario version:");
                 if (!name) return;
@@ -988,8 +934,9 @@
                 const updatedVersions = [...savedVersions, newVersion];
                 setSavedVersions(updatedVersions);
                 
-                if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
+                if (supabaseConfig.url && supabaseConfig.key) {
                     pushScenariosToCloud(updatedVersions, varianceComments);
+                    alert(`Version "${name}" saved to Supabase!`);
                 } else {
                     alert(`Version "${name}" saved locally!`);
                 }
@@ -1015,7 +962,7 @@
                 if(!confirm("Delete this saved version?")) return;
                 const updatedVersions = savedVersions.filter(v => v.id !== id);
                 setSavedVersions(updatedVersions);
-                if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
+                if (supabaseConfig.url && supabaseConfig.key) {
                     pushScenariosToCloud(updatedVersions, varianceComments);
                 }
             };
@@ -1027,11 +974,11 @@
                 }));
                 setSavedVersions(updatedVersions);
                 
-                if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) {
+                if (supabaseConfig.url && supabaseConfig.key) {
                     await pushScenariosToCloud(updatedVersions, varianceComments);
                     alert("Default scenario changed and pushed to cloud.");
                 } else {
-                    alert("Default scenario set locally. You must configure GitHub credentials to push this setting for your team.");
+                    alert("Default scenario set locally. You must configure Supabase to push this setting.");
                 }
             };
 
@@ -1270,31 +1217,27 @@
             const renderDataTab = () => (
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
-                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub Team Sync & API Config</h3>
-                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage.</strong></p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> Supabase Integration & API Config</h3>
+                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">Enter your Supabase Project URL and Anon Key to automatically fetch data and sync scenarios across your team. <strong>Credentials are saved securely in your browser's local storage.</strong></p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
-                                <input type="password" value={githubConfig.token} onChange={e=>updateGithubConfig('token', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="ghp_..." />
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Supabase Project URL</label>
+                                <input type="text" value={supabaseConfig.url} onChange={e=>updateSupabaseConfig('url', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="https://xyz.supabase.co" />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Owner</label>
-                                <input type="text" value={githubConfig.owner} onChange={e=>updateGithubConfig('owner', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. JohnDoe" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Repository Name</label>
-                                <input type="text" value={githubConfig.repo} onChange={e=>updateGithubConfig('repo', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="e.g. sales-forecast" />
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Supabase Anon Key</label>
+                                <input type="password" value={supabaseConfig.key} onChange={e=>updateSupabaseConfig('key', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="eyJh..." />
                             </div>
                         </div>
                         <button onClick={fetchCloudDataFromButton} disabled={isLoadingUrl.actuals} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2">
-                            <Icons.RefreshCw /> {isLoadingUrl.actuals ? 'Syncing...' : 'Sync All Data & Configs from GitHub'}
+                            <Icons.RefreshCw /> {isLoadingUrl.actuals ? 'Syncing...' : 'Sync All Data & Configs from Supabase'}
                         </button>
                     </div>
 
                     <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
                         <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data Manually</h2>
-                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files if you are not using the automated GitHub connection above.</p>
+                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files if you are not using the automated Supabase connection above.</p>
                         
                         {loadError && (
                             <p className="text-xs text-red-600 font-bold mb-8 bg-red-50 py-1.5 px-4 rounded-full inline-block border border-red-200">{loadError}</p>
@@ -1321,7 +1264,7 @@
                         {nameConflicts.length > 0 && (
                             <div className="bg-amber-50 p-6 rounded-xl border border-amber-200 mt-6 text-left">
                                 <h3 className="font-bold text-amber-800 mb-2 flex items-center gap-2"><Icons.Users/> Account Name Conflicts Detected</h3>
-                                <p className="text-xs text-amber-700 mb-4">The same Account Number was found with different names. Please select the primary name to use for forecasting. This syncs with your GitHub scenario.</p>
+                                <p className="text-xs text-amber-700 mb-4">The same Account Number was found with different names. Please select the primary name to use for forecasting. This syncs with your Supabase scenario.</p>
                                 <div className="max-h-60 overflow-y-auto custom-scroll space-y-2">
                                     {nameConflicts.map(conflict => (
                                         <div key={conflict.acct} className="flex flex-col md:flex-row md:items-center gap-4 bg-white p-3 rounded shadow-sm border border-amber-100">
@@ -1331,7 +1274,7 @@
                                                     <button key={n} onClick={() => {
                                                         const updatedMap = {...accountNameMap, [conflict.acct]: n};
                                                         setAccountNameMap(updatedMap);
-                                                        if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) pushScenariosToCloud(savedVersions, varianceComments, overviewComments, updatedMap);
+                                                        if (supabaseConfig.url && supabaseConfig.key) pushScenariosToCloud(savedVersions, varianceComments, overviewComments, updatedMap);
                                                     }} className={`px-3 py-1 rounded text-xs font-medium border ${accountNameMap[conflict.acct] === n ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{n}</button>
                                                 ))}
                                             </div>
@@ -1342,7 +1285,7 @@
                                                         if(e.target.value) {
                                                             const updatedMap = {...accountNameMap, [conflict.acct]: e.target.value};
                                                             setAccountNameMap(updatedMap);
-                                                            if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) pushScenariosToCloud(savedVersions, varianceComments, overviewComments, updatedMap);
+                                                            if (supabaseConfig.url && supabaseConfig.key) pushScenariosToCloud(savedVersions, varianceComments, overviewComments, updatedMap);
                                                         }
                                                     }} 
                                                     defaultValue={accountNameMap[conflict.acct] && !conflict.names.includes(accountNameMap[conflict.acct]) ? accountNameMap[conflict.acct] : ''}
@@ -1451,7 +1394,7 @@
                                 </div>
                                 <textarea
                                     className="flex-1 w-full border border-slate-200 rounded-lg p-3 text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-none custom-scroll"
-                                    placeholder="Enter executive summary, variance explanations, or action items here... (Saves directly to GitHub Config)"
+                                    placeholder="Enter executive summary, variance explanations, or action items here... (Saves directly to Supabase)"
                                     value={overviewComments}
                                     onChange={e => setOverviewComments(e.target.value)}
                                 />
@@ -2016,9 +1959,6 @@
                         {customControls}
                         <div className="flex justify-end gap-3">
                             <button onClick={() => exportCSV(fLE, `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_base_level.csv`)} className="bg-white border hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition"><Icons.Download /> Download Base Level Data</button>
-                            <button onClick={() => saveForecastToGitHub(fLE, title.replace(/[^a-z0-9]/gi, '_').toLowerCase())} disabled={isPushing} className="bg-slate-800 border hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition disabled:opacity-50">
-                                <Icons.CloudUp /> {isPushing ? 'Pushing...' : 'Push to GitHub Repo'}
-                            </button>
                         </div>
                         <div className={`bg-white p-8 rounded-xl border border-${colorClass}-100 shadow-sm flex items-center justify-between`}>
                             <div>
@@ -2185,7 +2125,7 @@
 
                         <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                              {rawActuals.length > 0 && ['overview', 'monthly', 'leCust', 'leRC', 'leBase', 'leCustom', 'variance', 'pivot'].includes(activeTab) && (
-                                <div className="bg-white border-b px-6 py-2 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto z-10 relative">
+                                <div className="bg-white border-b px-6 py-2 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto">
                                     <Icons.Filter className="w-3 h-3"/> 
                                     <div className="flex items-center gap-1 border-r pr-3">
                                         <Icons.Calendar />
@@ -2209,7 +2149,7 @@
                                 </div>
                              )}
 
-                            <div className="flex-1 overflow-hidden relative bg-slate-50/50 z-0">
+                            <div className="flex-1 overflow-hidden relative bg-slate-50/50">
                                 <ErrorBoundary>
                                     {rawActuals.length === 0 && activeTab !== 'data' && activeTab !== 'glossary' ? (
                                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
