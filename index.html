@@ -87,6 +87,7 @@
             Activity: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
             TrendingUp: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
             Calculator: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M8 18h.01"/><path d="M12 14h.01"/><path d="M12 18h.01"/></svg>,
+            Wind: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2"/><path d="M12.59 19.41A2 2 0 1 0 14 16H2"/><path d="M15.83 7.17a2 2 0 1 0-1.41 3.42H20"/></svg>,
             Filter: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
             BookOpen: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
             Users: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
@@ -110,20 +111,16 @@
             Grid: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         };
 
-        // --- Generic Sorting Helper (Replaces useSortableData hook to prevent React crashes) ---
+        // --- Generic Sorting Helper ---
         const sortArray = (items, sortConfig) => {
             if (!sortConfig || !sortConfig.key) return items;
             return [...items].sort((a, b) => {
                 let aVal = a[sortConfig.key];
                 let bVal = b[sortConfig.key];
-                
-                // Handle nulls safely
                 if (aVal === null || aVal === undefined) aVal = '';
                 if (bVal === null || bVal === undefined) bVal = '';
-
                 if (typeof aVal === 'string') aVal = aVal.toLowerCase();
                 if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-
                 if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
                 if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
                 return 0;
@@ -221,7 +218,7 @@
                 const saved = localStorage.getItem('jps_supabase_config');
                 return saved ? JSON.parse(saved) : { url: '', key: '' };
             });
-            const [supabaseStatus, setSupabaseStatus] = useState('disconnected'); // disconnected, connecting, connected, error
+            const [supabaseStatus, setSupabaseStatus] = useState('disconnected');
 
             const updateSupabaseConfig = (field, value) => {
                 setSupabaseConfig(prev => {
@@ -299,7 +296,7 @@
                 act25: true, bud26: true, act26: true, leCust: true, leRc: true, leBase: true, leCustom: true
             });
 
-            // --- SORTING STATES ---
+            // --- SORTING STATES (single declaration) ---
             const [monthlySort, setMonthlySort] = useState({key: null, direction: 'asc'});
             const [topSort, setTopSort] = useState({key: 'variance', direction: 'descending'});
             const [botSort, setBotSort] = useState({key: 'variance', direction: 'ascending'});
@@ -349,13 +346,9 @@
                 try {
                     const supabaseClient = window.supabase.createClient(url, key);
 
-                    // Fetch CSVs from storage bucket 'jps_data'
                     const downloadCSV = async (filename) => {
                         const { data, error } = await supabaseClient.storage.from('jps_data').download(filename);
-                        if (error) {
-                            console.error(`Failed downloading ${filename}`, error);
-                            return null;
-                        }
+                        if (error) { console.error(`Failed downloading ${filename}`, error); return null; }
                         if (data) return await data.text();
                         return null;
                     };
@@ -363,36 +356,19 @@
                     const actText = await downloadCSV('actuals.csv');
                     if (actText) {
                         const parsedAct = parseCSV(actText);
-                        if (parsedAct.length > 0) {
-                            setRawActuals(parsedAct);
-                            loadedSomething = true;
-                        } else if (!silent) {
-                            alert("actuals.csv found, but it appears to be empty or improperly formatted. Check your column headers.");
-                        }
-                    } else if (!silent) {
-                        alert("Could not find 'actuals.csv' in the Supabase 'jps_data' bucket.");
-                    }
+                        if (parsedAct.length > 0) { setRawActuals(parsedAct); loadedSomething = true; }
+                        else if (!silent) alert("actuals.csv found, but empty or improperly formatted.");
+                    } else if (!silent) alert("Could not find 'actuals.csv' in the Supabase 'jps_data' bucket.");
 
                     const budText = await downloadCSV('budget.csv');
                     if (budText) {
                         const pb = parseCSV(budText);
-                        if (pb.length > 0) {
-                            setRawBudget(pb);
-                            setOriginalBudget([...pb]);
-                            loadedSomething = true;
-                        } else if (!silent) {
-                            alert("budget.csv found, but it appears to be empty.");
-                        }
-                    } else if (!silent) {
-                        alert("Could not find 'budget.csv' in the Supabase 'jps_data' bucket.");
-                    }
+                        if (pb.length > 0) { setRawBudget(pb); setOriginalBudget([...pb]); loadedSomething = true; }
+                        else if (!silent) alert("budget.csv found, but appears to be empty.");
+                    } else if (!silent) alert("Could not find 'budget.csv' in the Supabase 'jps_data' bucket.");
                     
-                    // Fetch config from table 'dashboard_state'
                     const { data: configData, error: configError } = await supabaseClient
-                        .from('dashboard_state')
-                        .select('payload')
-                        .eq('id', 1)
-                        .single();
+                        .from('dashboard_state').select('payload').eq('id', 1).single();
                     
                     if (configData && configData.payload) {
                         const parsed = configData.payload;
@@ -406,13 +382,7 @@
                     }
 
                     if (!silent && loadedSomething) alert("Data successfully synced from Supabase!");
-                    
-                    if (loadedSomething) {
-                        setSupabaseStatus('connected');
-                    } else {
-                        setSupabaseStatus('error');
-                    }
-
+                    setSupabaseStatus(loadedSomething ? 'connected' : 'error');
                     return loadedSomething;
                 } catch (e) {
                     console.error("Cloud Sync Error", e);
@@ -427,7 +397,6 @@
             // 2. SILENT BOOT SEQUENCE
             useEffect(() => {
                 let isMounted = true;
-
                 const bootApp = async () => {
                     const savedStr = localStorage.getItem('jps_supabase_config');
                     const savedCfg = savedStr ? JSON.parse(savedStr) : null;
@@ -437,7 +406,6 @@
                         setSupabaseStatus('connecting');
                         try {
                             const supabaseClient = window.supabase.createClient(savedCfg.url.trim(), savedCfg.key.trim());
-
                             const downloadCSV = async (filename) => {
                                 const { data, error } = await supabaseClient.storage.from('jps_data').download(filename);
                                 if (data) return await data.text();
@@ -445,17 +413,12 @@
                             };
 
                             const actText = await downloadCSV('actuals.csv');
-                            if (actText && isMounted) {
-                                setRawActuals(parseCSV(actText));
-                                cloudSuccess = true;
-                            }
+                            if (actText && isMounted) { setRawActuals(parseCSV(actText)); cloudSuccess = true; }
 
                             const budText = await downloadCSV('budget.csv');
                             if (budText && isMounted) {
                                 const pb = parseCSV(budText);
-                                setRawBudget(pb);
-                                setOriginalBudget([...pb]);
-                                cloudSuccess = true;
+                                setRawBudget(pb); setOriginalBudget([...pb]); cloudSuccess = true;
                             }
 
                             const { data: configData } = await supabaseClient.from('dashboard_state').select('payload').eq('id', 1).single();
@@ -469,11 +432,7 @@
                                     if (parsed.accountNameMap) setAccountNameMap(parsed.accountNameMap);
                                 }
                             }
-                            if (cloudSuccess && isMounted) {
-                                setSupabaseStatus('connected');
-                            } else if (isMounted) {
-                                setSupabaseStatus('error');
-                            }
+                            if (isMounted) setSupabaseStatus(cloudSuccess ? 'connected' : 'error');
                         } catch (e) {
                             console.log("Boot cloud fetch failed", e);
                             if (isMounted) setSupabaseStatus('error');
@@ -483,15 +442,12 @@
                     if (!cloudSuccess && isMounted) {
                         try {
                             const actRes = await fetch('./JPS%20Actuals%20data.csv');
-                            if (actRes.ok) {
-                                setRawActuals(parseCSV(await actRes.text()));
-                            }
+                            if (actRes.ok) setRawActuals(parseCSV(await actRes.text()));
                             
                             const budRes = await fetch('./JPS%20Budget%202026%20data.csv');
                             if (budRes.ok) {
                                 const pb = parseCSV(await budRes.text());
-                                setRawBudget(pb);
-                                setOriginalBudget([...pb]);
+                                setRawBudget(pb); setOriginalBudget([...pb]);
                             }
                         } catch (e) {
                             console.log("Could not auto-load files locally.", e);
@@ -513,11 +469,9 @@
                         setIsBudgetCommitted(false); 
                         setMonthMapping(defaultScenario.monthMapping || {});
                         setAllocOverrides(defaultScenario.allocOverrides || {});
-                        
                         let loadedAdv = defaultScenario.advOverrides || { pct: { rc: {}, industry: {}, month: {} }, vol: {} };
                         if (!loadedAdv.pct && !loadedAdv.vol) loadedAdv = { pct: loadedAdv, vol: {} };
                         setAdvOverrides(loadedAdv);
-                        
                         setIsNormalizeHurricane(defaultScenario.isNormalizeHurricane ?? true);
                         setHasAutoRestored(true);
                     } else {
@@ -543,7 +497,6 @@
             const { actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, dimensions } = useMemo(() => {
                 if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], leCustGrowth: [], leRCGrowth: [], leBaseGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
 
-                // Apply account mapping normalize name
                 const normA = rawActuals.map(d => {
                     const acct = (d['JPS A/c'] || 'Unassigned').trim();
                     const rawName = (d['Name'] || 'Unassigned').trim();
@@ -589,7 +542,6 @@
                 normB.filter(d => d.year === 2026 && d.month >= 4).forEach(b => {
                     bRcTotal[`${b.month}|${b.rc}`] = (bRcTotal[`${b.month}|${b.rc}`] || 0) + b.kwh;
                     bCustTotal[`${b.month}|${b.acct}`] = (bCustTotal[`${b.month}|${b.acct}`] || 0) + b.kwh;
-                    
                     const cmKey = `${b.name}|${b.month}`;
                     custMonthTotalBud[cmKey] = (custMonthTotalBud[cmKey] || 0) + b.kwh;
                 });
@@ -609,34 +561,26 @@
                     const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
                     leBaseData.push({ ...b, source: 'LE - Base', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
 
-                    // Advanced Overrides Logic
                     let customKwh = b.kwh;
                     let hasOverride = false;
                     const cmKey = `${b.name}|${b.month}`;
                     
                     if (advOverrides.vol && advOverrides.vol[b.name] && advOverrides.vol[b.name][b.month] !== undefined) {
-                        // Volume Override (GWh to kWh)
                         const targetKwh = advOverrides.vol[b.name][b.month] * 1000000;
                         const totalBud = custMonthTotalBud[cmKey] || 1;
                         const weight = b.kwh / totalBud;
                         customKwh = targetKwh * weight;
                         hasOverride = true;
                     } else {
-                        // Percentage Override
                         let overridePct = 0;
                         if (advOverrides.pct && advOverrides.pct.month && advOverrides.pct.month[b.month] !== undefined) {
-                            overridePct = advOverrides.pct.month[b.month];
-                            hasOverride = true;
+                            overridePct = advOverrides.pct.month[b.month]; hasOverride = true;
                         } else if (advOverrides.pct && advOverrides.pct.industry && advOverrides.pct.industry[b.industry] !== undefined) {
-                            overridePct = advOverrides.pct.industry[b.industry];
-                            hasOverride = true;
+                            overridePct = advOverrides.pct.industry[b.industry]; hasOverride = true;
                         } else if (advOverrides.pct && advOverrides.pct.rc && advOverrides.pct.rc[b.rc] !== undefined) {
-                            overridePct = advOverrides.pct.rc[b.rc];
-                            hasOverride = true;
+                            overridePct = advOverrides.pct.rc[b.rc]; hasOverride = true;
                         }
-                        if (hasOverride) {
-                            customKwh = Math.max(0, b.kwh * (1 + overridePct / 100));
-                        }
+                        if (hasOverride) customKwh = Math.max(0, b.kwh * (1 + overridePct / 100));
                     }
 
                     leCustomData.push({ ...b, source: 'LE - Custom', type: 'Forecast', kwh: customKwh });
@@ -652,12 +596,8 @@
             }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides, accountNameMap]);
 
             useEffect(() => {
-                if (dimensions.rcs.length > 0 && !advOverrideKey) {
-                    setAdvOverrideKey(dimensions.rcs[0]);
-                }
-                if (dimensions.customers.length > 0 && !advOverrideCustKey) {
-                    setAdvOverrideCustKey(dimensions.customers[0]);
-                }
+                if (dimensions.rcs.length > 0 && !advOverrideKey) setAdvOverrideKey(dimensions.rcs[0]);
+                if (dimensions.customers.length > 0 && !advOverrideCustKey) setAdvOverrideCustKey(dimensions.customers[0]);
             }, [dimensions.rcs, dimensions.customers, advOverrideKey, advOverrideCustKey]);
 
             useEffect(() => {
@@ -675,11 +615,8 @@
                     const newMapping = {};
                     bMonths.forEach(bm => {
                         const p = parseTimeStr(bm);
-                        if (p.year === 2026 && p.qtr <= 2) {
-                            newMapping[bm] = getRef('Q1 2026 Average');
-                        } else {
-                            newMapping[bm] = getRef('Q4 2025 Average');
-                        }
+                        if (p.year === 2026 && p.qtr <= 2) newMapping[bm] = getRef('Q1 2026 Average');
+                        else newMapping[bm] = getRef('Q4 2025 Average');
                     });
                     setMonthMapping(newMapping);
                 }
@@ -714,12 +651,10 @@
                     filteredActs.forEach(a => {
                         const groupKey = `${a['Rate category'] || 'Unassigned'}|${a['Updated Parish'] || 'Unassigned'}`;
                         const custKey = a['JPS A/c'];
-                        
                         if (!aGroups[groupKey]) aGroups[groupKey] = { totalWeight: 0, customers: {} };
                         if (!aGroups[groupKey].customers[custKey]) {
                             aGroups[groupKey].customers[custKey] = { acct: custKey, name: a['Name'], industry: a['Industry'], weightObj: 0 };
                         }
-                        
                         const val = Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump']));
                         aGroups[groupKey].customers[custKey].weightObj += val;
                         aGroups[groupKey].totalWeight += val;
@@ -752,11 +687,7 @@
 
             const commitAllocation = useCallback(() => {
                 if (allocationResults.length === 0) return;
-                
-                if (originalBudget.length === 0) {
-                    setOriginalBudget([...rawBudget]);
-                }
-
+                if (originalBudget.length === 0) setOriginalBudget([...rawBudget]);
                 setRawBudget(allocationResults.map(r => ({ 'Source': 'Model Allocation', 'Rate category': r.rc, 'Updated Parish': r.parish, 'Month': r.targetMonth, 'Sum of Budget': (r.finalA || 0).toFixed(6), 'JPS A/c': r.acct, 'Name': r.name, 'Industry': r.industry })));
                 setIsBudgetCommitted(true); 
             }, [allocationResults, rawBudget, originalBudget]);
@@ -769,9 +700,7 @@
             }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation, hasAutoAllocated]);
 
             const unlockAllocation = () => {
-                if(originalBudget.length > 0) {
-                    setRawBudget([...originalBudget]);
-                }
+                if(originalBudget.length > 0) setRawBudget([...originalBudget]);
                 setIsBudgetCommitted(false);
             };
 
@@ -779,7 +708,6 @@
                 if (activeTab !== 'pivot' || actuals.length === 0) return { rcMatrix: {}, topMovers: [], bottomMovers: [] };
 
                 const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
-
                 let targetDataset = [];
                 const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
                 
@@ -803,20 +731,16 @@
                 targetDataset.forEach(d => {
                     const rc = d.rc || 'Unassigned';
                     let acctName = d.name || d.acct || 'Unknown';
-                    if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) {
-                        acctName = ''; 
-                    }
+                    if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) acctName = '';
 
                     const m = d.month;
                     const val = d.kwh / 1000000;
 
                     if (!rcMatrix[rc]) rcMatrix[rc] = { total: 0, months: Array(12).fill(0), customers: {} };
-                    
                     rcMatrix[rc].total += val;
                     if (m >= 1 && m <= 12) rcMatrix[rc].months[m - 1] += val;
 
                     if (!rcMatrix[rc].customers[acctName]) rcMatrix[rc].customers[acctName] = { total: 0, months: Array(12).fill(0) };
-                    
                     rcMatrix[rc].customers[acctName].total += val;
                     if (m >= 1 && m <= 12) rcMatrix[rc].customers[acctName].months[m - 1] += val;
                 });
@@ -825,11 +749,9 @@
                 fActuals.filter(a => a.year === 2025).forEach(a => {
                     if (moversTimeFrame === 'YTD' && a.month > ytdLimit) return;
                     if (moversTimeFrame === 'MTD' && a.month !== ytdLimit) return;
-
                     const rc = a.rc || 'Unassigned';
                     let acct = a.name || a.acct || 'Unknown';
                     if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return;
-                    
                     const val = a.kwh / 1000000;
                     if (!accVar[acct]) accVar[acct] = { name: acct, rc, baseline: 0, target: 0 };
                     accVar[acct].baseline += val;
@@ -838,11 +760,9 @@
                 targetDataset.forEach(d => {
                     if (moversTimeFrame === 'YTD' && d.month > ytdLimit) return;
                     if (moversTimeFrame === 'MTD' && d.month !== ytdLimit) return;
-
                     const rc = d.rc || 'Unassigned';
                     let acct = d.name || d.acct || 'Unknown';
                     if (['RT10', 'RT20', 'EV', 'BU'].includes(rc.toUpperCase())) return;
-                    
                     const val = d.kwh / 1000000;
                     if (!accVar[acct]) accVar[acct] = { name: acct, rc, baseline: 0, target: 0 };
                     accVar[acct].target += val;
@@ -868,38 +788,24 @@
                 
                 const url = supabaseConfig.url.trim();
                 const key = supabaseConfig.key.trim();
-
                 if (!url || !key) return;
 
                 setIsSyncingConfigs(true);
                 try {
                     const payloadToSave = {
                         versions: versionsToPush.map(v => ({
-                            id: v.id,
-                            name: v.name,
-                            timestamp: v.timestamp,
+                            id: v.id, name: v.name, timestamp: v.timestamp,
                             isNormalizeHurricane: v.isNormalizeHurricane,
-                            allocOverrides: v.allocOverrides,
-                            advOverrides: v.advOverrides,
-                            monthMapping: v.monthMapping,
-                            isDefault: v.isDefault || false
+                            allocOverrides: v.allocOverrides, advOverrides: v.advOverrides,
+                            monthMapping: v.monthMapping, isDefault: v.isDefault || false
                         })),
                         comments: commentsToPush,
                         overviewComments: ocToPush,
                         accountNameMap: mapToPush
                     };
 
-                    const jsonString = JSON.stringify(payloadToSave, null, 2);
-                    const base64Content = btoa(unescape(encodeURIComponent(jsonString)));
-                    const path = `dashboard_scenarios.json`;
-                    const fileUrl = `https://api.github.com/repos/${githubConfig.owner.trim()}/${githubConfig.repo.trim()}/contents/${path}`;
-
-                    // SUPABASE UPDATE
                     const supabaseClient = window.supabase.createClient(url, key);
-                    const { error } = await supabaseClient
-                        .from('dashboard_state')
-                        .upsert({ id: 1, payload: payloadToSave });
-
+                    const { error } = await supabaseClient.from('dashboard_state').upsert({ id: 1, payload: payloadToSave });
                     if (error) throw error;
                     setSupabaseStatus('connected');
                 } catch (error) {
@@ -911,60 +817,90 @@
                 }
             };
 
+            // FIX: pullScenariosFromCloud was referenced in modal but never defined
+            const pullScenariosFromCloud = async () => {
+                const url = supabaseConfig.url.trim();
+                const key = supabaseConfig.key.trim();
+                if (!url || !key) { alert("Configure Supabase credentials in the Data Hub first."); return; }
+                setIsSyncingConfigs(true);
+                try {
+                    const supabaseClient = window.supabase.createClient(url, key);
+                    const { data: configData, error } = await supabaseClient
+                        .from('dashboard_state').select('payload').eq('id', 1).single();
+                    if (error) throw error;
+                    if (configData && configData.payload) {
+                        const parsed = configData.payload;
+                        if (Array.isArray(parsed)) setSavedVersions(parsed);
+                        else {
+                            setSavedVersions(parsed.versions || []);
+                            setVarianceComments(parsed.comments || {});
+                            setOverviewComments(parsed.overviewComments || '');
+                            if (parsed.accountNameMap) setAccountNameMap(parsed.accountNameMap);
+                        }
+                        alert("Scenarios pulled from cloud successfully!");
+                    } else {
+                        alert("No saved config found in Supabase.");
+                    }
+                } catch(e) {
+                    console.error("Pull failed", e);
+                    alert("Pull failed: " + e.message);
+                } finally {
+                    setIsSyncingConfigs(false);
+                }
+            };
+
             const handleAddComment = (companyName) => {
                 const commentKey = `${pivotScenario}|${moversTimeFrame}|${companyName}`;
                 const currentVal = varianceComments[commentKey] || '';
                 const newVal = prompt(`Explain the variance for ${companyName} (${moversTimeFrame} vs 2025):`, currentVal);
-                
                 if (newVal !== null) {
                     const updatedComments = { ...varianceComments, [commentKey]: newVal };
                     setVarianceComments(updatedComments);
-                    
-                    if (supabaseConfig.url && supabaseConfig.key) {
-                        pushScenariosToCloud(savedVersions, updatedComments);
-                    }
+                    if (supabaseConfig.url && supabaseConfig.key) pushScenariosToCloud(savedVersions, updatedComments);
                 }
             };
 
-            const fetchCloudDataFromButton = async () => {
-                await fetchCloudData(false);
-            };
+            const fetchCloudDataFromButton = async () => { await fetchCloudData(false); };
 
             // --- Handlers ---
             const handleFileUpload = (e, isBudget) => {
                 const reader = new FileReader();
                 reader.onload = (evt) => { 
                     const data = parseCSV(evt.target.result); 
-                    if(isBudget) { 
-                        setRawBudget(data); 
-                        setOriginalBudget([...data]); 
-                        setIsBudgetCommitted(false); 
-                    } else { 
-                        setRawActuals(data); 
-                    } 
+                    if(isBudget) { setRawBudget(data); setOriginalBudget([...data]); setIsBudgetCommitted(false); } 
+                    else { setRawActuals(data); } 
                 };
                 reader.readAsText(e.target.files[0]);
+            };
+
+            const handleFetchUrl = async (url, isBudget) => {
+                if(!url) return;
+                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const text = await response.text();
+                    const data = parseCSV(text);
+                    if (isBudget) { setRawBudget(data); setOriginalBudget([...data]); setIsBudgetCommitted(false); } 
+                    else { setRawActuals(data); }
+                } catch (e) {
+                    alert('Error fetching file: ' + e.message);
+                } finally {
+                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
+                }
             };
 
             const handleSaveVersion = () => {
                 const name = prompt("Enter a name for this scenario version:");
                 if (!name) return;
-                
                 const isDefault = savedVersions.length === 0;
                 const newVersion = { 
-                    id: Date.now(), 
-                    name, 
-                    timestamp: new Date().toLocaleString(), 
-                    isDefault, 
-                    monthMapping: { ...monthMapping }, 
-                    allocOverrides: { ...allocOverrides }, 
-                    advOverrides: { ...advOverrides }, 
-                    isNormalizeHurricane 
+                    id: Date.now(), name, timestamp: new Date().toLocaleString(), isDefault,
+                    monthMapping: { ...monthMapping }, allocOverrides: { ...allocOverrides }, 
+                    advOverrides: { ...advOverrides }, isNormalizeHurricane 
                 };
-                
                 const updatedVersions = [...savedVersions, newVersion];
                 setSavedVersions(updatedVersions);
-                
                 if (supabaseConfig.url && supabaseConfig.key) {
                     pushScenariosToCloud(updatedVersions, varianceComments);
                     alert(`Version "${name}" saved to Supabase!`);
@@ -974,17 +910,13 @@
             };
 
             const handleRestoreVersion = (version) => {
-                if (originalBudget.length > 0) {
-                    setRawBudget([...originalBudget]);
-                }
+                if (originalBudget.length > 0) setRawBudget([...originalBudget]);
                 setIsBudgetCommitted(false); 
                 setMonthMapping(version.monthMapping || {}); 
                 setAllocOverrides(version.allocOverrides || {}); 
-                
                 let loadedAdv = version.advOverrides || { pct: { rc: {}, industry: {}, month: {} }, vol: {} };
                 if (!loadedAdv.pct && !loadedAdv.vol) loadedAdv = { pct: loadedAdv, vol: {} };
                 setAdvOverrides(loadedAdv); 
-                
                 setIsNormalizeHurricane(version.isNormalizeHurricane ?? true); 
                 setIsVersionModalOpen(false);
             };
@@ -993,48 +925,36 @@
                 if(!confirm("Delete this saved version?")) return;
                 const updatedVersions = savedVersions.filter(v => v.id !== id);
                 setSavedVersions(updatedVersions);
-                if (supabaseConfig.url && supabaseConfig.key) {
-                    pushScenariosToCloud(updatedVersions, varianceComments);
-                }
+                if (supabaseConfig.url && supabaseConfig.key) pushScenariosToCloud(updatedVersions, varianceComments);
             };
 
             const handleSetDefaultVersion = async (id) => {
-                const updatedVersions = savedVersions.map(v => ({
-                    ...v,
-                    isDefault: v.id === id
-                }));
+                const updatedVersions = savedVersions.map(v => ({ ...v, isDefault: v.id === id }));
                 setSavedVersions(updatedVersions);
-                
                 if (supabaseConfig.url && supabaseConfig.key) {
                     await pushScenariosToCloud(updatedVersions, varianceComments);
                     alert("Default scenario changed and pushed to cloud.");
                 } else {
-                    alert("Default scenario set locally. You must configure Supabase to push this setting.");
+                    alert("Default scenario set locally. Configure Supabase to push this setting.");
                 }
             };
 
             const handleClearData = () => {
-                if(!confirm("Are you sure you want to clear all data and reset the engine? This will wipe the current session's actuals, budget, and all saved scenarios.")) return;
-                setRawActuals([]);
-                setRawBudget([]);
-                setOriginalBudget([]);
-                setIsBudgetCommitted(false);
-                setBudgetUrl('');
-                setActualsUrl('');
-                setLoadError('');
-                setMonthMapping({});
-                setAllocOverrides({});
+                if(!confirm("Are you sure you want to clear all data and reset the engine?")) return;
+                setRawActuals([]); setRawBudget([]); setOriginalBudget([]);
+                setIsBudgetCommitted(false); setLoadError('');
+                setMonthMapping({}); setAllocOverrides({});
                 setAdvOverrides({ pct: { rc: {}, industry: {}, month: {} }, vol: {} });
-                setAllocationResults([]);
-                setSavedVersions([]);
-                setHasAutoRestored(false);
-                setHasAutoAllocated(false);
+                setAllocationResults([]); setSavedVersions([]);
+                setHasAutoRestored(false); setHasAutoAllocated(false);
                 setActiveTab('data');
             };
 
             const monthlyAggregatesRaw = useMemo(() => {
                 if (actuals.length === 0) return [];
-                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeBase = getFiltered(leBaseGrowth); const fLeCustom = getFiltered(leCustomGrowth);
+                const fAct = getFiltered(actuals); const fBud = getFiltered(budget); 
+                const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); 
+                const fLeBase = getFiltered(leBaseGrowth); const fLeCustom = getFiltered(leCustomGrowth);
                 return monthNames.map((m, idx) => {
                     const mNum = idx + 1;
                     const a25 = fAct.filter(d => d.year === 2025 && d.month === mNum).reduce((s,d)=>s+d.kwh,0);
@@ -1048,21 +968,6 @@
                 });
             }, [actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, getFiltered]);
 
-            // --- SORTING TABLES MANUALLY ---
-            const [monthlySort, setMonthlySort] = useState({key: null, direction: 'asc'});
-            const [topSort, setTopSort] = useState({key: 'variance', direction: 'descending'});
-            const [botSort, setBotSort] = useState({key: 'variance', direction: 'ascending'});
-            const [varSort, setVarSort] = useState({key: 'a26', direction: 'descending'});
-            const [forecastSort, setForecastSort] = useState({key: 'rc', direction: 'asc'});
-
-            const handleSortRequest = (key, currentSort, setSortFn) => {
-                let direction = 'ascending';
-                if (currentSort && currentSort.key === key && currentSort.direction === 'ascending') {
-                    direction = 'descending';
-                }
-                setSortFn({ key, direction });
-            };
-
             // --- UI Components ---
             const varScenarios = [
                 { key: 'LeCust', label: 'LE Cust Vol', bg: 'bg-purple-50', text: 'text-purple-600', headBg: 'bg-purple-100', headText: 'text-purple-800', lightBg: 'bg-purple-50/20' },
@@ -1071,9 +976,20 @@
                 { key: 'LeCustom', label: 'LE Advanced', bg: 'bg-indigo-50', text: 'text-indigo-600', headBg: 'bg-indigo-100', headText: 'text-indigo-800', lightBg: 'bg-indigo-50/20' }
             ];
 
+            // FIX: toggleConfig was referenced in renderGraphToggles but never defined
+            const toggleConfig = [
+                { key: 'act25', label: '2025 Actuals', activeClass: 'bg-slate-200 text-slate-700 border-slate-400', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'bud26', label: '2026 Budget', activeClass: 'bg-blue-100 text-blue-700 border-blue-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'act26', label: '2026 Actuals', activeClass: 'bg-purple-100 text-purple-700 border-purple-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leCust', label: 'LE Cust Vol', activeClass: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leRc', label: 'LE RC Vol', activeClass: 'bg-sky-100 text-sky-700 border-sky-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leBase', label: 'LE Base', activeClass: 'bg-amber-100 text-amber-700 border-amber-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+                { key: 'leCustom', label: 'LE Advanced', activeClass: 'bg-indigo-100 text-indigo-700 border-indigo-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
+            ];
+
             const renderEmptyBudgetWarning = () => (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
-                    <Icons.Calculator className="w-16 h-16 text-slate-300 mb-4" />
+                    <div className="text-slate-300 mb-4"><Icons.Calculator /></div>
                     <h2 className="text-xl font-bold text-slate-700 mb-2">Budget Not Committed</h2>
                     <p className="text-sm mb-6 max-w-md text-center">To view this forecast, you must first commit the granular budget in the Allocation Engine.</p>
                     <button onClick={() => setActiveTab('allocation')} className="bg-orange-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-700 transition">Go to Engine</button>
@@ -1082,7 +998,7 @@
 
             const renderGraphToggles = () => (
                 <div className="flex flex-wrap items-center gap-3 mb-4 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 ml-2"><Icons.Eye className="w-3 h-3"/> Map Scenarios:</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 ml-2"><Icons.Eye /> Map Scenarios:</span>
                     {toggleConfig.map(t => (
                         <label key={t.key} className={`cursor-pointer px-3 py-1.5 rounded-md border text-xs font-bold flex items-center gap-2 transition select-none shadow-sm ${graphToggles[t.key] ? t.activeClass : t.inactiveClass}`}>
                             <input type="checkbox" className="hidden" checked={graphToggles[t.key]} onChange={() => setGraphToggles(p => ({...p, [t.key]: !p[t.key]}))} />
@@ -1107,32 +1023,14 @@
 
                 const handleAddPct = () => {
                     if(advOverrideKey && advOverrideVal) {
-                        setAdvOverrides(p => ({
-                            ...p,
-                            pct: {
-                                ...p.pct,
-                                [advOverrideDim]: {
-                                    ...(p.pct[advOverrideDim] || {}),
-                                    [advOverrideKey]: parseFloat(advOverrideVal)
-                                }
-                            }
-                        }));
+                        setAdvOverrides(p => ({ ...p, pct: { ...p.pct, [advOverrideDim]: { ...(p.pct[advOverrideDim] || {}), [advOverrideKey]: parseFloat(advOverrideVal) } } }));
                         setAdvOverrideVal('');
                     }
                 };
 
                 const handleAddVol = () => {
                     if(advOverrideCustKey && advOverrideCustMonth && advOverrideCustVal) {
-                        setAdvOverrides(p => ({
-                            ...p,
-                            vol: {
-                                ...p.vol,
-                                [advOverrideCustKey]: {
-                                    ...(p.vol[advOverrideCustKey] || {}),
-                                    [advOverrideCustMonth]: parseFloat(advOverrideCustVal)
-                                }
-                            }
-                        }));
+                        setAdvOverrides(p => ({ ...p, vol: { ...p.vol, [advOverrideCustKey]: { ...(p.vol[advOverrideCustKey] || {}), [advOverrideCustMonth]: parseFloat(advOverrideCustVal) } } }));
                         setAdvOverrideCustVal('');
                     }
                 };
@@ -1161,22 +1059,14 @@
                 return (
                     <div className="bg-indigo-50/50 p-6 rounded-xl border border-indigo-100 shadow-sm mb-6 space-y-6">
                         <div>
-                            <h4 className="font-bold flex items-center gap-2 text-indigo-800 text-lg"><Icons.Sliders/> LE: Advanced Scenario Builder</h4>
-                            <p className="text-xs text-slate-500 mt-1">
-                                Stack multiple rules to dynamically manipulate the baseline budget. 
-                                <strong> Rules are prioritized: Customer Volumetric > Month % > Industry % > Rate Class %.</strong>
-                            </p>
+                            <h4 className="font-bold flex items-center gap-2 text-indigo-800 text-lg"><Icons.Sliders /> LE: Advanced Scenario Builder</h4>
+                            <p className="text-xs text-slate-500 mt-1"><strong>Rules are prioritized: Customer Volumetric &gt; Month % &gt; Industry % &gt; Rate Class %.</strong></p>
                         </div>
-
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                            {/* Panel 1: Percentage Overrides */}
                             <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
-                                <h5 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><span className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center">%</span> Percentage Adjustments</h5>
+                                <h5 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><span className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black">%</span> Percentage Adjustments</h5>
                                 <div className="flex flex-wrap gap-2 mb-4 items-center">
-                                    <select value={advOverrideDim} onChange={e => {
-                                        setAdvOverrideDim(e.target.value);
-                                        setAdvOverrideKey(e.target.value === 'month' ? 1 : dimOptions[e.target.value][0]);
-                                    }} className="border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 font-bold text-slate-700 bg-slate-50">
+                                    <select value={advOverrideDim} onChange={e => { setAdvOverrideDim(e.target.value); setAdvOverrideKey(e.target.value === 'month' ? 1 : dimOptions[e.target.value][0]); }} className="border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 font-bold text-slate-700 bg-slate-50">
                                         {Object.entries(dimLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                     </select>
                                     <span className="text-slate-300">➜</span>
@@ -1190,10 +1080,8 @@
                                     <button onClick={handleAddPct} className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-indigo-700 transition">Add</button>
                                 </div>
                             </div>
-
-                            {/* Panel 2: Customer Volumetric Overrides */}
                             <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
-                                <h5 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><span className="w-5 h-5 rounded bg-fuchsia-100 text-fuchsia-700 flex items-center justify-center"><Icons.Users/></span> Customer Monthly Volume (GWh)</h5>
+                                <h5 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><span className="w-5 h-5 rounded bg-fuchsia-100 text-fuchsia-700 flex items-center justify-center"><Icons.Users /></span> Customer Monthly Volume (GWh)</h5>
                                 <div className="flex flex-wrap gap-2 mb-4 items-center">
                                     <select value={advOverrideCustKey} onChange={e => setAdvOverrideCustKey(e.target.value)} className="flex-1 min-w-[120px] border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50 truncate">
                                         {dimensions.customers.map(c => <option key={c} value={c}>{c}</option>)}
@@ -1206,8 +1094,6 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        {/* Summary Panel */}
                         <div className="bg-white p-4 rounded-xl border border-slate-200">
                             <h5 className="font-bold text-sm text-slate-700 mb-3">Active Adjustments Summary</h5>
                             <div className="overflow-auto max-h-48 custom-scroll border rounded-lg">
@@ -1221,28 +1107,22 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {/* Percentage Rules */}
-                                        {['rc', 'industry', 'month'].map(dim => {
-                                            return Object.entries(advOverrides.pct[dim] || {}).map(([k, val]) => (
-                                                <tr key={`pct-${dim}-${k}`} className="border-b hover:bg-slate-50">
-                                                    <td className="p-2 text-indigo-600 font-bold text-xs uppercase">{dimLabels[dim]} (%)</td>
-                                                    <td className="p-2 text-slate-700">{dim === 'month' ? monthNames[parseInt(k)-1] : k}</td>
-                                                    <td className={`p-2 font-black ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</td>
-                                                    <td className="p-2 text-center"><button onClick={() => handleRemovePct(dim, k)} className="text-slate-300 hover:text-red-500"><Icons.X /></button></td>
-                                                </tr>
-                                            ));
-                                        })}
-                                        {/* Volume Rules */}
-                                        {Object.entries(advOverrides.vol || {}).map(([cust, monthMap]) => {
-                                            return Object.entries(monthMap).map(([m, val]) => (
-                                                <tr key={`vol-${cust}-${m}`} className="border-b hover:bg-slate-50">
-                                                    <td className="p-2 text-fuchsia-600 font-bold text-xs uppercase">Customer (Vol)</td>
-                                                    <td className="p-2 text-slate-700">{cust} <span className="text-slate-400">({monthNames[parseInt(m)-1].substring(0,3)})</span></td>
-                                                    <td className="p-2 font-black text-blue-600">{val} GWh</td>
-                                                    <td className="p-2 text-center"><button onClick={() => handleRemoveVol(cust, m)} className="text-slate-300 hover:text-red-500"><Icons.X /></button></td>
-                                                </tr>
-                                            ));
-                                        })}
+                                        {['rc', 'industry', 'month'].map(dim => Object.entries(advOverrides.pct[dim] || {}).map(([k, val]) => (
+                                            <tr key={`pct-${dim}-${k}`} className="border-b hover:bg-slate-50">
+                                                <td className="p-2 text-indigo-600 font-bold text-xs uppercase">{dimLabels[dim]} (%)</td>
+                                                <td className="p-2 text-slate-700">{dim === 'month' ? monthNames[parseInt(k)-1] : k}</td>
+                                                <td className={`p-2 font-black ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</td>
+                                                <td className="p-2 text-center"><button onClick={() => handleRemovePct(dim, k)} className="text-slate-300 hover:text-red-500"><Icons.X /></button></td>
+                                            </tr>
+                                        )))}
+                                        {Object.entries(advOverrides.vol || {}).map(([cust, mMap]) => Object.entries(mMap).map(([m, val]) => (
+                                            <tr key={`vol-${cust}-${m}`} className="border-b hover:bg-slate-50">
+                                                <td className="p-2 text-fuchsia-600 font-bold text-xs uppercase">Customer (Vol)</td>
+                                                <td className="p-2 text-slate-700">{cust} <span className="text-slate-400">({monthNames[parseInt(m)-1].substring(0,3)})</span></td>
+                                                <td className="p-2 font-black text-blue-600">{val} GWh</td>
+                                                <td className="p-2 text-center"><button onClick={() => handleRemoveVol(cust, m)} className="text-slate-300 hover:text-red-500"><Icons.X /></button></td>
+                                            </tr>
+                                        )))}
                                         {(!Object.values(advOverrides.pct).some(obj => Object.keys(obj).length > 0) && Object.keys(advOverrides.vol || {}).length === 0) && (
                                             <tr><td colSpan="4" className="p-4 text-center text-slate-400 italic">No active rules applied.</td></tr>
                                         )}
@@ -1258,8 +1138,8 @@
             const renderDataTab = () => (
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
-                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> Supabase Integration & API Config</h3>
-                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">Enter your Supabase Project URL and Anon Key to automatically fetch data and sync scenarios across your team. <strong>Credentials are saved securely in your browser's local storage.</strong></p>
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp /> Supabase Integration & API Config</h3>
+                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">Enter your Supabase Project URL and Anon Key to automatically fetch data and sync scenarios. <strong>Credentials saved in browser localStorage.</strong></p>
                         <div className="flex items-center gap-2 mb-4">
                             <span className="text-xs font-bold text-slate-400 uppercase">Status:</span>
                             <div className={`text-xs px-2 py-1 rounded font-bold flex items-center gap-1 ${supabaseStatus === 'connected' ? 'bg-emerald-500/20 text-emerald-400' : supabaseStatus === 'error' ? 'bg-red-500/20 text-red-400' : supabaseStatus === 'connecting' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-400'}`}>
@@ -1285,24 +1165,21 @@
                     <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
                         <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data Manually</h2>
-                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files if you are not using the automated Supabase connection above.</p>
+                        <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files if not using the Supabase connection above.</p>
                         
-                        {loadError && (
-                            <p className="text-xs text-red-600 font-bold mb-8 bg-red-50 py-1.5 px-4 rounded-full inline-block border border-red-200">{loadError}</p>
-                        )}
+                        {loadError && <p className="text-xs text-red-600 font-bold mb-8 bg-red-50 py-1.5 px-4 rounded-full inline-block border border-red-200">{loadError}</p>}
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 text-left mt-8">
                             <div className="bg-blue-50/30 p-6 rounded-xl border border-blue-100 flex flex-col justify-between">
                                 <div>
-                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Activity/> 1. High-Level Budget</h3>
+                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Activity /> 1. High-Level Budget</h3>
                                     <p className="text-xs text-slate-500 mb-4">Required format: JPS Budget 2026 data.csv</p>
                                     <input type="file" accept=".csv" onChange={e => handleFileUpload(e, true)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer w-full text-slate-600 mb-4" />
                                 </div>
                             </div>
-                            
                             <div className="bg-purple-50/30 p-6 rounded-xl border border-purple-100 flex flex-col justify-between">
                                 <div>
-                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Database/> 2. Detailed Actuals</h3>
+                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><Icons.Database /> 2. Detailed Actuals</h3>
                                     <p className="text-xs text-slate-500 mb-4">Required format: JPS Actuals data.csv</p>
                                     <input type="file" accept=".csv" onChange={e => handleFileUpload(e, false)} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700 cursor-pointer w-full text-slate-600 mb-4" />
                                 </div>
@@ -1311,8 +1188,8 @@
 
                         {nameConflicts.length > 0 && (
                             <div className="bg-amber-50 p-6 rounded-xl border border-amber-200 mt-6 text-left">
-                                <h3 className="font-bold text-amber-800 mb-2 flex items-center gap-2"><Icons.Users/> Account Name Conflicts Detected</h3>
-                                <p className="text-xs text-amber-700 mb-4">The same Account Number was found with different names. Please select the primary name to use for forecasting. This syncs with your Supabase scenario.</p>
+                                <h3 className="font-bold text-amber-800 mb-2 flex items-center gap-2"><Icons.Users /> Account Name Conflicts Detected</h3>
+                                <p className="text-xs text-amber-700 mb-4">Same Account Number found with different names. Select primary name for forecasting.</p>
                                 <div className="max-h-60 overflow-y-auto custom-scroll space-y-2">
                                     {nameConflicts.map(conflict => (
                                         <div key={conflict.acct} className="flex flex-col md:flex-row md:items-center gap-4 bg-white p-3 rounded shadow-sm border border-amber-100">
@@ -1366,7 +1243,6 @@
                     leCustomGrowth; 
 
                 const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
-
                 const projData = [
                     ...actuals.filter(a => a.year === 2026 && a.month <= maxActMonth26).map(d=>({...d, combinedType: 'Actual'})),
                     ...activeLeData.filter(d => d.year === 2026 && d.month > maxActMonth26).map(d=>({...d, combinedType: 'Forecast'}))
@@ -1435,20 +1311,20 @@
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[400px]">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.BookOpen/> Executive Comments & Action Items</h3>
+                                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.BookOpen /> Executive Comments & Action Items</h3>
                                     <button onClick={() => pushScenariosToCloud()} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1">
-                                        <Icons.Save className="w-3 h-3"/> Save Comments
+                                        <Icons.Save /> Save Comments
                                     </button>
                                 </div>
                                 <textarea
                                     className="flex-1 w-full border border-slate-200 rounded-lg p-3 text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-none custom-scroll"
-                                    placeholder="Enter executive summary, variance explanations, or action items here... (Saves directly to Supabase)"
+                                    placeholder="Enter executive summary, variance explanations, or action items here..."
                                     value={overviewComments}
                                     onChange={e => setOverviewComments(e.target.value)}
                                 />
                             </div>
                             <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[400px]">
-                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity/> FY Breakdown by Rate Class (GWh)</h3>
+                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity /> FY Breakdown by Rate Class (GWh)</h3>
                                 <div className="flex-1 min-h-0">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={rcSummary}>
@@ -1470,12 +1346,14 @@
 
             const renderMonthlyTab = () => {
                 const sortedMonthly = sortArray(monthlyAggregatesRaw, monthlySort);
-                const totA25 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Act25,0); const totB26 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Bud26,0); const totA26 = monthlyAggregatesRaw.reduce((s,d)=>s+(d.Act26||0),0);
+                const totA25 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Act25,0); 
+                const totB26 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Bud26,0); 
+                const totA26 = monthlyAggregatesRaw.reduce((s,d)=>s+(d.Act26||0),0);
                 
                 return (
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
                         <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[450px] shrink-0 shadow-sm">
-                            <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp/> Monthly Trend & Scenarios (kWh)</div>
+                            <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp /> Monthly Trend & Scenarios (kWh)</div>
                             {renderGraphToggles()}
                             <div className="w-full h-[400px]">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -1495,9 +1373,9 @@
                         </div>
                         <div className="bg-white rounded-xl border shadow-sm flex flex-col">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Database/> Monthly Data Matrix</h3>
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Database /> Monthly Data Matrix</h3>
                                 <button onClick={() => exportCSV(monthlyAggregatesRaw, 'Monthly_Scenarios_Summary.csv')} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded font-bold text-sm flex items-center gap-2 border border-blue-200 transition">
-                                    <Icons.Download/> Export Summary
+                                    <Icons.Download /> Export Summary
                                 </button>
                             </div>
                             <div className="overflow-x-auto relative">
@@ -1550,8 +1428,8 @@
                     <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
                         <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between">
                             <div>
-                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icons.Calculator/> Budget Proration & Redistribution Engine</h3>
-                                <p className="text-sm text-slate-500">Maps high-level budget targets to customer level based on historical Actuals (Months or Quarterly Averages).</p>
+                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icons.Calculator /> Budget Proration & Redistribution Engine</h3>
+                                <p className="text-sm text-slate-500">Maps high-level budget targets to customer level based on historical Actuals.</p>
                             </div>
                             {isBudgetCommitted ? (
                                 <button onClick={unlockAllocation} className="bg-slate-100 text-slate-800 px-6 py-2 rounded-lg font-bold border hover:bg-slate-200 transition shadow-sm">Unlock Allocation</button>
@@ -1617,7 +1495,7 @@
                     <div className="p-6 h-full flex flex-col space-y-6 overflow-hidden">
                         <div className="bg-white rounded-xl border shadow-sm p-4 flex flex-col md:flex-row gap-4 justify-between shrink-0">
                             <div>
-                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Grid/> Combined Scenario Pivot</h3>
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Grid /> Combined Scenario Pivot</h3>
                                 <p className="text-xs text-slate-500">View Actuals combined with selected scenario (GWh).</p>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
@@ -1639,7 +1517,6 @@
                             </div>
                         </div>
 
-                        {/* Top / Bottom Performers */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 shrink-0">
                             <div className="bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden max-h-[300px]">
                                 <div className="p-3 border-b bg-slate-50 flex justify-between items-center text-sm">
@@ -1656,7 +1533,7 @@
                                                 <th className="p-2 text-slate-500">#</th>
                                                 <SortHeader label="2025 Base" columnKey="baseline" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-500" />
                                                 <SortHeader label="2026 Target" columnKey="target" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-500" />
-                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Incline`} columnKey="variance" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-800" />
+                                                <SortHeader label="GWh Incline" columnKey="variance" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-800" />
                                                 <SortHeader label="% Growth" columnKey="pct" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-500" />
                                                 <SortHeader label="Account" columnKey="name" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-slate-800 pl-4" />
                                                 <th className="p-2 text-slate-500 w-16">Notes</th>
@@ -1699,7 +1576,7 @@
                                                 <th className="p-2 text-slate-500">#</th>
                                                 <SortHeader label="2025 Base" columnKey="baseline" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-500" />
                                                 <SortHeader label="2026 Target" columnKey="target" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-500" />
-                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Decline`} columnKey="variance" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-800" />
+                                                <SortHeader label="GWh Decline" columnKey="variance" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-800" />
                                                 <SortHeader label="% Growth" columnKey="pct" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-500" />
                                                 <SortHeader label="Account" columnKey="name" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-slate-800 pl-4" />
                                                 <th className="p-2 text-slate-500 w-16">Notes</th>
@@ -1732,7 +1609,6 @@
                             </div>
                         </div>
 
-                        {/* Wide Pivot Table */}
                         <div className="bg-white rounded-xl border shadow-sm flex-1 flex flex-col overflow-hidden">
                             <div className="p-3 border-b bg-cyan-500 text-white font-bold flex justify-between items-center text-sm shrink-0">
                                 <span>net_kwh_billed_consump (GWh)</span>
@@ -1774,9 +1650,7 @@
                                                         return (
                                                             <tr key={`${rc}-${custName}`} className="border-b bg-slate-50/50 hover:bg-slate-100 transition">
                                                                 <td className="p-2 border-r table-pin-col bg-slate-50/95 z-10 text-transparent">_</td>
-                                                                <td className="p-2 text-left border-r bg-slate-50/95 sticky left-[100px] z-10 w-64 max-w-xs truncate" title={custName}>
-                                                                    {custName}
-                                                                </td>
+                                                                <td className="p-2 text-left border-r bg-slate-50/95 sticky left-[100px] z-10 w-64 max-w-xs truncate" title={custName}>{custName}</td>
                                                                 {custData.months.map((val, i) => (
                                                                     <td key={i} className="p-2 border-r border-slate-200 text-slate-600">{val !== 0 ? val.toFixed(2) : '0.00'}</td>
                                                                 ))}
@@ -1833,11 +1707,9 @@
                     data.forEach(d => {
                         if (d.month > ytdLimit) return;
                         if (year && d.year !== year) return;
-                        
                         const dimVal = d[varianceDim] || 'Unassigned';
                         initMatrix(dimVal);
                         matrixObj[dimVal][field] += d.kwh;
-
                         if (drillDownDim !== 'none') {
                             const subDimVal = d[drillDownDim] || 'Unassigned';
                             initSubMatrix(dimVal, subDimVal);
@@ -1860,11 +1732,9 @@
                     <React.Fragment>
                         <td className={`p-2 text-right text-slate-500 ${isSub ? 'text-xs' : ''}`}>{formatNum(v.a25)}</td>
                         <td className={`p-2 text-right text-blue-700 ${isSub ? 'text-xs opacity-80' : ''}`}>{formatNum(v.b26)}</td>
-                        
                         <td className={`p-2 text-right text-slate-800 border-l border-slate-200 ${isSub ? 'text-xs' : ''}`}>{formatNum(v.a26)}</td>
                         <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${colorPct(v.a26, v.b26)}`}>{renderVarPct(v.a26, v.b26)}</td>
                         <td className={`p-2 text-right text-xs ${isSub?'font-medium':'font-bold'} ${colorPct(v.a26, v.a25)}`}>{renderVarPct(v.a26, v.a25)}</td>
-                        
                         {varScenarios.map(sc => (
                             <React.Fragment key={sc.key}>
                                 <td className={`p-2 text-right border-l border-slate-200 ${sc.lightBg} ${isSub ? sc.text.replace('600','600 text-xs opacity-80') : sc.text.replace('600','700')}`}>{formatNum(v[sc.key.replace('Le', 'le')])}</td>
@@ -1883,8 +1753,7 @@
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
                                 <h3 className="font-bold text-slate-800">Deep-Dive Variance Matrix (All Scenarios vs Budget & PY)</h3>
                                 <div className="flex items-center gap-4">
-                                    <button onClick={() => exportCSV([...getFiltered(actuals).filter(d=>d.month<=ytdLimit), ...getFiltered(budget).filter(d=>d.month<=ytdLimit)], `Variance_Base_Level_Data.csv`)} className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 shadow-sm transition"><Icons.Download/> Base Data</button>
-                                    
+                                    <button onClick={() => exportCSV([...getFiltered(actuals).filter(d=>d.month<=ytdLimit), ...getFiltered(budget).filter(d=>d.month<=ytdLimit)], `Variance_Base_Level_Data.csv`)} className="text-sm font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 shadow-sm transition"><Icons.Download /> Base Data</button>
                                     <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-3 shadow-sm text-sm h-9">
                                         <span className="text-slate-500 font-bold px-1">View:</span>
                                         <select value={varianceDim} onChange={e=>{
@@ -1934,8 +1803,6 @@
                                             const dim = v.dim;
                                             const isExpanded = expandedRow === dim;
                                             const hasSub = drillDownDim !== 'none' && Object.keys(v.sub).length > 0;
-                                            
-                                            // Ensure subrows are sorted by a26 desc
                                             const subItems = Object.values(v.sub).sort((a,b) => b.a26 - a.a26).slice(0,100);
 
                                             return (
@@ -1985,21 +1852,24 @@
                 const fAct = getFiltered(actuals); const fBud = getFiltered(budget); const fLE = getFiltered(leDataset);
                 const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); const fLeBase = getFiltered(leBaseGrowth); const fLeCustom = getFiltered(leCustomGrowth);
 
-                const totA25 = fAct.filter(d => d.year === 2025).reduce((s,d)=>s+d.kwh,0); const totB26 = fBud.filter(d => d.year === 2026).reduce((s,d)=>s+d.kwh,0);
+                const totA25 = fAct.filter(d => d.year === 2025).reduce((s,d)=>s+d.kwh,0); 
+                const totB26 = fBud.filter(d => d.year === 2026).reduce((s,d)=>s+d.kwh,0);
                 const totLE = fLE.reduce((s,d)=>s+d.kwh,0);
 
-                // Dynamic dimensions to prevent blank tables when filters are active
                 const validRcs = dimensions.rcs.filter(rc => {
                     return fAct.some(d => d.rc === rc) || fBud.some(d => d.rc === rc) || fLE.some(d => d.rc === rc);
                 });
 
-                // For sorting
                 const mappedRcs = validRcs.map(rc => {
-                    const a25 = fAct.filter(d => d.rc === rc && d.year === 2025).reduce((s,d)=>s+d.kwh,0); const b26 = fBud.filter(d => d.rc === rc && d.year === 2026).reduce((s,d)=>s+d.kwh,0);
+                    const a25 = fAct.filter(d => d.rc === rc && d.year === 2025).reduce((s,d)=>s+d.kwh,0); 
+                    const b26 = fBud.filter(d => d.rc === rc && d.year === 2026).reduce((s,d)=>s+d.kwh,0);
                     const le26 = fLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
-                    const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
-                    const lBase26 = fLeBase.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lCustom26 = fLeCustom.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
-                    const vsBud = b26 ? (le26-b26)/b26 : 0; const vsPY = a25 ? (le26-a25)/a25 : 0;
+                    const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
+                    const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
+                    const lBase26 = fLeBase.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
+                    const lCustom26 = fLeCustom.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0);
+                    const vsBud = b26 ? (le26-b26)/b26 : 0; 
+                    const vsPY = a25 ? (le26-a25)/a25 : 0;
                     return { rc, a25, b26, le26, lCust26, lRc26, lBase26, lCustom26, vsBud, vsPY };
                 });
 
@@ -2011,7 +1881,7 @@
                         <div className="flex justify-end gap-3">
                             <button onClick={() => exportCSV(fLE, `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_base_level.csv`)} className="bg-white border hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition"><Icons.Download /> Download Base Level Data</button>
                         </div>
-                        <div className={`bg-white p-8 rounded-xl border border-${colorClass}-100 shadow-sm flex items-center justify-between`}>
+                        <div className="bg-white p-8 rounded-xl border shadow-sm flex items-center justify-between">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">{iconNode} {title}</h3>
                                 <p className="text-sm text-slate-500 mt-1">{description}</p>
@@ -2022,7 +1892,7 @@
                             </div>
                         </div>
                         <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
-                            <div className="p-4 bg-slate-50 border-b font-bold flex items-center gap-2"><Icons.Zap/> Forecast vs Targets by Rate Class</div>
+                            <div className="p-4 bg-slate-50 border-b font-bold flex items-center gap-2"><Icons.Zap /> Forecast vs Targets by Rate Class</div>
                             <table className="w-full text-sm text-left whitespace-nowrap">
                                 <thead className="bg-slate-100 text-slate-600 font-bold">
                                     <tr>
@@ -2072,39 +1942,38 @@
                 );
             };
 
-            const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by each Customer\'s average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Users className="text-purple-500"/>, 'purple', 'leCust');
-            const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap className="text-blue-500"/>, 'blue', 'leRC');
-            const renderLeBaseTab = () => renderGenericForecastTab(leBaseGrowth, 'LE: Base Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase className="text-orange-500"/>, 'orange', 'leBase');
-            const renderLeCustomTab = () => renderGenericForecastTab(leCustomGrowth, 'LE: Advanced Scenario Builder', 'Projection based on multi-dimensional growth adjustments applied to the base budget.', <Icons.Sliders className="text-indigo-500"/>, 'indigo', 'leCustom', renderAdvOverridesUI());
+            const renderLeCustTab = () => renderGenericForecastTab(leCustGrowth, 'LE: Customer Volumetric Trend', "Projects Apr-Dec using Granular Budget adjusted by each Customer's average monthly kWh movement (Q1 26 vs Q1 25).", <Icons.Users />, 'purple', 'leCust');
+            const renderLeRCTab = () => renderGenericForecastTab(leRCGrowth, 'LE: Rate Class Volumetric Trend', 'Projects Apr-Dec using Granular Budget adjusted by the Rate Class average monthly kWh movement (Q1 26 vs Q1 25).', <Icons.Zap />, 'blue', 'leRC');
+            const renderLeBaseTab = () => renderGenericForecastTab(leBaseGrowth, 'LE: Base Trend', 'Blended Projection: Uses Customer Volumetric Trend for RT10, RT20, and RT60. Uses Rate Class Volumetric Trend for all other classes.', <Icons.Briefcase />, 'orange', 'leBase');
+            const renderLeCustomTab = () => renderGenericForecastTab(leCustomGrowth, 'LE: Advanced Scenario Builder', 'Projection based on multi-dimensional growth adjustments applied to the base budget.', <Icons.Sliders />, 'indigo', 'leCustom', renderAdvOverridesUI());
 
             const renderGlossaryTab = () => (
                 <div className="p-10 h-full overflow-y-auto custom-scroll">
                     <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
                         <div>
-                            <h2 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><Icons.BookOpen className="text-blue-600"/> Forecasting Scenarios Glossary</h2>
+                            <h2 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><Icons.BookOpen /> Forecasting Scenarios Glossary</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-purple-50/50 border border-purple-200 p-6 rounded-xl space-y-3">
-                                    <h3 className="text-lg font-bold text-purple-800 flex items-center gap-2"><Icons.Users/> LE: Customer Volumetric Trend</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for <em>each individual customer</em> (Q1 2026 vs Q1 2025). This absolute volumetric difference is then added to or subtracted from that customer's remaining budgeted months.</p>
+                                    <h3 className="text-lg font-bold text-purple-800 flex items-center gap-2"><Icons.Users /> LE: Customer Volumetric Trend</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for <em>each individual customer</em> (Q1 2026 vs Q1 2025). This volumetric difference is then added to or subtracted from that customer's remaining budgeted months.</p>
                                 </div>
                                 <div className="bg-blue-50/50 border border-blue-200 p-6 rounded-xl space-y-3">
-                                    <h3 className="text-lg font-bold text-blue-800 flex items-center gap-2"><Icons.Zap/> LE: Rate Class Volumetric Trend</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for the <em>entire Rate Class</em> (Q1 2026 vs Q1 2025). This aggregate class variance is then spread proportionally across all customers in that class based on their budget share.</p>
+                                    <h3 className="text-lg font-bold text-blue-800 flex items-center gap-2"><Icons.Zap /> LE: Rate Class Volumetric Trend</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Calculates the absolute average monthly kWh variance for the <em>entire Rate Class</em> (Q1 2026 vs Q1 2025). This aggregate class variance is then spread proportionally across all customers based on their budget share.</p>
                                 </div>
                                 <div className="bg-orange-50/50 border border-orange-200 p-6 rounded-xl space-y-3">
-                                    <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2"><Icons.Briefcase/> LE: Base Trend (Hybrid)</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> A blended approach. It uses the <em>Customer Volumetric Trend</em> for specific commercial/industrial classes (RT10, RT20, RT60) and uses the <em>Rate Class Volumetric Trend</em> for all other classes.</p>
+                                    <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2"><Icons.Briefcase /> LE: Base Trend (Hybrid)</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> A blended approach. Uses <em>Customer Volumetric Trend</em> for RT10, RT20, RT60 and <em>Rate Class Volumetric Trend</em> for all other classes.</p>
                                 </div>
                                 <div className="bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3">
-                                    <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders/> LE: Advanced Scenario Builder</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers (for Industry, Month, RC) or specific volumetric allocations (for Customers) that are applied to the remaining Base Budget.</p>
+                                    <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders /> LE: Advanced Scenario Builder</h3>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows manual definition of percentage multipliers (Industry, Month, RC) or specific volumetric allocations (Customers) applied to the remaining Base Budget.</p>
                                 </div>
                                 <div className="bg-slate-50 border border-slate-200 p-6 rounded-xl space-y-3 md:col-span-2">
-                                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Icons.Grid/> Pivot & Movers: Top/Bottom Performers</h3>
-                                    <p className="text-sm text-slate-700"><strong>Calculation:</strong> The Top and Bottom Performers tables identify the largest volumetric inclines and declines (in GWh) between 2025 Actuals and your selected 2026 Scenario.</p>
-                                    <p className="text-sm text-slate-700"><strong>Formula:</strong> <code>Variance (GWh) = 2026 Target Scenario - 2025 Base Actuals</code>.</p>
-                                    <p className="text-sm text-slate-700"><strong>Timeframe Filter:</strong> The timeframe dropdown controls the window. 'FY' compares the full 12 months. 'YTD' compares January up to the global month filter, and 'MTD' compares only the specific global month.</p>
-                                    <p className="text-sm text-slate-700"><strong>Note:</strong> Aggregated classes (RT10, RT20, EV, BU) are excluded from the Movers list to focus on individually managed commercial/industrial accounts.</p>
+                                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Icons.Grid /> Pivot & Movers: Top/Bottom Performers</h3>
+                                    <p className="text-sm text-slate-700"><strong>Formula:</strong> <code>Variance (GWh) = 2026 Target Scenario - 2025 Base Actuals</code></p>
+                                    <p className="text-sm text-slate-700"><strong>Timeframe:</strong> 'FY' compares full 12 months. 'YTD' compares Jan to global month filter. 'MTD' compares only the specific global month.</p>
+                                    <p className="text-sm text-slate-700"><strong>Note:</strong> Aggregated classes (RT10, RT20, EV, BU) excluded from Movers list to focus on individually managed accounts.</p>
                                 </div>
                             </div>
                         </div>
@@ -2116,7 +1985,7 @@
                 <div className="flex flex-col h-full w-full bg-slate-100">
                     <header className="bg-white border-b px-6 py-4 flex justify-between items-center shrink-0 z-20">
                         <div>
-                            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.PieChart/> JPS Sales Analytics Model</h1>
+                            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.PieChart /> JPS Sales Analytics Model</h1>
                             <p className="text-xs text-slate-500">Commercial Analytics | Redistribution & Forecasting Engine</p>
                         </div>
                         <div className="flex items-center gap-4">
@@ -2126,10 +1995,9 @@
                                     {isBudgetCommitted ? 'Granular Budget Active' : 'Allocating Budget...'}
                                 </div>
                             )}
-                            
                             <div className={`text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 ${supabaseStatus === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : supabaseStatus === 'error' ? 'bg-red-50 text-red-700 border-red-200' : supabaseStatus === 'connecting' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                                 <span className={`w-2 h-2 rounded-full ${supabaseStatus === 'connected' ? 'bg-emerald-500' : supabaseStatus === 'error' ? 'bg-red-500' : supabaseStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-slate-400'}`}></span>
-                                {supabaseStatus === 'connected' ? 'Cloud Sync Active' : supabaseStatus === 'error' ? 'Cloud Sync Error' : supabaseStatus === 'connecting' ? 'Connecting to Cloud...' : 'Local Mode'}
+                                {supabaseStatus === 'connected' ? 'Cloud Sync Active' : supabaseStatus === 'error' ? 'Cloud Sync Error' : supabaseStatus === 'connecting' ? 'Connecting...' : 'Local Mode'}
                             </div>
 
                             {(rawActuals.length > 0 || rawBudget.length > 0) && (
@@ -2149,41 +2017,40 @@
                     </header>
 
                     <div className="flex flex-1 overflow-hidden">
-                        {/* Vertical Sidebar Tabs */}
                         <aside className="w-56 bg-white border-r flex flex-col gap-1 p-4 shrink-0 overflow-y-auto custom-scroll z-10 shadow-sm">
                             {rawActuals.length > 0 && (
                                 <>
                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 mt-2">Executive</div>
-                                    <button onClick={()=>setActiveTab('overview')} className={`dashboard-tab ${activeTab==='overview'?'active':''}`}><Icons.Building/> Overview</button>
-                                    <button onClick={()=>setActiveTab('monthly')} className={`dashboard-tab ${activeTab==='monthly'?'active':''}`}><Icons.Calendar/> Monthly Trend</button>
-                                    <button onClick={()=>setActiveTab('pivot')} className={`dashboard-tab ${activeTab==='pivot'?'active':''}`}><Icons.Grid/> Pivot & Movers</button>
+                                    <button onClick={()=>setActiveTab('overview')} className={`dashboard-tab ${activeTab==='overview'?'active':''}`}><Icons.Building /> Overview</button>
+                                    <button onClick={()=>setActiveTab('monthly')} className={`dashboard-tab ${activeTab==='monthly'?'active':''}`}><Icons.Calendar /> Monthly Trend</button>
+                                    <button onClick={()=>setActiveTab('pivot')} className={`dashboard-tab ${activeTab==='pivot'?'active':''}`}><Icons.Grid /> Pivot & Movers</button>
                                     
                                     <div className="h-px bg-slate-200 my-3 mx-2"></div>
                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Forecast Scenarios</div>
                                     
-                                    <button onClick={()=>setActiveTab('leCust')} className={`dashboard-tab ${activeTab==='leCust'?'active':''}`}><Icons.Users/> LE: Cust Vol</button>
-                                    <button onClick={()=>setActiveTab('leRC')} className={`dashboard-tab ${activeTab==='leRC'?'active':''}`}><Icons.Zap/> LE: RC Vol</button>
-                                    <button onClick={()=>setActiveTab('leBase')} className={`dashboard-tab ${activeTab==='leBase'?'active':''}`}><Icons.Briefcase/> LE: Base</button>
-                                    <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders/> LE: Advanced</button>
+                                    <button onClick={()=>setActiveTab('leCust')} className={`dashboard-tab ${activeTab==='leCust'?'active':''}`}><Icons.Users /> LE: Cust Vol</button>
+                                    <button onClick={()=>setActiveTab('leRC')} className={`dashboard-tab ${activeTab==='leRC'?'active':''}`}><Icons.Zap /> LE: RC Vol</button>
+                                    <button onClick={()=>setActiveTab('leBase')} className={`dashboard-tab ${activeTab==='leBase'?'active':''}`}><Icons.Briefcase /> LE: Base</button>
+                                    <button onClick={()=>setActiveTab('leCustom')} className={`dashboard-tab ${activeTab==='leCustom'?'active':''}`}><Icons.Sliders /> LE: Advanced</button>
                                     
                                     <div className="h-px bg-slate-200 my-3 mx-2"></div>
                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Analysis Engine</div>
                                     
-                                    <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator/> Allocations</button>
-                                    <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp/> Variance Matrix</button>
+                                    <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator /> Allocations</button>
+                                    <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp /> Variance Matrix</button>
                                 </>
                             )}
                             
                             <div className="mt-auto"></div>
-                            <button onClick={()=>setActiveTab('glossary')} className={`dashboard-tab ${activeTab==='glossary'?'active':''}`}><Icons.BookOpen/> Glossary</button>
+                            <button onClick={()=>setActiveTab('glossary')} className={`dashboard-tab ${activeTab==='glossary'?'active':''}`}><Icons.BookOpen /> Glossary</button>
                             <div className="h-px bg-slate-200 my-3 mx-2"></div>
-                            <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database/> Data Hub</button>
+                            <button onClick={()=>setActiveTab('data')} className={`dashboard-tab ${activeTab==='data'?'active':''}`}><Icons.Database /> Data Hub</button>
                         </aside>
 
                         <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                              {rawActuals.length > 0 && ['overview', 'monthly', 'leCust', 'leRC', 'leBase', 'leCustom', 'variance', 'pivot'].includes(activeTab) && (
                                 <div className="bg-white border-b px-6 py-2 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto z-10 relative">
-                                    <Icons.Filter className="w-3 h-3"/> 
+                                    <Icons.Filter />
                                     <div className="flex items-center gap-1 border-r pr-3">
                                         <Icons.Calendar />
                                         <select value={ytdMonth} onChange={e=>setYtdMonth(e.target.value)} className="bg-transparent text-blue-700 outline-none">
@@ -2210,9 +2077,9 @@
                                 <ErrorBoundary>
                                     {rawActuals.length === 0 && activeTab !== 'data' && activeTab !== 'glossary' ? (
                                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                                            <Icons.CloudDown className="w-12 h-12 mb-4 animate-bounce text-blue-400"/>
-                                            <h2 className="text-xl font-bold mb-2">Fetching Cloud Data...</h2>
-                                            <p className="text-sm mb-6 max-w-md text-center">Auto-loading actuals and budget from your repository. If this takes more than a few seconds, you may need to configure your data sources manually.</p>
+                                            <Icons.CloudDown />
+                                            <h2 className="text-xl font-bold mb-2 mt-4">Fetching Cloud Data...</h2>
+                                            <p className="text-sm mb-6 max-w-md text-center">Auto-loading from your repository. If this persists, configure data sources manually.</p>
                                             <button onClick={() => setActiveTab('data')} className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-slate-900 transition">Go to Data Hub</button>
                                         </div>
                                     ) : (
@@ -2235,30 +2102,32 @@
                         </main>
                     </div>
 
-                    {/* Version Manager Modal */}
+                    {/* Version Manager Modal - FIXED: pullScenariosFromCloud now defined */}
                     {isVersionModalOpen && (
                         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
                             <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[80vh]">
                                 <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
-                                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.History/> Saved Scenarios & Versions</h2>
-                                    <button onClick={() => setIsVersionModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition"><Icons.X/></button>
+                                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.History /> Saved Scenarios & Versions</h2>
+                                    <button onClick={() => setIsVersionModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition"><Icons.X /></button>
                                 </div>
                                 
                                 <div className="bg-slate-800 p-4 flex justify-between items-center text-white shrink-0 shadow-inner">
                                     <div className="flex items-center gap-2 text-sm">
-                                        <Icons.CloudUp className="text-blue-400"/> 
+                                        <Icons.CloudUp />
                                         <span className="font-bold">Cloud Sync</span>
-                                        <span className="text-slate-400 text-xs ml-2">Pulling manually overwrites unsaved local versions.</span>
+                                        <span className="text-slate-400 text-xs ml-2">Pulling overwrites unsaved local versions.</span>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={pullScenariosFromCloud} disabled={isSyncingConfigs} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2"><Icons.CloudDown/> {isSyncingConfigs ? '...' : 'Pull Config from Cloud'}</button>
+                                        <button onClick={pullScenariosFromCloud} disabled={isSyncingConfigs} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2">
+                                            <Icons.CloudDown /> {isSyncingConfigs ? 'Pulling...' : 'Pull Config from Cloud'}
+                                        </button>
                                     </div>
                                 </div>
 
                                 <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50">
                                     {savedVersions.length === 0 ? (
                                         <div className="text-center py-10 text-slate-500">
-                                            <Icons.Save className="w-12 h-12 mx-auto mb-3 text-slate-300"/>
+                                            <div className="flex justify-center mb-3 text-slate-300"><Icons.Save /></div>
                                             <p className="font-medium">No versions saved locally.</p>
                                             <p className="text-sm mt-1 mb-4">Save a version from the header, or pull from the cloud.</p>
                                         </div>
@@ -2281,7 +2150,7 @@
                                                     </div>
                                                     <div className="flex gap-2">
                                                         {!v.isDefault && (
-                                                            <button onClick={() => handleSetDefaultVersion(v.id)} className="bg-white border hover:bg-amber-50 hover:text-amber-600 text-slate-500 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-1" title="Load this scenario automatically for everyone">
+                                                            <button onClick={() => handleSetDefaultVersion(v.id)} className="bg-white border hover:bg-amber-50 hover:text-amber-600 text-slate-500 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-1" title="Set as default scenario">
                                                                 <Icons.Star /> Make Default
                                                             </button>
                                                         )}
@@ -2289,7 +2158,7 @@
                                                             Restore
                                                         </button>
                                                         <button onClick={() => handleDeleteVersion(v.id)} className="bg-white border hover:bg-red-50 text-red-500 p-2 rounded-lg shadow-sm transition" title="Delete">
-                                                            <Icons.Trash/>
+                                                            <Icons.Trash />
                                                         </button>
                                                     </div>
                                                 </div>
