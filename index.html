@@ -107,14 +107,6 @@
             Grid: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         };
 
-        // --- Data Definitions ---
-        const forecastScenarios = [
-            { key: 'leCust', label: 'LE Cust Vol', color: 'purple' },
-            { key: 'leRc', label: 'LE RC Vol', color: 'blue' },
-            { key: 'leBase', label: 'LE Base', color: 'orange' },
-            { key: 'leCustom', label: 'LE Advanced', color: 'indigo' }
-        ];
-
         // --- Custom Hooks ---
         function useSortableData(items, config = null) {
             const [sortConfig, setSortConfig] = useState(config);
@@ -272,12 +264,24 @@
             const [fInd, setFInd] = useState('All');
             const [fCust, setFCust] = useState('All'); 
 
+            // Configuration State
             const [monthMapping, setMonthMapping] = useState({});
             const [allocOverrides, setAllocOverrides] = useState({});
+            const [accountNameMap, setAccountNameMap] = useState({}); // Primary name map for duplicate JPS A/c
+            
+            // Advanced Overrides Form State
             const [advOverrideDim, setAdvOverrideDim] = useState('rc');
             const [advOverrideKey, setAdvOverrideKey] = useState('');
             const [advOverrideVal, setAdvOverrideVal] = useState('');
-            const [advOverrides, setAdvOverrides] = useState({ customer: {}, rc: {}, industry: {}, month: {} });
+            
+            const [advOverrideCustMonth, setAdvOverrideCustMonth] = useState(1);
+            const [advOverrideCustKey, setAdvOverrideCustKey] = useState('');
+            const [advOverrideCustVal, setAdvOverrideCustVal] = useState('');
+
+            const [advOverrides, setAdvOverrides] = useState({ 
+                pct: { rc: {}, industry: {}, month: {} }, 
+                vol: {} // { custName: { month: GWh_value } }
+            });
             
             const [allocationResults, setAllocationResults] = useState([]);
             
@@ -304,6 +308,23 @@
             const [graphToggles, setGraphToggles] = useState({
                 act25: true, bud26: true, act26: true, leCust: true, leRc: true, leBase: true, leCustom: true
             });
+
+            // Name Conflicts Logic
+            const nameConflicts = useMemo(() => {
+                if(!rawActuals.length && !rawBudget.length) return [];
+                const acctMap = {};
+                [...rawActuals, ...rawBudget].forEach(d => {
+                    const acct = (d['JPS A/c'] || 'Unassigned').trim();
+                    const name = (d['Name'] || 'Unassigned').trim();
+                    if(acct === 'Unassigned' || acct === 'Unallocated' || !acct || !name) return;
+                    if(!acctMap[acct]) acctMap[acct] = new Set();
+                    acctMap[acct].add(name);
+                });
+                return Object.entries(acctMap)
+                    .filter(([acct, names]) => names.size > 1)
+                    .map(([acct, names]) => ({ acct, names: Array.from(names) }))
+                    .sort((a,b) => a.acct.localeCompare(b.acct));
+            }, [rawActuals, rawBudget]);
 
             // 1. DATA LOAD & CLOUD SYNC METHOD
             const fetchCloudData = async (silent = false) => {
@@ -372,6 +393,7 @@
                             setSavedVersions(parsed.versions || []);
                             setVarianceComments(parsed.comments || {});
                             setOverviewComments(parsed.overviewComments || '');
+                            if (parsed.accountNameMap) setAccountNameMap(parsed.accountNameMap);
                         }
                     }
 
@@ -440,6 +462,7 @@
                                     setSavedVersions(parsed.versions || []);
                                     setVarianceComments(parsed.comments || {});
                                     setOverviewComments(parsed.overviewComments || '');
+                                    if (parsed.accountNameMap) setAccountNameMap(parsed.accountNameMap);
                                 }
                             }
                         } catch (e) {
@@ -480,9 +503,12 @@
                         setIsBudgetCommitted(false); 
                         setMonthMapping(defaultScenario.monthMapping || {});
                         setAllocOverrides(defaultScenario.allocOverrides || {});
-                        setAdvOverrides(defaultScenario.advOverrides || { customer: {}, rc: {}, industry: {}, month: {} });
-                        setIsNormalizeHurricane(defaultScenario.isNormalizeHurricane ?? true);
                         
+                        let loadedAdv = defaultScenario.advOverrides || { pct: { rc: {}, industry: {}, month: {} }, vol: {} };
+                        if (!loadedAdv.pct && !loadedAdv.vol) loadedAdv = { pct: loadedAdv, vol: {} };
+                        setAdvOverrides(loadedAdv);
+                        
+                        setIsNormalizeHurricane(defaultScenario.isNormalizeHurricane ?? true);
                         setHasAutoRestored(true);
                     } else {
                         setHasAutoRestored(true);
@@ -507,27 +533,36 @@
             const { actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, dimensions } = useMemo(() => {
                 if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], leCustGrowth: [], leRCGrowth: [], leBaseGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
 
-                const normA = rawActuals.map(d => ({ 
-                    source: d['Source'] || 'Postpaid', 
-                    rc: (d['Rate category'] || 'Unassigned').trim(), 
-                    parish: (d['Updated Parish'] || 'Unassigned').trim(), 
-                    acct: (d['JPS A/c'] || 'Unassigned').trim(), 
-                    name: (d['Name'] || 'Unassigned').trim(), 
-                    industry: (d['Industry'] || 'Unassigned').trim(), 
-                    kwh: cleanVal(d['Sum of net_kwh_billed_consump']), 
-                    ...parseTimeStr(d['Month']) 
-                }));
+                // Apply account mapping normalize name
+                const normA = rawActuals.map(d => {
+                    const acct = (d['JPS A/c'] || 'Unassigned').trim();
+                    const rawName = (d['Name'] || 'Unassigned').trim();
+                    return { 
+                        source: d['Source'] || 'Postpaid', 
+                        rc: (d['Rate category'] || 'Unassigned').trim(), 
+                        parish: (d['Updated Parish'] || 'Unassigned').trim(), 
+                        acct: acct, 
+                        name: accountNameMap[acct] || rawName, 
+                        industry: (d['Industry'] || 'Unassigned').trim(), 
+                        kwh: cleanVal(d['Sum of net_kwh_billed_consump']), 
+                        ...parseTimeStr(d['Month']) 
+                    };
+                });
                 
-                const normB = rawBudget.map(d => ({ 
-                    source: d['Source'] || 'Budget', 
-                    rc: (d['Rate category'] || 'Unassigned').trim(), 
-                    parish: (d['Updated Parish'] || 'Unassigned').trim(), 
-                    acct: (d['JPS A/c'] || 'Unallocated').trim(), 
-                    name: (d['Name'] || 'Unallocated').trim(), 
-                    industry: (d['Industry'] || 'Unallocated').trim(), 
-                    kwh: cleanVal(d['Sum of Budget']), 
-                    ...parseTimeStr(d['Month']) 
-                }));
+                const normB = rawBudget.map(d => {
+                    const acct = (d['JPS A/c'] || 'Unallocated').trim();
+                    const rawName = (d['Name'] || 'Unallocated').trim();
+                    return { 
+                        source: d['Source'] || 'Budget', 
+                        rc: (d['Rate category'] || 'Unassigned').trim(), 
+                        parish: (d['Updated Parish'] || 'Unassigned').trim(), 
+                        acct: acct, 
+                        name: accountNameMap[acct] || rawName, 
+                        industry: (d['Industry'] || 'Unallocated').trim(), 
+                        kwh: cleanVal(d['Sum of Budget']), 
+                        ...parseTimeStr(d['Month']) 
+                    };
+                });
 
                 const ytd25Cust = {}; const ytd26Cust = {};
                 const ytd25RC = {};   const ytd26RC = {};
@@ -540,9 +575,13 @@
                 const leCustData = [...q1Actuals26]; const leRCData = [...q1Actuals26]; const leBaseData = [...q1Actuals26]; const leCustomData = [...q1Actuals26];
 
                 const bRcTotal = {}; const bCustTotal = {};
+                const custMonthTotalBud = {};
                 normB.filter(d => d.year === 2026 && d.month >= 4).forEach(b => {
                     bRcTotal[`${b.month}|${b.rc}`] = (bRcTotal[`${b.month}|${b.rc}`] || 0) + b.kwh;
                     bCustTotal[`${b.month}|${b.acct}`] = (bCustTotal[`${b.month}|${b.acct}`] || 0) + b.kwh;
+                    
+                    const cmKey = `${b.name}|${b.month}`;
+                    custMonthTotalBud[cmKey] = (custMonthTotalBud[cmKey] || 0) + b.kwh;
                 });
 
                 normB.filter(d => d.year === 2026 && d.month >= 4).forEach(b => {
@@ -560,24 +599,36 @@
                     const isCustRc = ['RT10', 'RT20', 'RT60'].includes(b.rc.toUpperCase());
                     leBaseData.push({ ...b, source: 'LE - Base', type: 'Forecast', kwh: isCustRc ? custKwh : rcKwh });
 
-                    let overridePct = 0;
+                    // Advanced Overrides Logic
+                    let customKwh = b.kwh;
                     let hasOverride = false;
+                    const cmKey = `${b.name}|${b.month}`;
                     
-                    if (advOverrides.customer && advOverrides.customer[b.name] !== undefined) {
-                        overridePct = advOverrides.customer[b.name];
+                    if (advOverrides.vol && advOverrides.vol[b.name] && advOverrides.vol[b.name][b.month] !== undefined) {
+                        // Volume Override (GWh to kWh)
+                        const targetKwh = advOverrides.vol[b.name][b.month] * 1000000;
+                        const totalBud = custMonthTotalBud[cmKey] || 1;
+                        const weight = b.kwh / totalBud;
+                        customKwh = targetKwh * weight;
                         hasOverride = true;
-                    } else if (advOverrides.month && advOverrides.month[b.month] !== undefined) {
-                        overridePct = advOverrides.month[b.month];
-                        hasOverride = true;
-                    } else if (advOverrides.industry && advOverrides.industry[b.industry] !== undefined) {
-                        overridePct = advOverrides.industry[b.industry];
-                        hasOverride = true;
-                    } else if (advOverrides.rc && advOverrides.rc[b.rc] !== undefined) {
-                        overridePct = advOverrides.rc[b.rc];
-                        hasOverride = true;
+                    } else {
+                        // Percentage Override
+                        let overridePct = 0;
+                        if (advOverrides.pct.month && advOverrides.pct.month[b.month] !== undefined) {
+                            overridePct = advOverrides.pct.month[b.month];
+                            hasOverride = true;
+                        } else if (advOverrides.pct.industry && advOverrides.pct.industry[b.industry] !== undefined) {
+                            overridePct = advOverrides.pct.industry[b.industry];
+                            hasOverride = true;
+                        } else if (advOverrides.pct.rc && advOverrides.pct.rc[b.rc] !== undefined) {
+                            overridePct = advOverrides.pct.rc[b.rc];
+                            hasOverride = true;
+                        }
+                        if (hasOverride) {
+                            customKwh = Math.max(0, b.kwh * (1 + overridePct / 100));
+                        }
                     }
 
-                    const customKwh = hasOverride ? Math.max(0, b.kwh * (1 + overridePct / 100)) : b.kwh;
                     leCustomData.push({ ...b, source: 'LE - Custom', type: 'Forecast', kwh: customKwh });
                 });
 
@@ -588,13 +639,16 @@
                 const customers = [...new Set([...normA, ...normB].map(d => d.name))].filter(n => n && n !== 'Unassigned' && n !== 'Unallocated').sort();
 
                 return { actuals: normA, budget: normB, leCustGrowth: leCustData, leRCGrowth: leRCData, leBaseGrowth: leBaseData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
-            }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides]);
+            }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides, accountNameMap]);
 
             useEffect(() => {
                 if (dimensions.rcs.length > 0 && !advOverrideKey) {
                     setAdvOverrideKey(dimensions.rcs[0]);
                 }
-            }, [dimensions.rcs, advOverrideKey]);
+                if (dimensions.customers.length > 0 && !advOverrideCustKey) {
+                    setAdvOverrideCustKey(dimensions.customers[0]);
+                }
+            }, [dimensions.rcs, dimensions.customers, advOverrideKey, advOverrideCustKey]);
 
             useEffect(() => {
                 if (rawBudget.length === 0 || isBudgetCommitted) return;
@@ -796,10 +850,11 @@
                 return { rcMatrix, topMovers, bottomMovers };
             }, [activeTab, pivotScenario, moversRC, actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, moversTimeFrame, ytdMonth, getFiltered]);
 
-            const pushScenariosToCloud = async (versionsOverride = null, commentsOverride = null, overviewCmtOverride = null) => {
+            const pushScenariosToCloud = async (versionsOverride = null, commentsOverride = null, overviewCmtOverride = null, accountNameMapOverride = null) => {
                 const versionsToPush = versionsOverride || savedVersions;
                 const commentsToPush = commentsOverride || varianceComments;
                 const ocToPush = overviewCmtOverride !== null ? overviewCmtOverride : overviewComments;
+                const mapToPush = accountNameMapOverride || accountNameMap;
                 
                 const token = githubConfig.token.trim();
                 const owner = githubConfig.owner.trim();
@@ -821,7 +876,8 @@
                             isDefault: v.isDefault || false
                         })),
                         comments: commentsToPush,
-                        overviewComments: ocToPush
+                        overviewComments: ocToPush,
+                        accountNameMap: mapToPush
                     };
 
                     const jsonString = JSON.stringify(payloadToSave, null, 2);
@@ -891,28 +947,6 @@
                 reader.readAsText(e.target.files[0]);
             };
 
-            const handleFetchUrl = async (url, isBudget) => {
-                if(!url) return;
-                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const text = await response.text();
-                    const data = parseCSV(text);
-                    if (isBudget) { 
-                        setRawBudget(data); 
-                        setOriginalBudget([...data]); 
-                        setIsBudgetCommitted(false); 
-                    } else { 
-                        setRawActuals(data); 
-                    }
-                } catch (e) {
-                    alert('Error fetching file: ' + e.message);
-                } finally {
-                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
-                }
-            };
-
             const handleSaveVersion = () => {
                 const name = prompt("Enter a name for this scenario version:");
                 if (!name) return;
@@ -946,7 +980,11 @@
                 setIsBudgetCommitted(false); 
                 setMonthMapping(version.monthMapping || {}); 
                 setAllocOverrides(version.allocOverrides || {}); 
-                setAdvOverrides(version.advOverrides || { customer: {}, rc: {}, industry: {}, month: {} }); 
+                
+                let loadedAdv = version.advOverrides || { pct: { rc: {}, industry: {}, month: {} }, vol: {} };
+                if (!loadedAdv.pct && !loadedAdv.vol) loadedAdv = { pct: loadedAdv, vol: {} };
+                setAdvOverrides(loadedAdv); 
+                
                 setIsNormalizeHurricane(version.isNormalizeHurricane ?? true); 
                 setIsVersionModalOpen(false);
             };
@@ -986,7 +1024,7 @@
                 setLoadError('');
                 setMonthMapping({});
                 setAllocOverrides({});
-                setAdvOverrides({ customer: {}, rc: {}, industry: {}, month: {} });
+                setAdvOverrides({ pct: { rc: {}, industry: {}, month: {} }, vol: {} });
                 setAllocationResults([]);
                 setSavedVersions([]);
                 setHasAutoRestored(false);
@@ -1050,97 +1088,157 @@
             );
 
             const renderAdvOverridesUI = () => {
-                const dimLabels = { rc: 'Rate Class', industry: 'Industry', customer: 'Customer', month: 'Month' };
+                const dimLabels = { rc: 'Rate Class', industry: 'Industry', month: 'Month' };
                 const dimOptions = {
                     rc: dimensions.rcs,
                     industry: dimensions.inds,
-                    customer: dimensions.customers,
                     month: [1,2,3,4,5,6,7,8,9,10,11,12].map(m => ({ val: m, label: monthNames[m-1] }))
                 };
 
-                const handleAdd = () => {
+                const handleAddPct = () => {
                     if(advOverrideKey && advOverrideVal) {
                         setAdvOverrides(p => ({
                             ...p,
-                            [advOverrideDim]: {
-                                ...(p[advOverrideDim] || {}),
-                                [advOverrideKey]: parseFloat(advOverrideVal)
+                            pct: {
+                                ...p.pct,
+                                [advOverrideDim]: {
+                                    ...(p.pct[advOverrideDim] || {}),
+                                    [advOverrideKey]: parseFloat(advOverrideVal)
+                                }
                             }
                         }));
                         setAdvOverrideVal('');
                     }
                 };
 
-                const handleRemove = (dim, key) => {
+                const handleAddVol = () => {
+                    if(advOverrideCustKey && advOverrideCustMonth && advOverrideCustVal) {
+                        setAdvOverrides(p => ({
+                            ...p,
+                            vol: {
+                                ...p.vol,
+                                [advOverrideCustKey]: {
+                                    ...(p.vol[advOverrideCustKey] || {}),
+                                    [advOverrideCustMonth]: parseFloat(advOverrideCustVal)
+                                }
+                            }
+                        }));
+                        setAdvOverrideCustVal('');
+                    }
+                };
+
+                const handleRemovePct = (dim, key) => {
                     setAdvOverrides(p => {
-                        const next = { ...p };
-                        const nextDim = { ...next[dim] };
+                        const next = { ...p, pct: {...p.pct} };
+                        const nextDim = { ...next.pct[dim] };
                         delete nextDim[key];
-                        next[dim] = nextDim;
+                        next.pct[dim] = nextDim;
+                        return next;
+                    });
+                };
+
+                const handleRemoveVol = (cust, month) => {
+                    setAdvOverrides(p => {
+                        const next = { ...p, vol: {...p.vol} };
+                        const nextCust = { ...next.vol[cust] };
+                        delete nextCust[month];
+                        if (Object.keys(nextCust).length === 0) delete next.vol[cust];
+                        else next.vol[cust] = nextCust;
                         return next;
                     });
                 };
 
                 return (
-                    <div className="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 shadow-sm mb-6">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h4 className="font-bold flex items-center gap-2 text-indigo-800"><Icons.Sliders/> LE: Advanced Scenario Builder</h4>
-                                <p className="text-xs text-slate-500 mt-1 max-w-xl">
-                                    Stack percentage growth rules to dynamically manipulate the baseline budget. 
-                                    <strong> Rules are prioritized: Customer > Month > Industry > Rate Class.</strong>
-                                </p>
+                    <div className="bg-indigo-50/50 p-6 rounded-xl border border-indigo-100 shadow-sm mb-6 space-y-6">
+                        <div>
+                            <h4 className="font-bold flex items-center gap-2 text-indigo-800 text-lg"><Icons.Sliders/> LE: Advanced Scenario Builder</h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Stack multiple rules to dynamically manipulate the baseline budget. 
+                                <strong> Rules are prioritized: Customer Volumetric > Month % > Industry % > Rate Class %.</strong>
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            {/* Panel 1: Percentage Overrides */}
+                            <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
+                                <h5 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><span className="w-5 h-5 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center">%</span> Percentage Adjustments</h5>
+                                <div className="flex flex-wrap gap-2 mb-4 items-center">
+                                    <select value={advOverrideDim} onChange={e => {
+                                        setAdvOverrideDim(e.target.value);
+                                        setAdvOverrideKey(e.target.value === 'month' ? 1 : dimOptions[e.target.value][0]);
+                                    }} className="border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 font-bold text-slate-700 bg-slate-50">
+                                        {Object.entries(dimLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                    </select>
+                                    <span className="text-slate-300">➜</span>
+                                    <select value={advOverrideKey} onChange={e => setAdvOverrideKey(e.target.value)} className="flex-1 min-w-[120px] border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50">
+                                        {advOverrideDim === 'month' 
+                                            ? dimOptions.month.map(m => <option key={m.val} value={m.val}>{m.label}</option>)
+                                            : dimOptions[advOverrideDim].map(o => <option key={o} value={o}>{o}</option>)
+                                        }
+                                    </select>
+                                    <input type="number" value={advOverrideVal} onChange={e => setAdvOverrideVal(e.target.value)} placeholder="+5" className="w-20 border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 text-center font-bold" />
+                                    <button onClick={handleAddPct} className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-indigo-700 transition">Add</button>
+                                </div>
+                            </div>
+
+                            {/* Panel 2: Customer Volumetric Overrides */}
+                            <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
+                                <h5 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><span className="w-5 h-5 rounded bg-fuchsia-100 text-fuchsia-700 flex items-center justify-center"><Icons.Users/></span> Customer Monthly Volume (GWh)</h5>
+                                <div className="flex flex-wrap gap-2 mb-4 items-center">
+                                    <select value={advOverrideCustKey} onChange={e => setAdvOverrideCustKey(e.target.value)} className="flex-1 min-w-[120px] border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50 truncate">
+                                        {dimensions.customers.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <select value={advOverrideCustMonth} onChange={e => setAdvOverrideCustMonth(e.target.value)} className="border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50">
+                                        {dimOptions.month.map(m => <option key={m.val} value={m.val}>{m.label.substring(0,3)}</option>)}
+                                    </select>
+                                    <input type="number" value={advOverrideCustVal} onChange={e => setAdvOverrideCustVal(e.target.value)} placeholder="GWh" className="w-20 border border-slate-300 rounded px-2 py-1.5 text-sm outline-none focus:border-indigo-400 text-center font-bold" />
+                                    <button onClick={handleAddVol} className="bg-fuchsia-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-fuchsia-700 transition">Add</button>
+                                </div>
                             </div>
                         </div>
                         
-                        <div className="flex flex-wrap md:flex-nowrap gap-2 mb-4 bg-white p-3 rounded-lg border border-indigo-100 shadow-sm items-center">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Apply Rule To:</span>
-                            <select value={advOverrideDim} onChange={e => {
-                                setAdvOverrideDim(e.target.value);
-                                setAdvOverrideKey(e.target.value === 'month' ? 1 : dimOptions[e.target.value][0]);
-                            }} className="border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 font-bold text-slate-700 bg-slate-50">
-                                {Object.entries(dimLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                            </select>
-                            
-                            <span className="text-slate-300">➜</span>
-                            
-                            <select value={advOverrideKey} onChange={e => setAdvOverrideKey(e.target.value)} className="flex-1 min-w-[200px] border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 font-medium bg-slate-50">
-                                {advOverrideDim === 'month' 
-                                    ? dimOptions.month.map(m => <option key={m.val} value={m.val}>{m.label}</option>)
-                                    : dimOptions[advOverrideDim].map(o => <option key={o} value={o}>{o}</option>)
-                                }
-                            </select>
-                            
-                            <span className="text-slate-300">@</span>
-                            
-                            <input type="number" value={advOverrideVal} onChange={e => setAdvOverrideVal(e.target.value)} placeholder="e.g. +5.5" className="w-24 border border-slate-300 rounded px-3 py-1.5 text-sm outline-none focus:border-indigo-400 text-center font-bold" />
-                            <span className="text-sm font-bold text-slate-400">%</span>
-                            
-                            <button onClick={handleAdd} className="bg-indigo-600 text-white px-5 py-1.5 rounded font-bold hover:bg-indigo-700 shadow-sm transition ml-auto">Add Rule</button>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2">
-                            {Object.entries(advOverrides).map(([dim, configs]) => {
-                                const keys = Object.keys(configs);
-                                if(keys.length === 0) return null;
-                                return (
-                                    <div key={dim} className="flex items-start gap-3 text-sm">
-                                        <span className="w-24 shrink-0 text-xs font-bold text-slate-400 uppercase tracking-wider text-right pt-1.5">{dimLabels[dim]} Rules</span>
-                                        <div className="flex flex-wrap gap-2 flex-1">
-                                            {Object.entries(configs).map(([k, val]) => (
-                                                <div key={k} className="flex items-center gap-2 text-sm bg-white px-3 py-1 rounded-full border border-indigo-200 shadow-sm">
-                                                    <span className="font-medium text-slate-600 max-w-[150px] truncate" title={k}>{advOverrideDim === 'month' ? monthNames[parseInt(k)-1] : k}</span>
-                                                    <span className={`font-black ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</span>
-                                                    <button onClick={() => handleRemove(dim, k)} className="text-slate-300 hover:text-red-500 ml-1 transition"><Icons.X /></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                            {!Object.values(advOverrides).some(obj => Object.keys(obj).length > 0) && (
-                                <span className="text-sm text-slate-400 italic flex items-center justify-center py-2 bg-slate-50/50 rounded border border-dashed border-slate-300">No active rules. Forecast equals Granular Base Budget.</span>
-                            )}
+                        {/* Summary Panel */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200">
+                            <h5 className="font-bold text-sm text-slate-700 mb-3">Active Adjustments Summary</h5>
+                            <div className="overflow-auto max-h-48 custom-scroll border rounded-lg">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 sticky top-0">
+                                        <tr>
+                                            <th className="p-2 border-b">Rule Type</th>
+                                            <th className="p-2 border-b">Target</th>
+                                            <th className="p-2 border-b">Adjustment</th>
+                                            <th className="p-2 border-b w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {/* Percentage Rules */}
+                                        {['rc', 'industry', 'month'].map(dim => {
+                                            return Object.entries(advOverrides.pct[dim] || {}).map(([k, val]) => (
+                                                <tr key={`pct-${dim}-${k}`} className="border-b hover:bg-slate-50">
+                                                    <td className="p-2 text-indigo-600 font-bold text-xs uppercase">{dimLabels[dim]} (%)</td>
+                                                    <td className="p-2 text-slate-700">{dim === 'month' ? monthNames[parseInt(k)-1] : k}</td>
+                                                    <td className={`p-2 font-black ${val>=0?'text-emerald-600':'text-red-500'}`}>{val > 0 ? '+'+val : val}%</td>
+                                                    <td className="p-2 text-center"><button onClick={() => handleRemovePct(dim, k)} className="text-slate-300 hover:text-red-500"><Icons.X /></button></td>
+                                                </tr>
+                                            ));
+                                        })}
+                                        {/* Volume Rules */}
+                                        {Object.entries(advOverrides.vol || {}).map(([cust, monthMap]) => {
+                                            return Object.entries(monthMap).map(([m, val]) => (
+                                                <tr key={`vol-${cust}-${m}`} className="border-b hover:bg-slate-50">
+                                                    <td className="p-2 text-fuchsia-600 font-bold text-xs uppercase">Customer (Vol)</td>
+                                                    <td className="p-2 text-slate-700">{cust} <span className="text-slate-400">({monthNames[parseInt(m)-1].substring(0,3)})</span></td>
+                                                    <td className="p-2 font-black text-blue-600">{val} GWh</td>
+                                                    <td className="p-2 text-center"><button onClick={() => handleRemoveVol(cust, m)} className="text-slate-300 hover:text-red-500"><Icons.X /></button></td>
+                                                </tr>
+                                            ));
+                                        })}
+                                        {(!Object.values(advOverrides.pct).some(obj => Object.keys(obj).length > 0) && Object.keys(advOverrides.vol || {}).length === 0) && (
+                                            <tr><td colSpan="4" className="p-4 text-center text-slate-400 italic">No active rules applied.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 );
@@ -1151,7 +1249,7 @@
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
                         <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp/> GitHub Team Sync & API Config</h3>
-                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage, not in the HTML file.</strong></p>
+                        <p className="text-xs text-slate-400 mb-4 max-w-3xl">This token allows the dashboard to silently fetch data and save scenario configurations so your colleagues can pick up right where you left off. <strong>Credentials are saved securely in your browser's local storage.</strong></p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Personal Access Token</label>
@@ -1198,7 +1296,43 @@
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-center gap-4 border-t border-slate-100 pt-8">
+                        {nameConflicts.length > 0 && (
+                            <div className="bg-amber-50 p-6 rounded-xl border border-amber-200 mt-6 text-left">
+                                <h3 className="font-bold text-amber-800 mb-2 flex items-center gap-2"><Icons.Users/> Account Name Conflicts Detected</h3>
+                                <p className="text-xs text-amber-700 mb-4">The same Account Number was found with different names. Please select the primary name to use for forecasting. This syncs with your GitHub scenario.</p>
+                                <div className="max-h-60 overflow-y-auto custom-scroll space-y-2">
+                                    {nameConflicts.map(conflict => (
+                                        <div key={conflict.acct} className="flex flex-col md:flex-row md:items-center gap-4 bg-white p-3 rounded shadow-sm border border-amber-100">
+                                            <div className="text-sm font-bold text-slate-700 w-32 shrink-0">A/C: {conflict.acct}</div>
+                                            <div className="flex-1 flex gap-2 flex-wrap">
+                                                {conflict.names.map(n => (
+                                                    <button key={n} onClick={() => {
+                                                        const updatedMap = {...accountNameMap, [conflict.acct]: n};
+                                                        setAccountNameMap(updatedMap);
+                                                        if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) pushScenariosToCloud(savedVersions, varianceComments, overviewComments, updatedMap);
+                                                    }} className={`px-3 py-1 rounded text-xs font-medium border ${accountNameMap[conflict.acct] === n ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{n}</button>
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-400">Custom:</span>
+                                                <input type="text" placeholder="Type name..." className="border rounded px-2 py-1 text-xs outline-none focus:border-amber-400" 
+                                                    onBlur={e => { 
+                                                        if(e.target.value) {
+                                                            const updatedMap = {...accountNameMap, [conflict.acct]: e.target.value};
+                                                            setAccountNameMap(updatedMap);
+                                                            if (githubConfig.token && !githubConfig.token.includes('YOUR_TOKEN')) pushScenariosToCloud(savedVersions, varianceComments, overviewComments, updatedMap);
+                                                        }
+                                                    }} 
+                                                    defaultValue={accountNameMap[conflict.acct] && !conflict.names.includes(accountNameMap[conflict.acct]) ? accountNameMap[conflict.acct] : ''}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-center gap-4 border-t border-slate-100 pt-8 mt-8">
                             <label className="flex items-center gap-3 cursor-pointer group bg-slate-50 p-4 rounded-xl border border-slate-200 hover:border-blue-300 transition w-full max-w-lg">
                                 <input type="checkbox" checked={isNormalizeHurricane} onChange={e => setIsNormalizeHurricane(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                                 <div className="text-left">
@@ -1289,7 +1423,7 @@
                             <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[400px]">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.BookOpen/> Executive Comments & Action Items</h3>
-                                    <button onClick={() => pushScenariosToCloud(savedVersions, varianceComments, overviewComments)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1">
+                                    <button onClick={() => pushScenariosToCloud()} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1">
                                         <Icons.Save className="w-3 h-3"/> Save Comments
                                     </button>
                                 </div>
@@ -1838,8 +1972,13 @@
                 const totA25 = fAct.filter(d => d.year === 2025).reduce((s,d)=>s+d.kwh,0); const totB26 = fBud.filter(d => d.year === 2026).reduce((s,d)=>s+d.kwh,0);
                 const totLE = fLE.reduce((s,d)=>s+d.kwh,0);
 
+                // Dynamic dimensions to prevent blank tables when filters are active
+                const validRcs = dimensions.rcs.filter(rc => {
+                    return fAct.some(d => d.rc === rc) || fBud.some(d => d.rc === rc) || fLE.some(d => d.rc === rc);
+                });
+
                 // For sorting
-                const mappedRcs = dimensions.rcs.map(rc => {
+                const mappedRcs = validRcs.map(rc => {
                     const a25 = fAct.filter(d => d.rc === rc && d.year === 2025).reduce((s,d)=>s+d.kwh,0); const b26 = fBud.filter(d => d.rc === rc && d.year === 2026).reduce((s,d)=>s+d.kwh,0);
                     const le26 = fLE.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
                     const lCust26 = fLeCust.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); const lRc26 = fLeRC.filter(d => d.rc === rc).reduce((s,d)=>s+d.kwh,0); 
@@ -1899,6 +2038,7 @@
                                             <td className={`p-3 text-right font-bold ${r.vsPY>=0?'text-blue-600':'text-red-500'}`}>{formatPct(r.vsPY)}</td>
                                         </tr>
                                     ))}
+                                    {sortedRcs.length === 0 && <tr><td colSpan="9" className="p-4 text-center text-slate-400">No data found for this selection.</td></tr>}
                                 </tbody>
                                 <tfoot className="bg-slate-100 font-black text-slate-800 border-t-2 border-slate-300">
                                     <tr>
@@ -1944,7 +2084,7 @@
                                 </div>
                                 <div className="bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3">
                                     <h3 className="text-lg font-bold text-indigo-800 flex items-center gap-2"><Icons.Sliders/> LE: Advanced Scenario Builder</h3>
-                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers that are applied to the remaining Base Budget across various dimensions (Customer, Rate Class, Industry, or Month).</p>
+                                    <p className="text-sm text-slate-700"><strong>Definition:</strong> Allows the user to manually define percentage multipliers (for Industry, Month, RC) or specific volumetric allocations (for Customers) that are applied to the remaining Base Budget.</p>
                                 </div>
                                 <div className="bg-slate-50 border border-slate-200 p-6 rounded-xl space-y-3 md:col-span-2">
                                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Icons.Grid/> Pivot & Movers: Top/Bottom Performers</h3>
@@ -2115,7 +2255,7 @@
                                                         <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                                                             <span><Icons.Calendar className="inline w-3 h-3 mr-1"/> {v.timestamp}</span>
                                                             <span className="text-slate-300">|</span>
-                                                            <span>Overrides: {Object.keys(v.allocOverrides || {}).length + Object.keys(v.advOverrides || {}).length}</span>
+                                                            <span>Overrides: {Object.keys(v.allocOverrides || {}).length + Object.keys(v.advOverrides?.pct || {}).length + Object.keys(v.advOverrides?.vol || {}).length}</span>
                                                             <span className="text-slate-300">|</span>
                                                             <span className={v.isNormalizeHurricane ? 'text-emerald-600' : 'text-slate-400'}>Hurricane Norm: {v.isNormalizeHurricane ? 'ON' : 'OFF'}</span>
                                                         </p>
