@@ -87,7 +87,6 @@
             Activity: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
             TrendingUp: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
             Calculator: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M8 18h.01"/><path d="M12 14h.01"/><path d="M12 18h.01"/></svg>,
-            Wind: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2"/><path d="M12.59 19.41A2 2 0 1 0 14 16H2"/><path d="M15.83 7.17a2 2 0 1 0-1.41 3.42H20"/></svg>,
             Filter: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
             BookOpen: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
             Users: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
@@ -111,37 +110,25 @@
             Grid: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
         };
 
-        // --- Custom Hooks ---
-        function useSortableData(items, config = null) {
-            const [sortConfig, setSortConfig] = useState(config);
+        // --- Generic Sorting Helper (Replaces useSortableData hook to prevent React crashes) ---
+        const sortArray = (items, sortConfig) => {
+            if (!sortConfig || !sortConfig.key) return items;
+            return [...items].sort((a, b) => {
+                let aVal = a[sortConfig.key];
+                let bVal = b[sortConfig.key];
+                
+                // Handle nulls safely
+                if (aVal === null || aVal === undefined) aVal = '';
+                if (bVal === null || bVal === undefined) bVal = '';
 
-            const sortedItems = useMemo(() => {
-                let sortableItems = [...items];
-                if (sortConfig !== null) {
-                    sortableItems.sort((a, b) => {
-                        let aVal = a[sortConfig.key];
-                        let bVal = b[sortConfig.key];
-                        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-                        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                if (typeof bVal === 'string') bVal = bVal.toLowerCase();
 
-                        if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
-                        if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
-                        return 0;
-                    });
-                }
-                return sortableItems;
-            }, [items, sortConfig]);
-
-            const requestSort = (key) => {
-                let direction = 'ascending';
-                if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
-                    direction = 'descending';
-                }
-                setSortConfig({ key, direction });
-            };
-
-            return { items: sortedItems, requestSort, sortConfig };
-        }
+                if (aVal < bVal) return sortConfig.direction === 'ascending' ? -1 : 1;
+                if (aVal > bVal) return sortConfig.direction === 'ascending' ? 1 : -1;
+                return 0;
+            });
+        };
 
         const SortIcon = ({ columnKey, sortConfig }) => {
             if (!sortConfig || sortConfig.key !== columnKey) return <span className="ml-1 opacity-20 inline-block w-2">↕</span>;
@@ -312,6 +299,21 @@
                 act25: true, bud26: true, act26: true, leCust: true, leRc: true, leBase: true, leCustom: true
             });
 
+            // --- SORTING STATES ---
+            const [monthlySort, setMonthlySort] = useState({key: null, direction: 'asc'});
+            const [topSort, setTopSort] = useState({key: 'variance', direction: 'descending'});
+            const [botSort, setBotSort] = useState({key: 'variance', direction: 'ascending'});
+            const [varSort, setVarSort] = useState({key: 'a26', direction: 'descending'});
+            const [forecastSort, setForecastSort] = useState({key: 'rc', direction: 'asc'});
+
+            const handleSortRequest = (key, currentSort, setSortFn) => {
+                let direction = 'ascending';
+                if (currentSort && currentSort.key === key && currentSort.direction === 'ascending') {
+                    direction = 'descending';
+                }
+                setSortFn({ key, direction });
+            };
+
             // Name Conflicts Logic
             const nameConflicts = useMemo(() => {
                 if(!rawActuals.length && !rawBudget.length) return [];
@@ -365,7 +367,7 @@
                             setRawActuals(parsedAct);
                             loadedSomething = true;
                         } else if (!silent) {
-                            alert("actuals.csv found, but it appears to be empty or improperly formatted.");
+                            alert("actuals.csv found, but it appears to be empty or improperly formatted. Check your column headers.");
                         }
                     } else if (!silent) {
                         alert("Could not find 'actuals.csv' in the Supabase 'jps_data' bucket.");
@@ -858,43 +860,6 @@
                 return { rcMatrix, topMovers, bottomMovers };
             }, [activeTab, pivotScenario, moversRC, actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, moversTimeFrame, ytdMonth, getFiltered]);
 
-            const saveForecastToCloud = async (csvDataArray, filename) => {
-                const url = supabaseConfig.url.trim();
-                const key = supabaseConfig.key.trim();
-
-                if (!url || !key) {
-                    alert("Please enter your Supabase credentials in the Data Hub.");
-                    setActiveTab('data');
-                    return;
-                }
-                
-                setIsPushing(true);
-                try {
-                    const headers = Object.keys(csvDataArray[0]).filter(k => typeof csvDataArray[0][k] !== 'object');
-                    const csvString = [
-                        headers.join(','),
-                        ...csvDataArray.map(row => headers.map(h => `"${(row[h] !== undefined && row[h] !== null) ? row[h].toString().replace(/"/g, '""') : ''}"`).join(','))
-                    ].join('\n');
-
-                    const blob = new Blob([csvString], { type: 'text/csv' });
-                    
-                    const supabaseClient = window.supabase.createClient(url, key);
-                    const { data, error } = await supabaseClient.storage
-                        .from('jps_data')
-                        .upload(`${filename}.csv`, blob, { upsert: true });
-
-                    if (error) throw error;
-                    
-                    alert(`Successfully pushed ${filename}.csv to Supabase!`);
-                    setSupabaseStatus('connected');
-                } catch (error) {
-                    alert("Failed to save to Supabase: " + error.message);
-                    setSupabaseStatus('error');
-                } finally {
-                    setIsPushing(false);
-                }
-            };
-
             const pushScenariosToCloud = async (versionsOverride = null, commentsOverride = null, overviewCmtOverride = null, accountNameMapOverride = null) => {
                 const versionsToPush = versionsOverride || savedVersions;
                 const commentsToPush = commentsOverride || varianceComments;
@@ -924,6 +889,12 @@
                         accountNameMap: mapToPush
                     };
 
+                    const jsonString = JSON.stringify(payloadToSave, null, 2);
+                    const base64Content = btoa(unescape(encodeURIComponent(jsonString)));
+                    const path = `dashboard_scenarios.json`;
+                    const fileUrl = `https://api.github.com/repos/${githubConfig.owner.trim()}/${githubConfig.repo.trim()}/contents/${path}`;
+
+                    // SUPABASE UPDATE
                     const supabaseClient = window.supabase.createClient(url, key);
                     const { error } = await supabaseClient
                         .from('dashboard_state')
@@ -973,28 +944,6 @@
                     } 
                 };
                 reader.readAsText(e.target.files[0]);
-            };
-
-            const handleFetchUrl = async (url, isBudget) => {
-                if(!url) return;
-                setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: true}));
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const text = await response.text();
-                    const data = parseCSV(text);
-                    if (isBudget) { 
-                        setRawBudget(data); 
-                        setOriginalBudget([...data]); 
-                        setIsBudgetCommitted(false); 
-                    } else { 
-                        setRawActuals(data); 
-                    }
-                } catch (e) {
-                    alert('Error fetching file: ' + e.message);
-                } finally {
-                    setIsLoadingUrl(p => ({...p, [isBudget ? 'budget' : 'actuals']: false}));
-                }
             };
 
             const handleSaveVersion = () => {
@@ -1099,10 +1048,20 @@
                 });
             }, [actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, getFiltered]);
 
-            // --- SORTING HOOKS FOR TABLES ---
-            const { items: monthlyAggregates, requestSort: sortMonthly, sortConfig: monthlySort } = useSortableData(monthlyAggregatesRaw, {key: null, direction: 'asc'});
-            const { items: topMovers, requestSort: sortTopMovers, sortConfig: topSort } = useSortableData(pivotState.topMovers, {key: 'variance', direction: 'descending'});
-            const { items: bottomMovers, requestSort: sortBottomMovers, sortConfig: botSort } = useSortableData(pivotState.bottomMovers, {key: 'variance', direction: 'ascending'});
+            // --- SORTING TABLES MANUALLY ---
+            const [monthlySort, setMonthlySort] = useState({key: null, direction: 'asc'});
+            const [topSort, setTopSort] = useState({key: 'variance', direction: 'descending'});
+            const [botSort, setBotSort] = useState({key: 'variance', direction: 'ascending'});
+            const [varSort, setVarSort] = useState({key: 'a26', direction: 'descending'});
+            const [forecastSort, setForecastSort] = useState({key: 'rc', direction: 'asc'});
+
+            const handleSortRequest = (key, currentSort, setSortFn) => {
+                let direction = 'ascending';
+                if (currentSort && currentSort.key === key && currentSort.direction === 'ascending') {
+                    direction = 'descending';
+                }
+                setSortFn({ key, direction });
+            };
 
             // --- UI Components ---
             const varScenarios = [
@@ -1510,6 +1469,7 @@
             };
 
             const renderMonthlyTab = () => {
+                const sortedMonthly = sortArray(monthlyAggregatesRaw, monthlySort);
                 const totA25 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Act25,0); const totB26 = monthlyAggregatesRaw.reduce((s,d)=>s+d.Bud26,0); const totA26 = monthlyAggregatesRaw.reduce((s,d)=>s+(d.Act26||0),0);
                 
                 return (
@@ -1544,15 +1504,15 @@
                                 <table className="w-full text-sm text-left whitespace-nowrap">
                                     <thead className="table-pin-header">
                                         <tr className="bg-slate-100">
-                                            <SortHeader label="Month" columnKey="monthFull" currentSort={monthlySort} requestSort={sortMonthly} className="border-r table-pin-col bg-slate-100 z-30" />
-                                            <SortHeader label="2025 Act" columnKey="Act25" currentSort={monthlySort} requestSort={sortMonthly} className="text-right" />
-                                            <SortHeader label="2026 Bud" columnKey="Bud26" currentSort={monthlySort} requestSort={sortMonthly} className="text-right" />
-                                            <SortHeader label="2026 Act" columnKey="Act26" currentSort={monthlySort} requestSort={sortMonthly} className="text-right" />
-                                            {varScenarios.map(sc => <SortHeader key={sc.key} label={sc.label} columnKey={sc.key} currentSort={monthlySort} requestSort={sortMonthly} className={`text-right ${sc.text}`} />)}
+                                            <SortHeader label="Month" columnKey="monthFull" currentSort={monthlySort} requestSort={(k) => handleSortRequest(k, monthlySort, setMonthlySort)} className="border-r table-pin-col bg-slate-100 z-30" />
+                                            <SortHeader label="2025 Act" columnKey="Act25" currentSort={monthlySort} requestSort={(k) => handleSortRequest(k, monthlySort, setMonthlySort)} className="text-right" />
+                                            <SortHeader label="2026 Bud" columnKey="Bud26" currentSort={monthlySort} requestSort={(k) => handleSortRequest(k, monthlySort, setMonthlySort)} className="text-right" />
+                                            <SortHeader label="2026 Act" columnKey="Act26" currentSort={monthlySort} requestSort={(k) => handleSortRequest(k, monthlySort, setMonthlySort)} className="text-right" />
+                                            {varScenarios.map(sc => <SortHeader key={sc.key} label={sc.label} columnKey={sc.key} currentSort={monthlySort} requestSort={(k) => handleSortRequest(k, monthlySort, setMonthlySort)} className={`text-right ${sc.text}`} />)}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {monthlyAggregates.map(row => (
+                                        {sortedMonthly.map(row => (
                                             <tr key={row.monthFull} className="border-b hover:bg-slate-50">
                                                 <td className="p-3 font-bold border-r table-pin-col bg-white">{row.monthFull}</td>
                                                 <td className="p-3 text-right text-slate-500">{formatNum(row.Act25)}</td>
@@ -1650,6 +1610,8 @@
                 if (!isBudgetCommitted) return renderEmptyBudgetWarning();
 
                 const { rcMatrix, topMovers, bottomMovers } = pivotState;
+                const sortedTopMovers = sortArray(topMovers, topSort);
+                const sortedBotMovers = sortArray(bottomMovers, botSort);
 
                 return (
                     <div className="p-6 h-full flex flex-col space-y-6 overflow-hidden">
@@ -1691,17 +1653,17 @@
                                     <table className="w-full text-xs text-left">
                                         <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_#e2e8f0]">
                                             <tr>
-                                                <SortHeader label="#" columnKey="null" currentSort={topSort} requestSort={sortTopMovers} className="text-slate-500" />
-                                                <SortHeader label="2025 Base" columnKey="baseline" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-500" />
-                                                <SortHeader label="2026 Target" columnKey="target" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-500" />
-                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Incline`} columnKey="variance" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-800" />
-                                                <SortHeader label="% Growth" columnKey="pct" currentSort={topSort} requestSort={sortTopMovers} className="text-right text-slate-500" />
-                                                <SortHeader label="Account" columnKey="name" currentSort={topSort} requestSort={sortTopMovers} className="text-slate-800 pl-4" />
+                                                <th className="p-2 text-slate-500">#</th>
+                                                <SortHeader label="2025 Base" columnKey="baseline" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-500" />
+                                                <SortHeader label="2026 Target" columnKey="target" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-500" />
+                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Incline`} columnKey="variance" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-800" />
+                                                <SortHeader label="% Growth" columnKey="pct" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-right text-slate-500" />
+                                                <SortHeader label="Account" columnKey="name" currentSort={topSort} requestSort={(k) => handleSortRequest(k, topSort, setTopSort)} className="text-slate-800 pl-4" />
                                                 <th className="p-2 text-slate-500 w-16">Notes</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {topMovers.map((m, idx) => {
+                                            {sortedTopMovers.map((m, idx) => {
                                                 const commentKey = `${pivotScenario}|${moversTimeFrame}|${m.name}`;
                                                 const hasComment = !!varianceComments[commentKey];
                                                 return (
@@ -1720,7 +1682,7 @@
                                                     </tr>
                                                 );
                                             })}
-                                            {topMovers.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
+                                            {sortedTopMovers.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No inclines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1734,17 +1696,17 @@
                                     <table className="w-full text-xs text-left">
                                         <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_#e2e8f0]">
                                             <tr>
-                                                <SortHeader label="#" columnKey="null" currentSort={botSort} requestSort={sortBottomMovers} className="text-slate-500" />
-                                                <SortHeader label="2025 Base" columnKey="baseline" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-500" />
-                                                <SortHeader label="2026 Target" columnKey="target" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-500" />
-                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Decline`} columnKey="variance" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-800" />
-                                                <SortHeader label="% Growth" columnKey="pct" currentSort={botSort} requestSort={sortBottomMovers} className="text-right text-slate-500" />
-                                                <SortHeader label="Account" columnKey="name" currentSort={botSort} requestSort={sortBottomMovers} className="text-slate-800 pl-4" />
+                                                <th className="p-2 text-slate-500">#</th>
+                                                <SortHeader label="2025 Base" columnKey="baseline" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-500" />
+                                                <SortHeader label="2026 Target" columnKey="target" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-500" />
+                                                <SortHeader label={`${moversRC === 'All' ? '' : moversRC} GWh Decline`} columnKey="variance" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-800" />
+                                                <SortHeader label="% Growth" columnKey="pct" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-right text-slate-500" />
+                                                <SortHeader label="Account" columnKey="name" currentSort={botSort} requestSort={(k) => handleSortRequest(k, botSort, setBotSort)} className="text-slate-800 pl-4" />
                                                 <th className="p-2 text-slate-500 w-16">Notes</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {bottomMovers.map((m, idx) => {
+                                            {sortedBotMovers.map((m, idx) => {
                                                 const commentKey = `${pivotScenario}|${moversTimeFrame}|${m.name}`;
                                                 const hasComment = !!varianceComments[commentKey];
                                                 return (
@@ -1763,7 +1725,7 @@
                                                     </tr>
                                                 );
                                             })}
-                                            {bottomMovers.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
+                                            {sortedBotMovers.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No declines found for this selection.</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1885,7 +1847,7 @@
                 });
 
                 const matrixArr = Object.values(matrixObj);
-                const { items: sortedMatrix, requestSort: sortMatrix, sortConfig: varSort } = useSortableData(matrixArr, {key: 'a26', direction: 'descending'});
+                const sortedMatrix = sortArray(matrixArr, varSort);
 
                 const totA25 = matrixArr.reduce((s,v)=>s+v.a25,0); const totB26 = matrixArr.reduce((s,v)=>s+v.b26,0); const totA26 = matrixArr.reduce((s,v)=>s+v.a26,0);
                 const totLeCust = matrixArr.reduce((s,v)=>s+v.leCust,0); const totLeRc = matrixArr.reduce((s,v)=>s+v.leRc,0); 
@@ -1952,15 +1914,15 @@
                                 <table className="w-full text-sm text-left whitespace-nowrap">
                                     <thead className="table-pin-header">
                                         <tr className="bg-slate-100">
-                                            <SortHeader label={varianceDim.toUpperCase()} columnKey="dim" currentSort={varSort} requestSort={sortMatrix} className="border-r table-pin-col bg-slate-100 z-30" />
-                                            <SortHeader label="2025 Act" columnKey="a25" currentSort={varSort} requestSort={sortMatrix} className="text-right" />
-                                            <SortHeader label="2026 Bud" columnKey="b26" currentSort={varSort} requestSort={sortMatrix} className="text-right" />
-                                            <SortHeader label="2026 Act" columnKey="a26" currentSort={varSort} requestSort={sortMatrix} className="text-right border-l border-slate-300" />
+                                            <SortHeader label={varianceDim.toUpperCase()} columnKey="dim" currentSort={varSort} requestSort={(k) => handleSortRequest(k, varSort, setVarSort)} className="border-r table-pin-col bg-slate-100 z-30" />
+                                            <SortHeader label="2025 Act" columnKey="a25" currentSort={varSort} requestSort={(k) => handleSortRequest(k, varSort, setVarSort)} className="text-right" />
+                                            <SortHeader label="2026 Bud" columnKey="b26" currentSort={varSort} requestSort={(k) => handleSortRequest(k, varSort, setVarSort)} className="text-right" />
+                                            <SortHeader label="2026 Act" columnKey="a26" currentSort={varSort} requestSort={(k) => handleSortRequest(k, varSort, setVarSort)} className="text-right border-l border-slate-300" />
                                             <th className="p-2 text-right text-xs text-slate-500">vs Bud</th>
                                             <th className="p-2 text-right text-xs text-slate-500">vs PY</th>
                                             {varScenarios.map(sc => (
                                                 <React.Fragment key={sc.key}>
-                                                    <SortHeader label={sc.label} columnKey={sc.key.replace('Le', 'le')} currentSort={varSort} requestSort={sortMatrix} className={`text-right border-l border-slate-300 ${sc.headText} ${sc.headBg}`} />
+                                                    <SortHeader label={sc.label} columnKey={sc.key.replace('Le', 'le')} currentSort={varSort} requestSort={(k) => handleSortRequest(k, varSort, setVarSort)} className={`text-right border-l border-slate-300 ${sc.headText} ${sc.headBg}`} />
                                                     <th className={`p-2 text-right text-xs ${sc.text.replace('600', '500')} ${sc.headBg}`}>vs Bud</th>
                                                     <th className={`p-2 text-right text-xs ${sc.text.replace('600', '500')} ${sc.headBg}`}>vs PY</th>
                                                 </React.Fragment>
@@ -2041,7 +2003,7 @@
                     return { rc, a25, b26, le26, lCust26, lRc26, lBase26, lCustom26, vsBud, vsPY };
                 });
 
-                const { items: sortedRcs, requestSort: sortRc, sortConfig: rcSort } = useSortableData(mappedRcs, {key: 'rc', direction: 'asc'});
+                const sortedRcs = sortArray(mappedRcs, forecastSort);
 
                 return (
                     <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
@@ -2064,15 +2026,15 @@
                             <table className="w-full text-sm text-left whitespace-nowrap">
                                 <thead className="bg-slate-100 text-slate-600 font-bold">
                                     <tr>
-                                        <SortHeader label="Rate Category" columnKey="rc" currentSort={rcSort} requestSort={sortRc} />
-                                        <SortHeader label="2025 Act" columnKey="a25" currentSort={rcSort} requestSort={sortRc} className="text-right" />
-                                        <SortHeader label="2026 Bud" columnKey="b26" currentSort={rcSort} requestSort={sortRc} className="text-right" />
-                                        <SortHeader label="LE Cust Vol" columnKey="lCust26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leCust' ? 'bg-purple-100 text-purple-800' : 'text-purple-600/70'}`} />
-                                        <SortHeader label="LE RC Vol" columnKey="lRc26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leRC' ? 'bg-blue-100 text-blue-800' : 'text-blue-600/70'}`} />
-                                        <SortHeader label="LE Base" columnKey="lBase26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leBase' ? 'bg-orange-100 text-orange-800' : 'text-orange-600/70'}`} />
-                                        <SortHeader label="LE Advanced" columnKey="lCustom26" currentSort={rcSort} requestSort={sortRc} className={`text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`} />
-                                        <SortHeader label="Active LE vs Bud %" columnKey="vsBud" currentSort={rcSort} requestSort={sortRc} className="text-right border-l border-slate-200" />
-                                        <SortHeader label="Active LE vs PY %" columnKey="vsPY" currentSort={rcSort} requestSort={sortRc} className="text-right" />
+                                        <SortHeader label="Rate Category" columnKey="rc" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} />
+                                        <SortHeader label="2025 Act" columnKey="a25" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className="text-right" />
+                                        <SortHeader label="2026 Bud" columnKey="b26" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className="text-right" />
+                                        <SortHeader label="LE Cust Vol" columnKey="lCust26" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className={`text-right ${activeMode === 'leCust' ? 'bg-purple-100 text-purple-800' : 'text-purple-600/70'}`} />
+                                        <SortHeader label="LE RC Vol" columnKey="lRc26" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className={`text-right ${activeMode === 'leRC' ? 'bg-blue-100 text-blue-800' : 'text-blue-600/70'}`} />
+                                        <SortHeader label="LE Base" columnKey="lBase26" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className={`text-right ${activeMode === 'leBase' ? 'bg-orange-100 text-orange-800' : 'text-orange-600/70'}`} />
+                                        <SortHeader label="LE Advanced" columnKey="lCustom26" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className={`text-right ${activeMode === 'leCustom' ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-600/70'}`} />
+                                        <SortHeader label="Active LE vs Bud %" columnKey="vsBud" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className="text-right border-l border-slate-200" />
+                                        <SortHeader label="Active LE vs PY %" columnKey="vsPY" currentSort={forecastSort} requestSort={(k) => handleSortRequest(k, forecastSort, setForecastSort)} className="text-right" />
                                     </tr>
                                 </thead>
                                 <tbody>
