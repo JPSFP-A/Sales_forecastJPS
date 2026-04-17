@@ -54,16 +54,13 @@
 <body class="bg-slate-100 text-slate-800 font-sans h-screen overflow-hidden flex flex-col">
     <div id="root" class="h-full flex flex-col"></div>
 
-    <script type="text/babel">
-        // ============================================================
-        // TEAM DEPLOYMENT: Paste your Supabase credentials here.
-        // Everyone who opens this file will auto-connect — no setup.
-        // Leave as empty strings '' to use manual Data Hub entry instead.
-        // ============================================================
-        const EMBEDDED_SUPABASE_URL = 'https://bhrswnbenkvflpdjhfpa.supabase.co';
-        const EMBEDDED_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJocnN3bmJlbmt2ZmxwZGpoZnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMTc0OTcsImV4cCI6MjA5MTg5MzQ5N30.JupFs0tnMn3k282PqFOSMi2ch-wtB7Ewv7O8fN16-94';
-        // ============================================================
+    <!-- Edit the two window. lines below to change credentials -->
+    <script>
+        window.EMBEDDED_SUPABASE_URL = 'https://bhrswnbenkvflpdjhfpa.supabase.co';
+        window.EMBEDDED_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJocnN3bmJlbmt2ZmxwZGpoZnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMTc0OTcsImV4cCI6MjA5MTg5MzQ5N30.JupFs0tnMn3k282PqFOSMi2ch-wtB7Ewv7O8fN16-94';
+    </script>
 
+    <script type="text/babel">
         const { useState, useMemo, useEffect, useCallback, Component } = React;
         const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
 
@@ -190,13 +187,6 @@
         const formatPct = (num) => (Number(num||0) * 100).toFixed(1) + '%';
         const cleanVal = (val) => parseFloat((val || '0').toString().replace(/,/g, ''));
 
-        // ─── EMBEDDED CREDENTIALS ───────────────────────────────────────────────
-        // Set these once. Everyone who opens this file auto-connects to Supabase.
-        // Leave blank ('') to fall back to the manual Data Hub entry form.
-        const EMBEDDED_SUPABASE_URL = '';  // e.g. 'https://xyz.supabase.co'
-        const EMBEDDED_SUPABASE_KEY = '';  // e.g. 'eyJh...'
-        // ────────────────────────────────────────────────────────────────────────
-
         const parseCSV = (text) => {
             const rows = []; let currentRow = []; let currentCell = ''; let inQuotes = false;
             for (let i = 0; i < text.length; i++) {
@@ -232,9 +222,9 @@
             // --- SUPABASE CONFIGURATION ---
             // Priority: embedded constants > localStorage > empty
             const [supabaseConfig, setSupabaseConfig] = useState(() => {
-                if (EMBEDDED_SUPABASE_URL && EMBEDDED_SUPABASE_KEY) {
+                if (window.EMBEDDED_SUPABASE_URL && window.EMBEDDED_SUPABASE_KEY) {
                     // Embedded creds win — persist to localStorage so manual sync button works too
-                    const cfg = { url: EMBEDDED_SUPABASE_URL, key: EMBEDDED_SUPABASE_KEY };
+                    const cfg = { url: window.EMBEDDED_SUPABASE_URL, key: window.EMBEDDED_SUPABASE_KEY };
                     localStorage.setItem('jps_supabase_config', JSON.stringify(cfg));
                     return cfg;
                 }
@@ -424,8 +414,8 @@
                     // Use embedded creds first, then localStorage
                     const savedStr = localStorage.getItem('jps_supabase_config');
                     const savedCfg = savedStr ? JSON.parse(savedStr) : null;
-                    const bootCfg = (EMBEDDED_SUPABASE_URL && EMBEDDED_SUPABASE_KEY)
-                        ? { url: EMBEDDED_SUPABASE_URL, key: EMBEDDED_SUPABASE_KEY }
+                    const bootCfg = (window.EMBEDDED_SUPABASE_URL && window.EMBEDDED_SUPABASE_KEY)
+                        ? { url: window.EMBEDDED_SUPABASE_URL, key: window.EMBEDDED_SUPABASE_KEY }
                         : savedCfg;
                     
                     let cloudSuccess = false;
@@ -1167,16 +1157,16 @@
                 <div className="p-8 max-w-5xl mx-auto space-y-6">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
                         <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp /> Supabase Integration & API Config</h3>
-                        {EMBEDDED_SUPABASE_URL && EMBEDDED_SUPABASE_KEY ? (
+                        {window.EMBEDDED_SUPABASE_URL && window.EMBEDDED_SUPABASE_KEY ? (
                             <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 mb-4 flex items-start gap-3">
                                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 mt-1 shrink-0 animate-pulse"></span>
                                 <div>
                                     <p className="text-sm font-bold text-emerald-400">Credentials Embedded in File</p>
-                                    <p className="text-xs text-slate-400 mt-1">This file has hardcoded Supabase credentials. Anyone you share it with will auto-connect on load — no setup needed. To change credentials, update <code className="text-amber-400">EMBEDDED_SUPABASE_URL</code> and <code className="text-amber-400">EMBEDDED_SUPABASE_KEY</code> at the top of the script.</p>
+                                    <p className="text-xs text-slate-400 mt-1">This file has hardcoded Supabase credentials. Anyone you share it with will auto-connect on load — no setup needed. To change credentials, update <code className="text-amber-400">window.EMBEDDED_SUPABASE_URL</code> and <code className="text-amber-400">window.EMBEDDED_SUPABASE_KEY</code> at the top of the script.</p>
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-xs text-slate-400 mb-4 max-w-3xl">Enter your Supabase Project URL and Anon Key to automatically fetch data and sync scenarios. <strong>Credentials saved in browser localStorage.</strong> To bake them into the file for colleagues, set <code className="text-amber-400">EMBEDDED_SUPABASE_URL</code> and <code className="text-amber-400">EMBEDDED_SUPABASE_KEY</code> at the top of the script.</p>
+                            <p className="text-xs text-slate-400 mb-4 max-w-3xl">Enter your Supabase Project URL and Anon Key to automatically fetch data and sync scenarios. <strong>Credentials saved in browser localStorage.</strong> To bake them into the file for colleagues, set <code className="text-amber-400">window.EMBEDDED_SUPABASE_URL</code> and <code className="text-amber-400">window.EMBEDDED_SUPABASE_KEY</code> at the top of the script.</p>
                         )}
                         <div className="flex items-center gap-2 mb-4">
                             <span className="text-xs font-bold text-slate-400 uppercase">Status:</span>
@@ -1187,12 +1177,12 @@
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Supabase Project URL {EMBEDDED_SUPABASE_URL && <span className="text-emerald-400">(embedded)</span>}</label>
-                                <input type="text" value={supabaseConfig.url} onChange={e=>updateSupabaseConfig('url', e.target.value)} readOnly={!!(EMBEDDED_SUPABASE_URL && EMBEDDED_SUPABASE_KEY)} className={`w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500 ${EMBEDDED_SUPABASE_URL ? 'opacity-60 cursor-not-allowed' : ''}`} placeholder="https://xyz.supabase.co" />
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Supabase Project URL {window.EMBEDDED_SUPABASE_URL && <span className="text-emerald-400">(embedded)</span>}</label>
+                                <input type="text" value={supabaseConfig.url} onChange={e=>updateSupabaseConfig('url', e.target.value)} readOnly={!!(window.EMBEDDED_SUPABASE_URL && window.EMBEDDED_SUPABASE_KEY)} className={`w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500 ${window.EMBEDDED_SUPABASE_URL ? 'opacity-60 cursor-not-allowed' : ''}`} placeholder="https://xyz.supabase.co" />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Supabase Anon Key {EMBEDDED_SUPABASE_KEY && <span className="text-emerald-400">(embedded)</span>}</label>
-                                <input type="password" value={supabaseConfig.key} onChange={e=>updateSupabaseConfig('key', e.target.value)} readOnly={!!(EMBEDDED_SUPABASE_URL && EMBEDDED_SUPABASE_KEY)} className={`w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500 ${EMBEDDED_SUPABASE_KEY ? 'opacity-60 cursor-not-allowed' : ''}`} placeholder="eyJh..." />
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Supabase Anon Key {window.EMBEDDED_SUPABASE_KEY && <span className="text-emerald-400">(embedded)</span>}</label>
+                                <input type="password" value={supabaseConfig.key} onChange={e=>updateSupabaseConfig('key', e.target.value)} readOnly={!!(window.EMBEDDED_SUPABASE_URL && window.EMBEDDED_SUPABASE_KEY)} className={`w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm outline-none focus:border-blue-500 ${window.EMBEDDED_SUPABASE_KEY ? 'opacity-60 cursor-not-allowed' : ''}`} placeholder="eyJh..." />
                             </div>
                         </div>
                         <button onClick={fetchCloudDataFromButton} disabled={isLoadingUrl.actuals} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2">
