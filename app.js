@@ -435,10 +435,10 @@
                                 downloadCSV('actuals.csv'),
                                 downloadCSV('budget.csv')
                             ]);
-                            if (actText && isMounted) { setRawActuals(parseCSV(actText)); cloudSuccess = true; }
+                            if (actText && isMounted) { setRawActuals(parseCSV(actText)); setHasAutoAllocated(false); cloudSuccess = true; }
                             if (budText && isMounted) {
                                 const pb = parseCSV(budText);
-                                setRawBudget(pb); setOriginalBudget([...pb]); cloudSuccess = true;
+                                setRawBudget(pb); setOriginalBudget([...pb]); setHasAutoAllocated(false); cloudSuccess = true;
                             }
 
                             const { data: configData } = await supabaseClient.from('dashboard_state').select('payload').eq('id', 1).single();
@@ -483,6 +483,31 @@
                 return () => { isMounted = false; };
             }, []);
 
+
+            // Load audit log when Audit Log tab is opened
+            React.useEffect(() => {
+                if (activeTab !== 'auditlog') return;
+                const url = window.EMBEDDED_SUPABASE_URL;
+                const key = window.EMBEDDED_SUPABASE_KEY;
+                if (!url || !key) return;
+                const sb = window.supabase.createClient(url, key);
+                sb.from('audit_log')
+                  .select('*')
+                  .order('created_at', { ascending: false })
+                  .limit(500)
+                  .then(({ data, error }) => {
+                      if (!error && data) {
+                          setAuditLog(data.map(r => ({
+                              id: r.id,
+                              timestamp: r.created_at,
+                              user: r.user_name,
+                              action: r.action,
+                              details: r.details || {},
+                          })));
+                      }
+                  });
+            }, [activeTab]);
+
             // 3. REALTIME + PRESENCE SUBSCRIPTION (deferred — non-blocking)
             React.useEffect(() => {
                 const url = window.EMBEDDED_SUPABASE_URL;
@@ -524,8 +549,8 @@
 
                 presenceChannelRef.current = presenceCh;
 
-                // --- Realtime channel: dashboard_state changes ---
-                const realtimeCh = sb.channel('jps_dashboard_state')
+                // --- Realtime channel: dashboard_state + audit_log ---
+                const realtimeCh = sb.channel('jps_realtime')
                     .on('postgres_changes', {
                         event: 'UPDATE',
                         schema: 'public',
@@ -539,6 +564,63 @@
                         setOverviewComments(parsed.overviewComments || '');
                         if (parsed.accountNameMap) setAccountNameMap(parsed.accountNameMap);
                         showToast('Dashboard updated by a teammate', 'update');
+                    })
+                    .on('postgres_changes', {
+                        event: 'INSERT',
+                        schema: 'public',
+                        table: 'audit_log'
+                    }, (payload) => {
+                        if (!payload.new) return;
+                        const entry = payload.new;
+                        // Only show toast for other users' actions
+                        if (entry.user_name !== currentUser) {
+                            showToast(`${entry.user_name}: ${entry.action.replace(/_/g,' ')}`, 'info');
+                        }
+                        setAuditLog(prev => [{
+                            id: entry.id,
+                            timestamp: entry.created_at,
+                            user: entry.user_name,
+                            action: entry.action,
+                            details: entry.details,
+                        }, ...prev].slice(0, 200));
+                    })
+                    .on('postgres_changes', {
+                        event: 'INSERT',
+                        schema: 'public',
+                        table: 'net_gen_historical'
+                    }, (payload) => {
+                        if (!payload.new) return;
+                        const r = payload.new;
+                        setNetGenData(prev => {
+                            if (!prev || !prev.loaded) return prev;
+                            const ng = { ...prev.netGen };
+                            const pk = { ...prev.peak };
+                            if (!ng[r.year]) { ng[r.year] = Array(12).fill(0); pk[r.year] = Array(12).fill(0); }
+                            ng[r.year][r.month-1] = Number(r.net_gen_mwh);
+                            pk[r.year][r.month-1] = Number(r.peak_mw);
+                            return { netGen: ng, peak: pk, loaded: true };
+                        });
+                    })
+                    .on('postgres_changes', {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'net_gen_historical'
+                    }, (payload) => {
+                        if (!payload.new) return;
+                        const r = payload.new;
+                        setNetGenData(prev => {
+                            if (!prev || !prev.loaded) return prev;
+                            const ng = { ...prev.netGen };
+                            const pk = { ...prev.peak };
+                            if (ng[r.year]) {
+                                ng[r.year] = [...ng[r.year]];
+                                pk[r.year] = [...pk[r.year]];
+                                ng[r.year][r.month-1] = Number(r.net_gen_mwh);
+                                pk[r.year][r.month-1] = Number(r.peak_mw);
+                            }
+                            return { netGen: ng, peak: pk, loaded: true };
+                        });
+                        showToast('Net Gen data updated', 'update');
                     })
                     .subscribe();
 
@@ -894,6 +976,10 @@
                 if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0 && !hasAutoAllocated) {
                     commitAllocation();
                     setHasAutoAllocated(true);
+                    logAuditEvent('AUTO_ALLOCATION', { 
+                        rows: allocationResults.length,
+                        unallocated: allocationResults.filter(r=>r.name==='NO HISTORY'||r.name==='ZERO HISTORY').length
+                    });
                 }
             }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation, hasAutoAllocated]);
 
@@ -1109,8 +1195,8 @@
                 const reader = new FileReader();
                 reader.onload = (evt) => { 
                     const data = parseCSV(evt.target.result); 
-                    if(isBudget) { setRawBudget(data); setOriginalBudget([...data]); setIsBudgetCommitted(false); } 
-                    else { setRawActuals(data); } 
+                    if(isBudget) { setRawBudget(data); setOriginalBudget([...data]); setIsBudgetCommitted(false); setHasAutoAllocated(false); } 
+                    else { setRawActuals(data); setHasAutoAllocated(false); } 
                 };
                 reader.readAsText(e.target.files[0]);
             };
@@ -1146,7 +1232,7 @@
                 setSavedVersions(updatedVersions);
                 if (supabaseConfig.url && supabaseConfig.key) {
                     pushScenariosToCloud(updatedVersions, varianceComments);
-                    showToast(`Scenario "${name}" saved by ${currentUser || 'you'}`, 'update');
+                    showToast(`Scenario "${name}" saved by ${currentUser || 'you'}`, 'update'); logAuditEvent('SAVE_SCENARIO', { name });
                 } else {
                     showToast(`Scenario "${name}" saved locally`, 'info');
                 }
@@ -1287,6 +1373,36 @@
 
             const [expandedChart, setExpandedChart] = React.useState(null);
 
+            // --- AUDIT TRAIL STATE ---
+            const [auditLog, setAuditLog] = React.useState([]);
+
+            const logAuditEvent = React.useCallback((action, details = {}) => {
+                const entry = {
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    user: currentUser || 'Unknown',
+                    action,
+                    details,
+                };
+                setAuditLog(prev => [entry, ...prev].slice(0, 200)); // keep last 200 in memory
+
+                // Persist to Supabase
+                const url = window.EMBEDDED_SUPABASE_URL;
+                const key = window.EMBEDDED_SUPABASE_KEY;
+                if (!url || !key) return;
+                const sb = window.supabase.createClient(url, key);
+                sb.from('audit_log').insert({
+                    user_name: entry.user,
+                    action: entry.action,
+                    details: entry.details,
+                    created_at: entry.timestamp,
+                }).then(({ error }) => {
+                    if (error) console.warn('Audit log failed:', error.message);
+                });
+            }, [currentUser]);
+
+
+
             // --- NET GEN TAB STATE (hoisted from render fn) ---
             const [ngSysLossPct, setNgSysLossPct] = React.useState(26.0);
             const [ngGrowthMethod, setNgGrowthMethod] = React.useState('seasonal');
@@ -1319,6 +1435,8 @@
 
             // --- CUSTOMER TAB STATE (hoisted) ---
             const [newAcct, setNewAcct] = React.useState({ acct: '', name: '', rc: 'RT40', parish: '', industry: '', kvaDemand: '', notes: '' });
+            // --- AUDIT LOG TAB STATE (hoisted) ---
+            const [auditFilter, setAuditFilter] = React.useState('ALL');
 
 
 
@@ -3358,7 +3476,7 @@
                     if (error) {
                         showMsg('Save failed: ' + error.message, 'error');
                     } else {
-                        showMsg(`✓ ${monthNames[entryMonth-1]} ${entryYear} saved — Net Gen: ${formatNum(parseFloat(entryNetGen))} MWh, Peak: ${entryPeak} MW`);
+                        showMsg(`✓ ${monthNames[entryMonth-1]} ${entryYear} saved — Net Gen: ${formatNum(parseFloat(entryNetGen))} MWh, Peak: ${entryPeak} MW`); logAuditEvent('NET_GEN_ENTRY', { year: entryYear, month: entryMonth, net_gen_mwh: parseFloat(entryNetGen), peak_mw: parseFloat(entryPeak) });
                         setEntryNetGen(''); setEntryPeak('');
                         // Refresh table
                         const { data } = await sb.from('net_gen_historical').select('*').order('year', { ascending: false }).order('month', { ascending: false });
@@ -3375,7 +3493,7 @@
                     if (!sb) return;
                     if (!confirm(`Delete ${monthNames[month-1]} ${year}?`)) return;
                     const { error } = await sb.from('net_gen_historical').delete().eq('year', year).eq('month', month);
-                    if (!error) {
+                    if (!error) { logAuditEvent('NET_GEN_DELETE', { year, month });
                         const { data } = await sb.from('net_gen_historical').select('*').order('year', { ascending: false }).order('month', { ascending: false });
                         if (data) setNgTableData(data);
                         showMsg(`Deleted ${monthNames[month-1]} ${year}`);
@@ -3388,6 +3506,7 @@
                         .update({ net_gen_mwh: parseFloat(editingRow.net_gen_mwh), peak_mw: parseFloat(editingRow.peak_mw) })
                         .eq('year', editingRow.year).eq('month', editingRow.month);
                     if (!error) {
+                        logAuditEvent('NET_GEN_UPDATE', { year: editingRow.year, month: editingRow.month });
                         setEditingRow(null);
                         const { data } = await sb.from('net_gen_historical').select('*').order('year', { ascending: false }).order('month', { ascending: false });
                         if (data) setNgTableData(data);
@@ -3410,9 +3529,9 @@
                         // Trigger re-fetch of actuals/budget
                         const text = await file.text();
                         const parsed = parseCSV(text);
-                        if (filename === 'actuals.csv') setRawActuals(parsed);
-                        else { setRawBudget(parsed); setOriginalBudget([...parsed]); setIsBudgetCommitted(false); }
-                        setUploadMessage({ text: `✓ ${filename} uploaded and loaded into the dashboard.`, type: 'success' });
+                        if (filename === 'actuals.csv') { setRawActuals(parsed); setHasAutoAllocated(false); }
+                        else { setRawBudget(parsed); setOriginalBudget([...parsed]); setIsBudgetCommitted(false); setHasAutoAllocated(false); }
+                        setUploadMessage({ text: `✓ ${filename} uploaded and loaded into the dashboard.`, type: 'success' }); logAuditEvent('CSV_UPLOAD', { filename, rows: parsed.length });
                     } catch (e) {
                         setUploadMessage({ text: 'Upload failed: ' + e.message, type: 'error' });
                     } finally {
@@ -3887,6 +4006,107 @@
                 );
             };
 
+
+            // ============================================================
+            // TAB: AUDIT LOG
+            // ============================================================
+            const renderAuditLogTab = () => {
+                // Audit entries loaded by top-level useEffect
+
+                const ACTION_COLORS = {
+                    'AUTO_ALLOCATION': 'bg-blue-100 text-blue-700',
+                    'SAVE_SCENARIO': 'bg-emerald-100 text-emerald-700',
+                    'NET_GEN_ENTRY': 'bg-purple-100 text-purple-700',
+                    'CSV_UPLOAD': 'bg-amber-100 text-amber-700',
+                    'NET_GEN_DELETE': 'bg-red-100 text-red-700',
+                    'NET_GEN_UPDATE': 'bg-orange-100 text-orange-700',
+                };
+
+                const actionTypes = ['ALL', ...Object.keys(ACTION_COLORS)];
+                const filtered = auditFilter === 'ALL' ? auditLog : auditLog.filter(e => e.action === auditFilter);
+
+                const formatTimestamp = (ts) => {
+                    try {
+                        const d = new Date(ts);
+                        return d.toLocaleString('en-US', { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+                    } catch { return ts; }
+                };
+
+                const formatDetails = (action, details) => {
+                    if (!details) return '';
+                    switch(action) {
+                        case 'AUTO_ALLOCATION': return `${details.rows} rows allocated · ${details.unallocated} unresolved`;
+                        case 'SAVE_SCENARIO': return `Scenario: "${details.name}"`;
+                        case 'NET_GEN_ENTRY': return `${monthNames[(details.month||1)-1]} ${details.year} — ${formatNum(details.net_gen_mwh)} MWh / ${details.peak_mw} MW`;
+                        case 'NET_GEN_UPDATE': return `${monthNames[(details.month||1)-1]} ${details.year} updated`;
+                        case 'NET_GEN_DELETE': return `${monthNames[(details.month||1)-1]} ${details.year} deleted`;
+                        case 'CSV_UPLOAD': return `${details.filename} — ${formatNum(details.rows)} rows`;
+                        default: return JSON.stringify(details).slice(0, 80);
+                    }
+                };
+
+                return (
+                    <div className="p-4 h-full flex flex-col space-y-3 overflow-hidden">
+                        <div className="bg-white rounded-xl border p-3 shadow-sm flex items-center justify-between flex-wrap gap-3 shrink-0">
+                            <div>
+                                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.History /> Audit Log</h2>
+                                <p className="text-xs text-slate-500">{filtered.length} events · Real-time · All team activity</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <select value={auditFilter} onChange={e=>setAuditFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs font-bold outline-none focus:border-blue-400 bg-white">
+                                    {actionTypes.map(t=><option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+                                </select>
+                                <button onClick={()=>exportToExcel(filtered.map(e=>({Timestamp:e.timestamp,User:e.user,Action:e.action,Details:formatDetails(e.action,e.details)})),'Audit_Log')} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold border transition flex items-center gap-1">
+                                    <Icons.Download /> Excel
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl border shadow-sm flex-1 overflow-hidden flex flex-col">
+                            <div className="overflow-y-auto custom-scroll flex-1">
+                                <table className="w-full text-xs">
+                                    <thead className="sticky top-0 bg-slate-100 z-10">
+                                        <tr>
+                                            <th className="p-2 text-left font-bold text-slate-600 w-32">Time</th>
+                                            <th className="p-2 text-left font-bold text-slate-600 w-28">User</th>
+                                            <th className="p-2 text-left font-bold text-slate-600 w-36">Action</th>
+                                            <th className="p-2 text-left font-bold text-slate-600">Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filtered.length === 0 && (
+                                            <tr><td colSpan="4" className="p-8 text-center text-slate-400">
+                                                No audit events yet. Actions like saving scenarios, uploading data, and entering net gen figures will appear here in real-time.
+                                            </td></tr>
+                                        )}
+                                        {filtered.map((entry, i) => (
+                                            <tr key={entry.id || i} className={`border-b hover:bg-slate-50 ${entry.user === currentUser ? 'bg-blue-50/20' : ''}`}>
+                                                <td className="p-2 text-slate-500 whitespace-nowrap font-mono">{formatTimestamp(entry.timestamp)}</td>
+                                                <td className="p-2 font-bold text-slate-700">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white flex-shrink-0"
+                                                            style={{backgroundColor: getColor(entry.user || 'unknown')}}>
+                                                            {(entry.user||'?').substring(0,2).toUpperCase()}
+                                                        </div>
+                                                        <span className="truncate max-w-[80px]" title={entry.user}>{entry.user}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-2">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${ACTION_COLORS[entry.action] || 'bg-slate-100 text-slate-600'}`}>
+                                                        {entry.action.replace(/_/g,' ')}
+                                                    </span>
+                                                </td>
+                                                <td className="p-2 text-slate-600">{formatDetails(entry.action, entry.details)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
             const renderGlossaryTab = () => (
                 <div className="p-4 h-full overflow-y-auto custom-scroll">
                     <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
@@ -4055,9 +4275,9 @@
                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Analysis Engine</div>
                                     
                                     <button onClick={()=>setActiveTab('comparison')} className={`dashboard-tab ${activeTab==='comparison'?'active':''}`}><Icons.Grid /> Scenario Compare</button>
-                                    <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator /> Allocations</button>
                                     <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp /> Variance Matrix</button>
                                     <button onClick={()=>setActiveTab('validation')} className={`dashboard-tab ${activeTab==='validation'?'active':''}`}><Icons.CheckCircle /> Validation</button>
+                                    <button onClick={()=>setActiveTab('auditlog')} className={`dashboard-tab ${activeTab==='auditlog'?'active':''}`}><Icons.History /> Audit Log</button>
                                     <button onClick={()=>setActiveTab('customers')} className={`dashboard-tab ${activeTab==='customers'?'active':''}`}><Icons.Users /> Customer Data</button>
                                     <button onClick={()=>setActiveTab('dataentry')} className={`dashboard-tab ${activeTab==='dataentry'?'active':''}`}><Icons.Save /> Data Entry</button>
                                 </>
@@ -4122,6 +4342,7 @@
                                             {activeTab === 'rolling18' && renderRolling18Tab()}
                                             {activeTab === 'customers' && renderCustomerTab()}
                                             {activeTab === 'validation' && renderValidationTab()}
+                                            {activeTab === 'auditlog' && renderAuditLogTab()}
                                             {activeTab === 'dataentry' && renderDataEntryTab()}
                                         </>
                                     )}
