@@ -1,8 +1,7 @@
-const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
-        const { createRef } = React;
+// Hooks accessed via React global to ensure availability after CDN load
         const { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
 
-        class ErrorBoundary extends Component {
+        class ErrorBoundary extends React.Component {
             constructor(props) {
                 super(props);
                 this.state = { hasError: false, error: null };
@@ -13,7 +12,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                     return (
                         <div className="flex h-full w-full items-center justify-center p-6 bg-slate-100">
                             <div className="bg-red-50 border border-red-200 p-8 rounded-xl max-w-2xl w-full shadow-lg">
-                                <h1 className="text-2xl font-black text-red-700 mb-4">Oops! The App Crashed</h1>
+                                <h1 className="text-base font-black text-red-700 mb-4">Oops! The App Crashed</h1>
                                 <p className="text-sm text-red-600 mb-4">Something went wrong during execution. Check the error details below:</p>
                                 <pre className="bg-white p-4 rounded text-xs text-slate-800 overflow-auto shadow-inner">{this.state.error && this.state.error.toString()}</pre>
                             </div>
@@ -155,17 +154,17 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
         };
 
         function App() {
-            const [activeTab, setActiveTab] = useState('overview');
+            const [activeTab, setActiveTab] = React.useState('overview');
 
             // --- PRESENCE & IDENTITY ---
-            const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('jps_user_name') || '');
-            const [showNamePrompt, setShowNamePrompt] = useState(false);
-            const [nameInput, setNameInput] = useState('');
-            const [onlineUsers, setOnlineUsers] = useState({});  // { userId: { name, color, lastSeen } }
-            const [realtimeToast, setRealtimeToast] = useState(null); // { msg, type }
-            const presenceChannelRef = useRef(null);
-            const realtimeChannelRef = useRef(null);
-            const userIdRef = useMemo(() => {
+            const [currentUser, setCurrentUser] = React.useState(() => localStorage.getItem('jps_user_name') || '');
+            const [showNamePrompt, setShowNamePrompt] = React.useState(false);
+            const [nameInput, setNameInput] = React.useState('');
+            const [onlineUsers, setOnlineUsers] = React.useState({});  // { userId: { name, color, lastSeen } }
+            const [realtimeToast, setRealtimeToast] = React.useState(null); // { msg, type }
+            const presenceChannelRef = React.useRef(null);
+            const realtimeChannelRef = React.useRef(null);
+            const userIdRef = React.useMemo(() => {
                 let id = localStorage.getItem('jps_user_id');
                 if (!id) { id = 'u_' + Math.random().toString(36).substr(2, 9); localStorage.setItem('jps_user_id', id); }
                 return id;
@@ -181,7 +180,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             };
 
             // Show name prompt on first load if no name stored
-            useEffect(() => {
+            React.useEffect(() => {
                 if (!currentUser) setShowNamePrompt(true);
             }, []);
 
@@ -195,7 +194,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
 
             // --- SUPABASE CONFIGURATION ---
             // Priority: embedded constants > localStorage > empty
-            const [supabaseConfig, setSupabaseConfig] = useState(() => {
+            const [supabaseConfig, setSupabaseConfig] = React.useState(() => {
                 if (window.EMBEDDED_SUPABASE_URL && window.EMBEDDED_SUPABASE_KEY) {
                     // Embedded creds win — persist to localStorage so manual sync button works too
                     const cfg = { url: window.EMBEDDED_SUPABASE_URL, key: window.EMBEDDED_SUPABASE_KEY };
@@ -205,7 +204,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 const saved = localStorage.getItem('jps_supabase_config');
                 return saved ? JSON.parse(saved) : { url: '', key: '' };
             });
-            const [supabaseStatus, setSupabaseStatus] = useState('disconnected');
+            const [supabaseStatus, setSupabaseStatus] = React.useState('disconnected');
 
             const updateSupabaseConfig = (field, value) => {
                 setSupabaseConfig(prev => {
@@ -216,76 +215,76 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             };
 
             // STATE VARIABLES
-            const [rawActuals, setRawActuals] = useState([]);
-            const [rawBudget, setRawBudget] = useState([]);
-            const [originalBudget, setOriginalBudget] = useState([]);
-            const [isBudgetCommitted, setIsBudgetCommitted] = useState(false);
+            const [rawActuals, setRawActuals] = React.useState([]);
+            const [rawBudget, setRawBudget] = React.useState([]);
+            const [originalBudget, setOriginalBudget] = React.useState([]);
+            const [isBudgetCommitted, setIsBudgetCommitted] = React.useState(false);
             
-            const [isLoadingUrl, setIsLoadingUrl] = useState({ budget: false, actuals: false });
-            const [loadError, setLoadError] = useState('');
+            const [isLoadingUrl, setIsLoadingUrl] = React.useState({ budget: false, actuals: false });
+            const [loadError, setLoadError] = React.useState('');
             
-            const [isPushing, setIsPushing] = useState(false);
-            const [isSyncingConfigs, setIsSyncingConfigs] = useState(false);
-            const [hasAutoRestored, setHasAutoRestored] = useState(false);
-            const [hasAutoAllocated, setHasAutoAllocated] = useState(false);
+            const [isPushing, setIsPushing] = React.useState(false);
+            const [isSyncingConfigs, setIsSyncingConfigs] = React.useState(false);
+            const [hasAutoRestored, setHasAutoRestored] = React.useState(false);
+            const [hasAutoAllocated, setHasAutoAllocated] = React.useState(false);
 
             // Filters & State
-            const [ytdMonth, setYtdMonth] = useState('All');
-            const [fMonth, setFMonth] = useState('All');
-            const [fYear, setFYear] = useState('All');
-            const [fRC, setFRC] = useState('All');
-            const [fParish, setFParish] = useState('All');
-            const [fInd, setFInd] = useState('All');
-            const [fCust, setFCust] = useState('All'); 
+            const [ytdMonth, setYtdMonth] = React.useState('All');
+            const [fMonth, setFMonth] = React.useState('All');
+            const [fYear, setFYear] = React.useState('All');
+            const [fRC, setFRC] = React.useState('All');
+            const [fParish, setFParish] = React.useState('All');
+            const [fInd, setFInd] = React.useState('All');
+            const [fCust, setFCust] = React.useState('All'); 
 
             // Configuration State
-            const [monthMapping, setMonthMapping] = useState({});
-            const [allocOverrides, setAllocOverrides] = useState({});
-            const [accountNameMap, setAccountNameMap] = useState({}); 
+            const [monthMapping, setMonthMapping] = React.useState({});
+            const [allocOverrides, setAllocOverrides] = React.useState({});
+            const [accountNameMap, setAccountNameMap] = React.useState({}); 
             
             // Advanced Overrides Form State
-            const [advOverrideDim, setAdvOverrideDim] = useState('rc');
-            const [advOverrideKey, setAdvOverrideKey] = useState('');
-            const [advOverrideVal, setAdvOverrideVal] = useState('');
+            const [advOverrideDim, setAdvOverrideDim] = React.useState('rc');
+            const [advOverrideKey, setAdvOverrideKey] = React.useState('');
+            const [advOverrideVal, setAdvOverrideVal] = React.useState('');
             
-            const [advOverrideCustMonth, setAdvOverrideCustMonth] = useState(1);
-            const [advOverrideCustKey, setAdvOverrideCustKey] = useState('');
-            const [advOverrideCustVal, setAdvOverrideCustVal] = useState('');
+            const [advOverrideCustMonth, setAdvOverrideCustMonth] = React.useState(1);
+            const [advOverrideCustKey, setAdvOverrideCustKey] = React.useState('');
+            const [advOverrideCustVal, setAdvOverrideCustVal] = React.useState('');
 
-            const [advOverrides, setAdvOverrides] = useState({ 
+            const [advOverrides, setAdvOverrides] = React.useState({ 
                 pct: { rc: {}, industry: {}, month: {} }, 
                 vol: {} 
             });
             
-            const [allocationResults, setAllocationResults] = useState([]);
+            const [allocationResults, setAllocationResults] = React.useState([]);
             
-            const [varianceDim, setVarianceDim] = useState('rc');
-            const [drillDownDim, setDrillDownDim] = useState('name');
-            const [expandedRow, setExpandedRow] = useState(null);
-            const [isNormalizeHurricane, setIsNormalizeHurricane] = useState(true);
+            const [varianceDim, setVarianceDim] = React.useState('rc');
+            const [drillDownDim, setDrillDownDim] = React.useState('name');
+            const [expandedRow, setExpandedRow] = React.useState(null);
+            const [isNormalizeHurricane, setIsNormalizeHurricane] = React.useState(true);
 
             // Exec Summary Overview State
-            const [overviewScenario, setOverviewScenario] = useState('leBase');
-            const [overviewComments, setOverviewComments] = useState('');
+            const [overviewScenario, setOverviewScenario] = React.useState('leBase');
+            const [overviewComments, setOverviewComments] = React.useState('');
 
             // Pivot State & Explanations
-            const [pivotScenario, setPivotScenario] = useState('leBase');
-            const [moversRC, setMoversRC] = useState('All');
-            const [moversTimeFrame, setMoversTimeFrame] = useState('FY'); 
-            const [expandedPivotRC, setExpandedPivotRC] = useState(null);
-            const [varianceComments, setVarianceComments] = useState({}); 
+            const [pivotScenario, setPivotScenario] = React.useState('leBase');
+            const [moversRC, setMoversRC] = React.useState('All');
+            const [moversTimeFrame, setMoversTimeFrame] = React.useState('FY'); 
+            const [expandedPivotRC, setExpandedPivotRC] = React.useState(null);
+            const [varianceComments, setVarianceComments] = React.useState({}); 
 
             // Version Manager
-            const [savedVersions, setSavedVersions] = useState([]);
-            const [isVersionModalOpen, setIsVersionModalOpen] = useState(false);
+            const [savedVersions, setSavedVersions] = React.useState([]);
+            const [isVersionModalOpen, setIsVersionModalOpen] = React.useState(false);
 
-            const [graphToggles, setGraphToggles] = useState({
+            const [graphToggles, setGraphToggles] = React.useState({
                 act25: true, bud26: true, act26: true, leCust: true, leRc: true, leBase: true, leCustom: true
             });
 
 
             // --- REVENUE & TARIFF STATE ---
-            const [tariffRates, setTariffRates] = useState({
+            const [tariffRates, setTariffRates] = React.useState({
                 'RT10': { energy: 8.31,  custChg: 603.54,  demand: 0 },
                 'RT20': { energy: 10.25, custChg: 1286.87, demand: 0 },
                 'RT40': { energy: 6.91,  custChg: 9066.66, demand: 3105.57 },
@@ -295,27 +294,27 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 'BU':   { energy: 8.31,  custChg: 603.54,  demand: 0 },
                 'EV':   { energy: 10.25, custChg: 1286.87, demand: 0 },
             });
-            const [fxRate, setFxRate] = useState(162);
+            const [fxRate, setFxRate] = React.useState(162);
 
             // --- CUSTOMER ENRICHMENT STATE ---
             // Stores manually entered data for NO HISTORY / UNALLOCATED accounts
-            const [customerEnrichment, setCustomerEnrichment] = useState({});
+            const [customerEnrichment, setCustomerEnrichment] = React.useState({});
             // { acct: { name, rc, parish, industry, kvaDemand, notes } }
 
             // --- RISK & SCENARIO COMPARISON STATE ---
-            const [riskThreshold, setRiskThreshold] = useState(10); // % below budget = at risk
+            const [riskThreshold, setRiskThreshold] = React.useState(10); // % below budget = at risk
 
 
             // --- NET GEN HISTORICAL STATE (loaded from Supabase) ---
-            const [netGenData, setNetGenData] = useState(null);
+            const [netGenData, setNetGenData] = React.useState(null);
             // netGenData shape: { netGen: {2023:[],2024:[],2025:[]}, peak: {2023:[],2024:[],2025:[]}, loaded: false }
 
             // --- SORTING STATES (single declaration) ---
-            const [monthlySort, setMonthlySort] = useState({key: null, direction: 'asc'});
-            const [topSort, setTopSort] = useState({key: 'variance', direction: 'descending'});
-            const [botSort, setBotSort] = useState({key: 'variance', direction: 'ascending'});
-            const [varSort, setVarSort] = useState({key: 'a26', direction: 'descending'});
-            const [forecastSort, setForecastSort] = useState({key: 'rc', direction: 'asc'});
+            const [monthlySort, setMonthlySort] = React.useState({key: null, direction: 'asc'});
+            const [topSort, setTopSort] = React.useState({key: 'variance', direction: 'descending'});
+            const [botSort, setBotSort] = React.useState({key: 'variance', direction: 'ascending'});
+            const [varSort, setVarSort] = React.useState({key: 'a26', direction: 'descending'});
+            const [forecastSort, setForecastSort] = React.useState({key: 'rc', direction: 'asc'});
 
             const handleSortRequest = (key, currentSort, setSortFn) => {
                 let direction = 'ascending';
@@ -326,7 +325,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             };
 
             // Name Conflicts Logic
-            const nameConflicts = useMemo(() => {
+            const nameConflicts = React.useMemo(() => {
                 if(!rawActuals.length && !rawBudget.length) return [];
                 const acctMap = {};
                 [...rawActuals, ...rawBudget].forEach(d => {
@@ -409,7 +408,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             };
 
             // 2. SILENT BOOT SEQUENCE
-            useEffect(() => {
+            React.useEffect(() => {
                 let isMounted = true;
                 const bootApp = async () => {
                     // Use embedded creds first, then localStorage
@@ -483,7 +482,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             }, []);
 
             // 3. REALTIME + PRESENCE SUBSCRIPTION
-            useEffect(() => {
+            React.useEffect(() => {
                 const url = window.EMBEDDED_SUPABASE_URL;
                 const key = window.EMBEDDED_SUPABASE_KEY;
                 if (!url || !key || !currentUser) return;
@@ -548,7 +547,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             }, [currentUser]);
 
 
-            useEffect(() => {
+            React.useEffect(() => {
                 if (!hasAutoRestored && originalBudget.length > 0 && rawActuals.length > 0 && savedVersions.length > 0) {
                     const defaultScenario = savedVersions.find(v => v.isDefault);
                     if (defaultScenario) {
@@ -567,6 +566,33 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 }
             }, [originalBudget, rawActuals, savedVersions, hasAutoRestored]);
 
+
+
+            // Fetch net gen historical from Supabase on boot
+            React.useEffect(() => {
+                const url = window.EMBEDDED_SUPABASE_URL;
+                const key = window.EMBEDDED_SUPABASE_KEY;
+                if (!url || !key) return;
+                const sb = window.supabase.createClient(url, key);
+                sb.from('net_gen_historical')
+                  .select('*')
+                  .order('year', { ascending: true })
+                  .order('month', { ascending: true })
+                  .then(({ data, error }) => {
+                      if (error || !data || data.length === 0) {
+                          console.warn('net_gen_historical fetch failed or empty:', error?.message);
+                          return;
+                      }
+                      const ng = {};
+                      const pk = {};
+                      data.forEach(r => {
+                          if (!ng[r.year]) { ng[r.year] = Array(12).fill(0); pk[r.year] = Array(12).fill(0); }
+                          ng[r.year][r.month - 1] = Number(r.net_gen_mwh);
+                          pk[r.year][r.month - 1] = Number(r.peak_mw);
+                      });
+                      setNetGenData({ netGen: ng, peak: pk, loaded: true });
+                  });
+            }, []);
 
             // --- REVENUE HELPERS ---
             const getRcKey = (rc) => {
@@ -595,7 +621,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             };
 
             // Global Filter Logic
-            const getFiltered = useCallback((data) => {
+            const getFiltered = React.useCallback((data) => {
                 return data.filter(d => {
                     if (fYear !== 'All' && d.year.toString() !== fYear) return false;
                     if (fMonth !== 'All' && monthNames[d.month-1] !== fMonth) return false;
@@ -608,7 +634,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             }, [fYear, fMonth, fRC, fParish, fInd, fCust]);
 
             // --- Engine ---
-            const { actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, dimensions } = useMemo(() => {
+            const { actuals, budget, leCustGrowth, leRCGrowth, leBaseGrowth, leCustomGrowth, dimensions } = React.useMemo(() => {
                 if (rawActuals.length === 0 || rawBudget.length === 0) return { actuals: [], budget: [], leCustGrowth: [], leRCGrowth: [], leBaseGrowth: [], leCustomGrowth: [], dimensions: { rcs: [], parishes: [], inds: [], years: [], customers: [] } };
 
                 const normA = rawActuals.map(d => {
@@ -709,12 +735,12 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 return { actuals: normA, budget: normB, leCustGrowth: leCustData, leRCGrowth: leRCData, leBaseGrowth: leBaseData, leCustomGrowth: leCustomData, dimensions: { rcs, parishes, inds, years, customers } };
             }, [rawActuals, rawBudget, isNormalizeHurricane, advOverrides, accountNameMap]);
 
-            useEffect(() => {
+            React.useEffect(() => {
                 if (dimensions.rcs.length > 0 && !advOverrideKey) setAdvOverrideKey(dimensions.rcs[0]);
                 if (dimensions.customers.length > 0 && !advOverrideCustKey) setAdvOverrideCustKey(dimensions.customers[0]);
             }, [dimensions.rcs, dimensions.customers, advOverrideKey, advOverrideCustKey]);
 
-            useEffect(() => {
+            React.useEffect(() => {
                 if (rawBudget.length === 0 || isBudgetCommitted) return;
                 const bMonths = [...new Set(rawBudget.map(d => d.Month))].filter(Boolean);
                 const aMonths = [...new Set(rawActuals.map(d => d.Month))].filter(Boolean);
@@ -736,77 +762,110 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 }
             }, [rawBudget, rawActuals, isBudgetCommitted, monthMapping]);
 
-            useEffect(() => {
+
+            // Auto-allocation: use quarter average of actuals as weight basis
+            // Eliminates NO HISTORY by falling back: same qtr → prior qtr → RC-only match
+            React.useEffect(() => {
                 if (isBudgetCommitted || rawActuals.length === 0 || rawBudget.length === 0) return;
                 const allResults = [];
                 const bMonths = [...new Set(rawBudget.map(d=>d.Month))].filter(Boolean);
-                
+
                 bMonths.forEach(tMonth => {
-                    const rMonth = monthMapping[tMonth];
-                    if (!rMonth) return;
+                    const tp = parseTimeStr(tMonth);
+                    if (!tp.year) return;
 
                     const tBud = rawBudget.filter(d => d.Month === tMonth);
                     const bGroups = {};
                     tBud.forEach(b => {
-                        const key = `${b['Rate category'] || 'Unassigned'}|${b['Updated Parish'] || 'Unassigned'}`;
+                        const key = `${b['Rate category']||'Unassigned'}|${b['Updated Parish']||'Unassigned'}`;
                         if (!bGroups[key]) bGroups[key] = { amount: 0 };
                         bGroups[key].amount += cleanVal(b['Sum of Budget']);
                     });
-                    
-                    const isQuarter = rMonth.includes('Average');
-                    const filteredActs = isQuarter 
-                        ? rawActuals.filter(a => {
-                            const p = parseTimeStr(a.Month);
-                            return `Q${p.qtr} ${p.year} Average` === rMonth;
-                          })
-                        : rawActuals.filter(a => a.Month === rMonth);
 
-                    const aGroups = {};
-                    filteredActs.forEach(a => {
-                        const groupKey = `${a['Rate category'] || 'Unassigned'}|${a['Updated Parish'] || 'Unassigned'}`;
-                        const custKey = a['JPS A/c'];
-                        if (!aGroups[groupKey]) aGroups[groupKey] = { totalWeight: 0, customers: {} };
-                        if (!aGroups[groupKey].customers[custKey]) {
-                            aGroups[groupKey].customers[custKey] = { acct: custKey, name: a['Name'], industry: a['Industry'], weightObj: 0 };
+                    // Find reference actuals: same quarter, prior year first, then 2 years back
+                    // Falls back progressively: exact qtr PY → any qtr PY → RC-only match
+                    const getRefActuals = (rc, parish) => {
+                        const tryQtr = (yr, qtr) => rawActuals.filter(a => {
+                            const ap = parseTimeStr(a.Month);
+                            return ap.year === yr && ap.qtr === qtr &&
+                                   (a['Rate category']||'Unassigned').trim() === rc &&
+                                   (a['Updated Parish']||'Unassigned').trim() === parish;
+                        });
+                        const tryQtrRcOnly = (yr, qtr) => rawActuals.filter(a => {
+                            const ap = parseTimeStr(a.Month);
+                            return ap.year === yr && ap.qtr === qtr &&
+                                   (a['Rate category']||'Unassigned').trim() === rc;
+                        });
+
+                        // Try same quarter, year -1 then year -2
+                        for (const yr of [tp.year - 1, tp.year - 2]) {
+                            const res = tryQtr(yr, tp.qtr);
+                            if (res.length > 0) return { acts: res, method: `Q${tp.qtr} ${yr}` };
                         }
-                        const val = Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump']));
-                        aGroups[groupKey].customers[custKey].weightObj += val;
-                        aGroups[groupKey].totalWeight += val;
-                    });
+                        // Try same quarter, RC only (drop parish match)
+                        for (const yr of [tp.year - 1, tp.year - 2]) {
+                            const res = tryQtrRcOnly(yr, tp.qtr);
+                            if (res.length > 0) return { acts: res, method: `Q${tp.qtr} ${yr} RC-only` };
+                        }
+                        // Last resort: any actuals for this RC
+                        const anyActs = rawActuals.filter(a => (a['Rate category']||'').trim() === rc);
+                        if (anyActs.length > 0) return { acts: anyActs, method: 'RC avg' };
+                        return { acts: [], method: 'NONE' };
+                    };
 
                     Object.keys(bGroups).forEach(key => {
-                        const [rc, parish] = key.split('|'); 
-                        const totB = bGroups[key].amount; 
-                        const groupData = aGroups[key];
-                        
-                        if (!groupData || groupData.totalWeight === 0) { 
-                            allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: 'UNALLOCATED', name: 'NO HISTORY', industry: 'Unallocated', finalA: totB, weight: 1, override: '-' }); 
-                            return; 
+                        const [rc, parish] = key.split('|');
+                        const totB = bGroups[key].amount;
+                        const { acts: refActs, method } = getRefActuals(rc, parish);
+
+                        if (refActs.length === 0) {
+                            allResults.push({ targetMonth: tMonth, refMonth: method, rc, parish,
+                                acct: 'UNALLOCATED', name: 'NO HISTORY', industry: 'Unallocated',
+                                finalA: totB, weight: 1, override: '-' });
+                            return;
                         }
-                        
-                        Object.values(groupData.customers).forEach(c => {
-                            const w = c.weightObj / groupData.totalWeight; 
-                            let finalVal = totB * w; 
+
+                        // Build customer weights from quarterly average
+                        const custWeights = {};
+                        refActs.forEach(a => {
+                            const custKey = a['JPS A/c'];
+                            if (!custWeights[custKey]) custWeights[custKey] = { acct: custKey, name: a['Name'], industry: a['Industry'], kwh: 0 };
+                            custWeights[custKey].kwh += Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump']));
+                        });
+                        const totalWt = Object.values(custWeights).reduce((s,c)=>s+c.kwh, 0);
+                        if (totalWt === 0) {
+                            allResults.push({ targetMonth: tMonth, refMonth: method, rc, parish,
+                                acct: 'UNALLOCATED', name: 'ZERO HISTORY', industry: 'Unallocated',
+                                finalA: totB, weight: 1, override: '-' });
+                            return;
+                        }
+
+                        Object.values(custWeights).forEach(c => {
+                            const w = c.kwh / totalWt;
+                            let finalVal = totB * w;
                             let overrideStr = '-';
-                            if (allocOverrides[c.industry]) { 
-                                finalVal *= (1 + (allocOverrides[c.industry] / 100)); 
-                                overrideStr = `${allocOverrides[c.industry]}%`; 
+                            if (allocOverrides[c.industry]) {
+                                finalVal *= (1 + (allocOverrides[c.industry] / 100));
+                                overrideStr = `${allocOverrides[c.industry]}%`;
                             }
-                            allResults.push({ targetMonth: tMonth, refMonth: rMonth, rc, parish, acct: c.acct, name: c.name, industry: c.industry, finalA: finalVal, weight: w, override: overrideStr });
+                            allResults.push({ targetMonth: tMonth, refMonth: method, rc, parish,
+                                acct: c.acct, name: c.name, industry: c.industry,
+                                finalA: finalVal, weight: w, override: overrideStr });
                         });
                     });
                 });
                 setAllocationResults(allResults);
-            }, [monthMapping, allocOverrides, rawBudget, rawActuals, isBudgetCommitted]);
+            }, [allocOverrides, rawBudget, rawActuals, isBudgetCommitted]);
 
-            const commitAllocation = useCallback(() => {
+
+            const commitAllocation = React.useCallback(() => {
                 if (allocationResults.length === 0) return;
                 if (originalBudget.length === 0) setOriginalBudget([...rawBudget]);
                 setRawBudget(allocationResults.map(r => ({ 'Source': 'Model Allocation', 'Rate category': r.rc, 'Updated Parish': r.parish, 'Month': r.targetMonth, 'Sum of Budget': (r.finalA || 0).toFixed(6), 'JPS A/c': r.acct, 'Name': r.name, 'Industry': r.industry })));
                 setIsBudgetCommitted(true); 
             }, [allocationResults, rawBudget, originalBudget]);
 
-            useEffect(() => {
+            React.useEffect(() => {
                 if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0 && !hasAutoAllocated) {
                     commitAllocation();
                     setHasAutoAllocated(true);
@@ -820,7 +879,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
 
 
             // Customer Risk Flags: accounts trending >threshold% below budget for 2+ months
-            const customerRiskFlags = useMemo(() => {
+            const customerRiskFlags = React.useMemo(() => {
                 if (!isBudgetCommitted || actuals.length === 0) return {};
                 const flags = {};
                 const maxActMonth = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
@@ -855,7 +914,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 return flags;
             }, [isBudgetCommitted, actuals, budget, riskThreshold]);
 
-            const pivotState = useMemo(() => {
+            const pivotState = React.useMemo(() => {
                 if (activeTab !== 'pivot' || actuals.length === 0) return { rcMatrix: {}, topMovers: [], bottomMovers: [] };
 
                 const ytdLimit = ytdMonth === 'All' ? 12 : monthMap[ytdMonth];
@@ -1109,7 +1168,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 setActiveTab('data');
             };
 
-            const monthlyAggregatesRaw = useMemo(() => {
+            const monthlyAggregatesRaw = React.useMemo(() => {
                 if (actuals.length === 0) return [];
                 const fAct = getFiltered(actuals); const fBud = getFiltered(budget); 
                 const fLeCust = getFiltered(leCustGrowth); const fLeRC = getFiltered(leRCGrowth); 
@@ -1150,6 +1209,78 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 { key: 'leBase', label: 'LE Base', activeClass: 'bg-amber-100 text-amber-700 border-amber-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
                 { key: 'leCustom', label: 'LE Advanced', activeClass: 'bg-indigo-100 text-indigo-700 border-indigo-300', inactiveClass: 'bg-white text-slate-400 border-slate-200' },
             ];
+
+
+            // --- GRAPH & TABLE UTILITIES ---
+            const downloadChartAsPNG = (chartId, filename) => {
+                const el = document.getElementById(chartId);
+                if (!el) return;
+                // Use html2canvas if available, otherwise prompt
+                const svg = el.querySelector('svg');
+                if (!svg) return;
+                const svgData = new XMLSerializer().serializeToString(svg);
+                const canvas = document.createElement('canvas');
+                const bbox = svg.getBoundingClientRect();
+                canvas.width = bbox.width * 2;
+                canvas.height = bbox.height * 2;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const img = new Image();
+                const blob = new Blob([svgData], {type:'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(blob);
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    URL.revokeObjectURL(url);
+                    const a = document.createElement('a');
+                    a.download = filename + '.png';
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                };
+                img.src = url;
+            };
+
+            const exportToExcel = (data, filename) => {
+                if (!data || !data.length) return;
+                const headers = Object.keys(data[0]);
+                // Build CSV with BOM for Excel compatibility
+                const bom = '\uFEFF';
+                const csvRows = [
+                    headers.join(','),
+                    ...data.map(row => headers.map(h => {
+                        const v = (row[h] !== undefined && row[h] !== null) ? row[h].toString().replace(/"/g, '""') : '';
+                        return `"${v}"`;
+                    }).join(','))
+                ];
+                const blob = new Blob([bom + csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = filename + '.csv';
+                document.body.appendChild(a); a.click();
+                document.body.removeChild(a);
+            };
+
+            const [expandedChart, setExpandedChart] = React.useState(null);
+
+            const ChartWrapper = ({ id, title, children, data, filename }) => {
+                const isExpanded = expandedChart === id;
+                return (
+                    <div className={`bg-white rounded-xl border shadow-sm ${isExpanded ? 'fixed inset-4 z-50 flex flex-col p-4' : ''}`}>
+                        <div className="flex justify-between items-center px-4 pt-3 pb-1">
+                            <span className="text-xs font-bold text-slate-600">{title}</span>
+                            <div className="flex gap-2">
+                                {data && <button onClick={() => exportToExcel(data, filename||title)} className="text-[10px] text-slate-400 hover:text-blue-600 border border-slate-200 rounded px-1.5 py-0.5 transition">⬇ XLS</button>}
+                                <button onClick={() => setExpandedChart(isExpanded ? null : id)} className="text-[10px] text-slate-400 hover:text-blue-600 border border-slate-200 rounded px-1.5 py-0.5 transition">{isExpanded ? '✕ Close' : '⤢ Expand'}</button>
+                                <button onClick={() => downloadChartAsPNG(id, filename||title)} className="text-[10px] text-slate-400 hover:text-emerald-600 border border-slate-200 rounded px-1.5 py-0.5 transition">📷 Save</button>
+                            </div>
+                        </div>
+                        <div id={id} className={`${isExpanded ? 'flex-1 min-h-0' : 'h-[200px]'} px-2 pb-2`}>
+                            {children}
+                        </div>
+                        {isExpanded && <div className="fixed inset-0 bg-black/30 -z-10" onClick={() => setExpandedChart(null)} />}
+                    </div>
+                );
+            };
 
             const renderEmptyBudgetWarning = () => (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500 py-20">
@@ -1221,7 +1352,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 };
 
                 return (
-                    <div className="bg-indigo-50/50 p-6 rounded-xl border border-indigo-100 shadow-sm mb-6 space-y-6">
+                    <div className="bg-indigo-50/50 p-6 rounded-xl border border-indigo-100 shadow-sm mb-6 space-y-3">
                         <div>
                             <h4 className="font-bold flex items-center gap-2 text-indigo-800 text-lg"><Icons.Sliders /> LE: Advanced Scenario Builder</h4>
                             <p className="text-xs text-slate-500 mt-1"><strong>Rules are prioritized: Customer Volumetric &gt; Month % &gt; Industry % &gt; Rate Class %.</strong></p>
@@ -1300,7 +1431,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
 
             // --- TABS ---
             const renderDataTab = () => (
-                <div className="p-8 max-w-5xl mx-auto space-y-6">
+                <div className="p-8 max-w-5xl mx-auto space-y-3">
                     <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 text-left shadow-sm text-white">
                         <h3 className="font-bold mb-4 flex items-center gap-2"><Icons.CloudUp /> Supabase Integration & API Config</h3>
                         {window.EMBEDDED_SUPABASE_URL && window.EMBEDDED_SUPABASE_KEY ? (
@@ -1336,7 +1467,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                         </button>
                     </div>
 
-                    <div className="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 text-center">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
                         <div className="flex justify-center mb-4 text-blue-500"><Icons.Database /></div>
                         <h2 className="text-3xl font-bold text-slate-800 mb-3">Load Data Manually</h2>
                         <p className="text-slate-500 mb-2 max-w-lg mx-auto">Upload local files if not using the Supabase connection above.</p>
@@ -1440,10 +1571,10 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 }).filter(rc => rc.Budget > 0 || rc.Projection > 0);
 
                 return (
-                    <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
+                    <div className="p-6 space-y-3 h-full overflow-y-auto custom-scroll">
                         <div className="bg-white rounded-xl border p-4 shadow-sm flex items-center justify-between">
                             <div>
-                                <h2 className="text-xl font-bold text-slate-800">Executive Summary</h2>
+                                <h2 className="text-base font-bold text-slate-800">Executive Summary</h2>
                                 <p className="text-sm text-slate-500">Projected FY 2026 Year-End Trajectory.</p>
                             </div>
                             <div className="flex items-center gap-3">
@@ -1460,27 +1591,27 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div className="bg-white rounded-xl border p-5 shadow-sm">
                                 <div className="text-xs font-bold text-slate-400 uppercase mb-1">FY 2026 Projection</div>
-                                <div className="text-3xl font-black text-slate-800">{formatNum(totProj)} <span className="text-sm font-bold text-slate-400">kWh</span></div>
+                                <div className="text-xl font-black text-slate-800">{formatNum(totProj)} <span className="text-sm font-bold text-slate-400">kWh</span></div>
                             </div>
                             <div className="bg-white rounded-xl border p-5 shadow-sm">
                                 <div className="text-xs font-bold text-slate-400 uppercase mb-1">FY 2026 Budget</div>
-                                <div className="text-3xl font-black text-blue-700">{formatNum(totBud)} <span className="text-sm font-bold text-blue-400">kWh</span></div>
+                                <div className="text-xl font-black text-blue-700">{formatNum(totBud)} <span className="text-sm font-bold text-blue-400">kWh</span></div>
                             </div>
                             <div className="bg-white rounded-xl border p-5 shadow-sm">
                                 <div className="text-xs font-bold text-slate-400 uppercase mb-1">Variance vs Budget</div>
-                                <div className={`text-3xl font-black flex items-center gap-2 ${totProj - totBud >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                <div className={`text-xl font-black flex items-center gap-2 ${totProj - totBud >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                     {totProj - totBud > 0 ? '+' : ''}{formatNum(totProj - totBud)}
                                     <span className="text-sm px-2 py-1 rounded bg-slate-100">{formatPct(varBud)}</span>
                                 </div>
                             </div>
                             <div className="bg-white rounded-xl border p-5 shadow-sm">
                                 <div className="text-xs font-bold text-slate-400 uppercase mb-1">Projected Revenue (US$)</div>
-                                <div className="text-3xl font-black text-slate-800">{formatUSDb(fProj.reduce((s,d)=>s+kwhToRevUSD(d.kwh,d.rc),0))}</div>
+                                <div className="text-xl font-black text-slate-800">{formatUSDb(fProj.reduce((s,d)=>s+kwhToRevUSD(d.kwh,d.rc),0))}</div>
                                 <div className="text-xs text-slate-400 mt-1">vs Bud: <span className={fProj.reduce((s,d)=>s+kwhToRevUSD(d.kwh,d.rc),0)>=fBud26.reduce((s,d)=>s+kwhToRevUSD(d.kwh,d.rc),0)?'text-emerald-600 font-bold':'text-red-500 font-bold'}>{formatPct((fProj.reduce((s,d)=>s+kwhToRevUSD(d.kwh,d.rc),0)-fBud26.reduce((s,d)=>s+kwhToRevUSD(d.kwh,d.rc),0))/(fBud26.reduce((s,d)=>s+kwhToRevUSD(d.kwh,d.rc),0)||1))}</span></div>
                             </div>
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
                                 <div className="text-xs font-bold text-slate-400 uppercase mb-1">Variance vs 2025 Act</div>
-                                <div className={`text-3xl font-black flex items-center gap-2 ${totProj - totAct25 >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
+                                <div className={`text-xl font-black flex items-center gap-2 ${totProj - totAct25 >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
                                     {totProj - totAct25 > 0 ? '+' : ''}{formatNum(totProj - totAct25)}
                                     <span className="text-sm px-2 py-1 rounded bg-slate-100">{formatPct(varAct)}</span>
                                 </div>
@@ -1488,7 +1619,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[400px]">
+                            <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[220px]">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.BookOpen /> Executive Comments & Action Items</h3>
                                     <button onClick={() => pushScenariosToCloud()} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1">
@@ -1502,7 +1633,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                     onChange={e => setOverviewComments(e.target.value)}
                                 />
                             </div>
-                            <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[400px]">
+                            <div className="bg-white rounded-xl border p-5 shadow-sm flex flex-col min-h-[220px]">
                                 <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity /> FY Breakdown by Rate Class (GWh)</h3>
                                 <div className="flex-1 min-h-0">
                                     <ResponsiveContainer width="100%" height="100%">
@@ -1530,11 +1661,11 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 const totA26 = monthlyAggregatesRaw.reduce((s,d)=>s+(d.Act26||0),0);
                 
                 return (
-                    <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
-                        <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[450px] shrink-0 shadow-sm">
+                    <div className="p-6 space-y-3 h-full overflow-y-auto custom-scroll">
+                        <div className="bg-white rounded-xl border p-5 flex flex-col min-h-[260px] shrink-0 shadow-sm">
                             <div className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp /> Monthly Trend & Scenarios (kWh)</div>
                             {renderGraphToggles()}
-                            <div className="w-full h-[400px]">
+                            <div className="w-full h-[220px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={monthlyAggregatesRaw}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -1604,7 +1735,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 const refOptions = [...aQuarters, ...aMonths];
 
                 return (
-                    <div className="p-6 space-y-6 h-full overflow-y-auto custom-scroll">
+                    <div className="p-6 space-y-3 h-full overflow-y-auto custom-scroll">
                         <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between">
                             <div>
                                 <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Icons.Calculator /> Budget Proration & Redistribution Engine</h3>
@@ -1622,7 +1753,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${isBudgetCommitted ? 'opacity-60 pointer-events-none' : ''}`}>
                             <div className="bg-white p-5 rounded-xl border shadow-sm">
                                 <h4 className="font-bold mb-4 flex items-center gap-2 text-blue-700">Month-to-Month Baseline Mapping</h4>
-                                <div className="max-h-[300px] overflow-y-auto custom-scroll pr-2">
+                                <div className="max-h-[200px] overflow-y-auto custom-scroll pr-2">
                                     <table className="w-full text-sm">
                                         <thead className="sticky top-0 bg-slate-50 border-b"><tr><th className="p-2 text-left text-slate-500">Budget Month</th><th className="p-2 text-left text-slate-500">Reference Actuals</th></tr></thead>
                                         <tbody>
@@ -1671,7 +1802,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 const sortedBotMovers = sortArray(bottomMovers, botSort);
 
                 return (
-                    <div className="p-6 h-full flex flex-col space-y-6 overflow-hidden">
+                    <div className="p-6 h-full flex flex-col space-y-3 overflow-hidden">
                         <div className="bg-white rounded-xl border shadow-sm p-4 flex flex-col md:flex-row gap-4 justify-between shrink-0">
                             <div>
                                 <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.Grid /> Combined Scenario Pivot</h3>
@@ -1697,7 +1828,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 shrink-0">
-                            <div className="bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden max-h-[300px]">
+                            <div className="bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden max-h-[200px]">
                                 <div className="p-3 border-b bg-slate-50 flex justify-between items-center text-sm">
                                     <h4 className="font-bold text-slate-800 underline decoration-blue-500 decoration-2 underline-offset-4">Top Performers</h4>
                                     <select value={moversRC} onChange={e=>setMoversRC(e.target.value)} className="bg-white border rounded px-2 py-0.5 outline-none text-xs text-blue-700 font-bold">
@@ -1751,7 +1882,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden max-h-[300px]">
+                            <div className="bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden max-h-[200px]">
                                 <div className="p-3 border-b bg-slate-50 flex justify-between items-center text-sm">
                                     <h4 className="font-bold text-slate-800 underline decoration-red-500 decoration-2 underline-offset-4">Bottom Performers</h4>
                                 </div>
@@ -2062,19 +2193,19 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 const sortedRcs = sortArray(mappedRcs, forecastSort);
 
                 return (
-                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-3">
                         {customControls}
                         <div className="flex justify-end gap-3">
                             <button onClick={() => exportCSV(fLE, `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_base_level.csv`)} className="bg-white border hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition"><Icons.Download /> Download Base Level Data</button>
                         </div>
                         <div className="bg-white p-8 rounded-xl border shadow-sm flex items-center justify-between">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">{iconNode} {title}</h3>
+                                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">{iconNode} {title}</h3>
                                 <p className="text-sm text-slate-500 mt-1">{description}</p>
                             </div>
                             <div className="text-right">
                                 <div className="text-[10px] text-slate-400 font-bold uppercase">FY 2026 Forecasted Gap to Budget</div>
-                                <div className={`text-3xl font-black ${(totLE - totB26) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatNum(totLE - totB26)}</div>
+                                <div className={`text-xl font-black ${(totLE - totB26) >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatNum(totLE - totB26)}</div>
                             </div>
                         </div>
                         <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
@@ -2155,7 +2286,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                     }
                 };
 
-                const [newAcct, setNewAcct] = useState({ acct: '', name: '', rc: 'RT40', parish: '', industry: '', kvaDemand: '', notes: '' });
+                const [newAcct, setNewAcct] = React.useState({ acct: '', name: '', rc: 'RT40', parish: '', industry: '', kvaDemand: '', notes: '' });
 
                 const handleAddAccount = () => {
                     if (!newAcct.acct || !newAcct.name) return;
@@ -2166,10 +2297,10 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 };
 
                 return (
-                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-3">
                         {/* Header */}
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
-                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.Users /> Customer Data Enrichment</h2>
+                            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.Users /> Customer Data Enrichment</h2>
                             <p className="text-sm text-slate-500 mt-1">Manually fill in missing customer data for NO HISTORY and UNALLOCATED accounts so they can be properly included in forecasts and revenue calculations.</p>
                         </div>
 
@@ -2373,9 +2504,9 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 }).filter(r => r.bud > 0 || r.scenarios.some(s=>s.kwh>0));
 
                 return (
-                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-3">
                         <div className="bg-white rounded-xl border p-4 shadow-sm">
-                            <h2 className="text-xl font-bold text-slate-800">Scenario Comparison</h2>
+                            <h2 className="text-base font-bold text-slate-800">Scenario Comparison</h2>
                             <p className="text-sm text-slate-500">All 4 LE scenarios vs Budget and Prior Year — kWh and Revenue (US$)</p>
                         </div>
 
@@ -2386,9 +2517,9 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                 return (
                                     <div key={sc.key} className={`rounded-xl border p-4 shadow-sm ${sc.bg} ${sc.border}`}>
                                         <div className={`text-xs font-black uppercase tracking-wider mb-2 ${sc.text}`}>{sc.label}</div>
-                                        <div className="text-2xl font-black text-slate-800">{(k/1000000).toFixed(1)}<span className="text-sm font-bold text-slate-400 ml-1">GWh</span></div>
+                                        <div className="text-base font-black text-slate-800">{(k/1000000).toFixed(1)}<span className="text-sm font-bold text-slate-400 ml-1">GWh</span></div>
                                         <div className={`text-sm font-bold mt-1 ${color(k,bKwh)}`}>{pct(k,bKwh)} vs Bud</div>
-                                        <div className="text-lg font-black text-slate-700 mt-2">{formatUSDb(r)}</div>
+                                        <div className="text-base font-black text-slate-700 mt-2">{formatUSDb(r)}</div>
                                         <div className={`text-xs font-bold ${color(r,bRev)}`}>{pct(r,bRev)} vs Bud</div>
                                     </div>
                                 );
@@ -2523,13 +2654,13 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                     return indices.reduce((s,v)=>s+v,0) / 3;
                 });
 
-                const [sysLossPct, setSysLossPct] = useState(26.0);
-                const [growthMethod, setGrowthMethod] = useState('seasonal');
-                const [flatGrowth, setFlatGrowth] = useState(0.5);
-                const [manualMonthly, setManualMonthly] = useState(Array(12).fill(0));
-                const [forecastBase, setForecastBase] = useState('norm2025');
-                const [peakGrowthPct, setPeakGrowthPct] = useState(1.0);
-                const [showNormalized, setShowNormalized] = useState(true);
+                const [sysLossPct, setSysLossPct] = React.useState(26.0);
+                const [growthMethod, setGrowthMethod] = React.useState('seasonal');
+                const [flatGrowth, setFlatGrowth] = React.useState(0.5);
+                const [manualMonthly, setManualMonthly] = React.useState(Array(12).fill(0));
+                const [forecastBase, setForecastBase] = React.useState('norm2025');
+                const [peakGrowthPct, setPeakGrowthPct] = React.useState(1.0);
+                const [showNormalized, setShowNormalized] = React.useState(true);
 
                 const avg3yr = monthNames.map((_,m) =>
                     (histNetGen[2023][m] + histNetGen[2024][m] + norm2025[m]) / 3
@@ -2574,10 +2705,10 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 }));
 
                 return (
-                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-3">
                         <div className="bg-white rounded-xl border p-5 shadow-sm flex items-center justify-between">
                             <div>
-                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.Wind /> Net Generation & 12-Month Rolling Forecast</h2>
+                                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.Wind /> Net Generation & 12-Month Rolling Forecast</h2>
                                 <p className="text-sm text-slate-500 mt-1">Historical 2023–2025 actuals + 2026 projection. Net Gen → Billed Sales via System Loss %.</p>
                             </div>
                             <label className="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-pointer">
@@ -2589,27 +2720,27 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">2026 Net Gen (MWh)</div>
-                                <div className="text-2xl font-black text-slate-800">{(totFcstNG/1000).toFixed(0)}<span className="text-sm font-bold text-slate-400 ml-1">GWh</span></div>
+                                <div className="text-base font-black text-slate-800">{(totFcstNG/1000).toFixed(0)}<span className="text-sm font-bold text-slate-400 ml-1">GWh</span></div>
                                 <div className={`text-xs font-bold mt-1 ${yoyPct>=0?'text-emerald-600':'text-red-500'}`}>{yoyPct>0?'+':''}{yoyPct.toFixed(1)}% vs base</div>
                             </div>
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Billed Sales (MWh)</div>
-                                <div className="text-2xl font-black text-blue-700">{(totFcstBilled/1000).toFixed(0)}<span className="text-sm font-bold text-blue-400 ml-1">GWh</span></div>
+                                <div className="text-base font-black text-blue-700">{(totFcstBilled/1000).toFixed(0)}<span className="text-sm font-bold text-blue-400 ml-1">GWh</span></div>
                                 <div className="text-xs text-slate-400 mt-1">@ {sysLossPct}% system loss</div>
                             </div>
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">System Loss (MWh)</div>
-                                <div className="text-2xl font-black text-amber-600">{((totFcstNG-totFcstBilled)/1000).toFixed(0)}<span className="text-sm font-bold text-amber-400 ml-1">GWh</span></div>
+                                <div className="text-base font-black text-amber-600">{((totFcstNG-totFcstBilled)/1000).toFixed(0)}<span className="text-sm font-bold text-amber-400 ml-1">GWh</span></div>
                                 <div className="text-xs text-slate-400 mt-1">{sysLossPct}% of Net Gen</div>
                             </div>
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">2025 Actual (Norm)</div>
-                                <div className="text-2xl font-black text-slate-600">{(norm2025.reduce((s,v)=>s+v,0)/1000).toFixed(0)}<span className="text-sm font-bold text-slate-400 ml-1">GWh</span></div>
+                                <div className="text-base font-black text-slate-600">{(norm2025.reduce((s,v)=>s+v,0)/1000).toFixed(0)}<span className="text-sm font-bold text-slate-400 ml-1">GWh</span></div>
                                 <div className="text-xs text-slate-400 mt-1">vs {(histNetGen[2025].reduce((s,v)=>s+v,0)/1000).toFixed(0)} raw</div>
                             </div>
                             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-emerald-600 uppercase mb-1">1% Loss Reduction =</div>
-                                <div className="text-2xl font-black text-emerald-700">{formatUSDb(totFcstNG * 0.01 * (tariffRates['RT40'].energy / fxRate))}</div>
+                                <div className="text-base font-black text-emerald-700">{formatUSDb(totFcstNG * 0.01 * (tariffRates['RT40'].energy / fxRate))}</div>
                                 <div className="text-xs text-emerald-600 mt-1">additional revenue</div>
                             </div>
                         </div>
@@ -2675,7 +2806,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
 
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp /> Net Generation — Historical vs 2026 Forecast (MWh)</h3>
-                            <div className="h-[300px]">
+                            <div className="h-[200px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={chartData}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -2777,7 +2908,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
 
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity /> Peak Demand — Historical vs 2026 Forecast (MW)</h3>
-                            <div className="h-[250px]">
+                            <div className="h-[180px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <LineChart data={peakChartData}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -2857,11 +2988,11 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                     return idxs.reduce((s,v)=>s+v,0)/3;
                 });
 
-                const [r18SysLoss, setR18SysLoss] = useState(26.0);
-                const [r18Growth26, setR18Growth26] = useState(0.5);
-                const [r18Growth27, setR18Growth27] = useState(1.5);
-                const [r18Base, setR18Base] = useState('norm2025');
-                const [r18ShowRevenue, setR18ShowRevenue] = useState(true);
+                const [r18SysLoss, setR18SysLoss] = React.useState(26.0);
+                const [r18Growth26, setR18Growth26] = React.useState(0.5);
+                const [r18Growth27, setR18Growth27] = React.useState(1.5);
+                const [r18Base, setR18Base] = React.useState('norm2025');
+                const [r18ShowRevenue, setR18ShowRevenue] = React.useState(true);
 
                 const baseRef = r18Base === 'norm2025' ? norm2025 :
                     Array(12).fill(0).map((_,m)=>(histNetGen[2023][m]+histNetGen[2024][m]+norm2025[m])/3);
@@ -2921,10 +3052,10 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 ];
 
                 return (
-                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-3">
                         <div className="bg-white rounded-xl border p-5 shadow-sm flex items-center justify-between flex-wrap gap-4">
                             <div>
-                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.TrendingUp /> Rolling 18-Month Forecast</h2>
+                                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.TrendingUp /> Rolling 18-Month Forecast</h2>
                                 <p className="text-sm text-slate-500 mt-1">
                                     <span className="font-bold text-blue-700">Actuals locked: Jan–Mar 2026</span>
                                     <span className="mx-2 text-slate-300">·</span>
@@ -2948,7 +3079,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                         <div className="text-[10px] font-bold text-slate-400 uppercase">{kpi.label}</div>
                                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${kpi.color==='blue'?'bg-blue-100 text-blue-700':kpi.color==='emerald'?'bg-emerald-100 text-emerald-700':kpi.color==='purple'?'bg-purple-100 text-purple-700':'bg-amber-100 text-amber-700'}`}>{kpi.tag}</span>
                                     </div>
-                                    <div className="text-lg font-black text-slate-800">{(kpi.billed/1000).toFixed(1)} <span className="text-xs font-bold text-slate-400">GWh Billed</span></div>
+                                    <div className="text-base font-black text-slate-800">{(kpi.billed/1000).toFixed(1)} <span className="text-xs font-bold text-slate-400">GWh Billed</span></div>
                                     <div className="text-sm font-bold text-blue-600 mt-1">{formatUSDb(kpi.rev)} <span className="text-xs font-normal text-slate-400">Revenue</span></div>
                                 </div>
                             ))}
@@ -2995,7 +3126,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span> Apr–Dec 2026 Forecast</span>
                                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-purple-500 inline-block"></span> Jan–Sep 2027 Forecast</span>
                             </div>
-                            <div className="h-[300px]">
+                            <div className="h-[200px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={chartData} barGap={1} barCategoryGap="20%">
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -3274,11 +3405,11 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 });
 
                 return (
-                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-3">
 
                         {/* Header */}
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
-                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.Save /> Data Entry</h2>
+                            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.Save /> Data Entry</h2>
                             <p className="text-sm text-slate-500 mt-1">Enter net generation actuals, upload CSVs, and manage historical data — all synced directly to Supabase.</p>
                         </div>
 
@@ -3339,7 +3470,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                 <h3 className="font-bold text-slate-800">Net Generation History ({ngTableData.length} records)</h3>
                                 {isLoadingNgTable && <span className="text-xs text-slate-400 animate-pulse">Loading...</span>}
                             </div>
-                            <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scroll">
+                            <div className="overflow-x-auto max-h-[220px] overflow-y-auto custom-scroll">
                                 <table className="w-full text-sm">
                                     <thead className="sticky top-0 bg-slate-100 z-10">
                                         <tr>
@@ -3458,11 +3589,286 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 );
             };
 
+
+            // ============================================================
+            // TAB: VALIDATION — Dropped Accounts, Deflections, Anomalies
+            // ============================================================
+            const renderValidationTab = () => {
+                const maxActMonth26 = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
+
+                // ── DROPPED ACCOUNTS ──
+                // In 2025 actuals but missing from 2026 actuals entirely
+                const accts2025 = new Set(actuals.filter(a=>a.year===2025).map(a=>a.acct));
+                const accts2026 = new Set(actuals.filter(a=>a.year===2026).map(a=>a.acct));
+                const droppedAccts = [...accts2025].filter(a => !accts2026.has(a) && a && a !== 'Unassigned');
+                const droppedDetails = droppedAccts.map(acct => {
+                    const rows = actuals.filter(a=>a.year===2025&&a.acct===acct);
+                    const totalKwh = rows.reduce((s,d)=>s+d.kwh,0);
+                    const rc = rows[0]?.rc || '—';
+                    const name = rows[0]?.name || acct;
+                    const industry = rows[0]?.industry || '—';
+                    const parish = rows[0]?.parish || '—';
+                    const lastMonth = Math.max(...rows.map(r=>r.month));
+                    return { acct, name, rc, industry, parish, totalKwh, lastMonth };
+                }).sort((a,b) => b.totalKwh - a.totalKwh);
+
+                // ── NO HISTORY in allocation ──
+                const noHistoryRows = allocationResults.filter(r =>
+                    r.name === 'NO HISTORY' || r.name === 'ZERO HISTORY' || r.acct === 'UNALLOCATED'
+                );
+                const uniqueNoHistory = [];
+                const nhSeen = new Set();
+                noHistoryRows.forEach(r => {
+                    const k = `${r.rc}|${r.parish}`;
+                    if (!nhSeen.has(k)) { nhSeen.add(k); uniqueNoHistory.push({ rc: r.rc, parish: r.parish, totalBudget: 0, months: 0 }); }
+                    const item = uniqueNoHistory.find(u=>u.rc===r.rc&&u.parish===r.parish);
+                    if (item) { item.totalBudget += r.finalA; item.months++; }
+                });
+                uniqueNoHistory.sort((a,b)=>b.totalBudget-a.totalBudget);
+
+                // ── GID DEFLECTIONS ──
+                // Customers with YTD 2026 consumption < 80% of same period 2025
+                const deflections = [];
+                if (maxActMonth26 > 0) {
+                    const custMap = {};
+                    actuals.filter(a=>a.month<=maxActMonth26).forEach(a=>{
+                        if (!a.acct||a.acct==='Unassigned') return;
+                        if (!custMap[a.acct]) custMap[a.acct] = { name:a.name, rc:a.rc, industry:a.industry, parish:a.parish, kwh25:0, kwh26:0 };
+                        if (a.year===2025) custMap[a.acct].kwh25 += a.kwh;
+                        if (a.year===2026) custMap[a.acct].kwh26 += a.kwh;
+                    });
+                    Object.entries(custMap).forEach(([acct, d]) => {
+                        if (d.kwh25 > 0 && d.kwh26 < d.kwh25 * 0.80) {
+                            const pct = ((d.kwh26-d.kwh25)/d.kwh25)*100;
+                            deflections.push({ acct, name:d.name, rc:d.rc, industry:d.industry, parish:d.parish, kwh25:d.kwh25, kwh26:d.kwh26, pct: pct.toFixed(1) });
+                        }
+                    });
+                    deflections.sort((a,b)=>parseFloat(a.pct)-parseFloat(b.pct));
+                }
+
+                // ── ANOMALIES ──
+                // Month-on-month swings > 25% for any customer in 2026
+                const anomalies = [];
+                const custMonths = {};
+                actuals.filter(a=>a.year===2026).forEach(a=>{
+                    if (!a.acct||a.acct==='Unassigned') return;
+                    if (!custMonths[a.acct]) custMonths[a.acct] = { name:a.name, rc:a.rc, months:{} };
+                    custMonths[a.acct].months[a.month] = (custMonths[a.acct].months[a.month]||0) + a.kwh;
+                });
+                Object.entries(custMonths).forEach(([acct, d]) => {
+                    const months = Object.keys(d.months).map(Number).sort((a,b)=>a-b);
+                    for (let i=1; i<months.length; i++) {
+                        const prev = d.months[months[i-1]];
+                        const curr = d.months[months[i]];
+                        if (prev > 0) {
+                            const swing = (curr-prev)/prev*100;
+                            if (Math.abs(swing) > 25) {
+                                anomalies.push({ acct, name:d.name, rc:d.rc,
+                                    fromMonth: monthNames[months[i-1]-1], toMonth: monthNames[months[i]-1],
+                                    from: prev, to: curr, swing: swing.toFixed(1) });
+                            }
+                        }
+                    }
+                });
+                anomalies.sort((a,b)=>Math.abs(parseFloat(b.swing))-Math.abs(parseFloat(a.swing)));
+
+                const totalDroppedKwh = droppedDetails.reduce((s,d)=>s+d.totalKwh,0);
+                const totalDeflectedKwh = deflections.reduce((s,d)=>s+(d.kwh25-d.kwh26),0);
+
+                return (
+                    <div className="p-4 h-full overflow-y-auto custom-scroll space-y-3">
+                        {/* Header */}
+                        <div className="bg-white rounded-xl border p-3 shadow-sm flex items-center justify-between flex-wrap gap-3">
+                            <div>
+                                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.Activity /> Validation & Intelligence</h2>
+                                <p className="text-xs text-slate-500">Dropped accounts, GID deflections, anomalies — YTD {maxActMonth26 > 0 ? `Jan–${monthNames[maxActMonth26-1]} 2026` : '2026'}</p>
+                            </div>
+                            <div className="flex gap-3 text-xs">
+                                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
+                                    <div className="font-black text-red-700">{droppedDetails.length}</div>
+                                    <div className="text-red-600">Dropped Accts</div>
+                                </div>
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                                    <div className="font-black text-amber-700">{deflections.length}</div>
+                                    <div className="text-amber-600">Deflections &lt;80%</div>
+                                </div>
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-center">
+                                    <div className="font-black text-blue-700">{uniqueNoHistory.length}</div>
+                                    <div className="text-blue-600">No History Groups</div>
+                                </div>
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-center">
+                                    <div className="font-black text-purple-700">{anomalies.length}</div>
+                                    <div className="text-purple-600">Anomalies &gt;25%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── DROPPED ACCOUNTS ── */}
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <div className="p-3 bg-red-700 text-white font-bold text-xs flex justify-between items-center">
+                                <span>🔴 Dropped Accounts — In 2025 Actuals, Missing from 2026 ({droppedDetails.length} accounts · {(totalDroppedKwh/1000000).toFixed(2)} GWh lost)</span>
+                                <button onClick={()=>exportToExcel(droppedDetails.map(d=>({Account:d.acct,Name:d.name,RC:d.rc,Industry:d.industry,Parish:d.parish,kWh_2025:Math.round(d.totalKwh),Last_Active_Month:monthNames[d.lastMonth-1]})),'Dropped_Accounts')} className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition">⬇ Excel</button>
+                            </div>
+                            <div className="overflow-x-auto max-h-[250px] overflow-y-auto custom-scroll">
+                                <table className="w-full text-xs">
+                                    <thead className="sticky top-0 bg-slate-100">
+                                        <tr>
+                                            <th className="p-2 text-left">Account</th>
+                                            <th className="p-2 text-left">Name</th>
+                                            <th className="p-2 text-left">RC</th>
+                                            <th className="p-2 text-left">Industry</th>
+                                            <th className="p-2 text-left">Parish</th>
+                                            <th className="p-2 text-right">2025 kWh</th>
+                                            <th className="p-2 text-right">Last Active</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {droppedDetails.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No dropped accounts detected ✓</td></tr>}
+                                        {droppedDetails.map((d,i) => (
+                                            <tr key={i} className="border-b hover:bg-red-50/30">
+                                                <td className="p-2 font-mono text-slate-500">{d.acct}</td>
+                                                <td className="p-2 font-medium text-slate-700 max-w-[160px] truncate">{d.name}</td>
+                                                <td className="p-2"><span className="bg-red-100 text-red-700 px-1.5 rounded font-bold">{d.rc}</span></td>
+                                                <td className="p-2 text-slate-500">{d.industry}</td>
+                                                <td className="p-2 text-slate-500">{d.parish}</td>
+                                                <td className="p-2 text-right font-bold text-red-600">{formatNum(Math.round(d.totalKwh))}</td>
+                                                <td className="p-2 text-right text-slate-500">{monthNames[d.lastMonth-1]}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    {droppedDetails.length > 0 && (
+                                        <tfoot className="bg-slate-100 font-bold sticky bottom-0">
+                                            <tr>
+                                                <td colSpan="5" className="p-2">TOTAL</td>
+                                                <td className="p-2 text-right text-red-700">{formatNum(Math.round(totalDroppedKwh))}</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    )}
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* ── GID DEFLECTIONS ── */}
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <div className="p-3 bg-amber-600 text-white font-bold text-xs flex justify-between items-center">
+                                <span>🟡 GID Deflections — YTD 2026 &lt;80% of YTD 2025 ({deflections.length} accounts · {(totalDeflectedKwh/1000000).toFixed(2)} GWh at risk)</span>
+                                <button onClick={()=>exportToExcel(deflections.map(d=>({Account:d.acct,Name:d.name,RC:d.rc,Industry:d.industry,Parish:d.parish,YTD_2025_kWh:Math.round(d.kwh25),YTD_2026_kWh:Math.round(d.kwh26),Change_Pct:d.pct+'%'})),'GID_Deflections')} className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition">⬇ Excel</button>
+                            </div>
+                            <div className="overflow-x-auto max-h-[250px] overflow-y-auto custom-scroll">
+                                <table className="w-full text-xs">
+                                    <thead className="sticky top-0 bg-slate-100">
+                                        <tr>
+                                            <th className="p-2 text-left">Account</th>
+                                            <th className="p-2 text-left">Name</th>
+                                            <th className="p-2 text-left">RC</th>
+                                            <th className="p-2 text-left">Industry</th>
+                                            <th className="p-2 text-right">YTD 2025</th>
+                                            <th className="p-2 text-right">YTD 2026</th>
+                                            <th className="p-2 text-right">Change</th>
+                                            <th className="p-2 text-right">kWh Lost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {deflections.length === 0 && <tr><td colSpan="8" className="p-4 text-center text-slate-400">{maxActMonth26 === 0 ? 'No 2026 actuals loaded yet' : 'No deflections >20% detected ✓'}</td></tr>}
+                                        {deflections.map((d,i) => (
+                                            <tr key={i} className={`border-b hover:bg-amber-50/30 ${parseFloat(d.pct) < -40 ? 'bg-red-50/20' : ''}`}>
+                                                <td className="p-2 font-mono text-slate-500">{d.acct}</td>
+                                                <td className="p-2 font-medium text-slate-700 max-w-[160px] truncate">{d.name}</td>
+                                                <td className="p-2"><span className="bg-amber-100 text-amber-700 px-1.5 rounded font-bold">{d.rc}</span></td>
+                                                <td className="p-2 text-slate-500">{d.industry}</td>
+                                                <td className="p-2 text-right text-slate-500">{formatNum(Math.round(d.kwh25))}</td>
+                                                <td className="p-2 text-right font-bold text-amber-700">{formatNum(Math.round(d.kwh26))}</td>
+                                                <td className="p-2 text-right font-black text-red-600">{d.pct}%</td>
+                                                <td className="p-2 text-right text-red-500">{formatNum(Math.round(d.kwh25-d.kwh26))}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* ── NO HISTORY GROUPS ── */}
+                        {uniqueNoHistory.length > 0 && (
+                            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                                <div className="p-3 bg-blue-700 text-white font-bold text-xs flex justify-between items-center">
+                                    <span>🔵 Unresolved Budget Groups — No Allocation History ({uniqueNoHistory.length} RC/Parish combinations)</span>
+                                    <button onClick={()=>exportToExcel(uniqueNoHistory.map(d=>({RC:d.rc,Parish:d.parish,Budget_kWh:Math.round(d.totalBudget),Months:d.months})),'No_History_Groups')} className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition">⬇ Excel</button>
+                                </div>
+                                <div className="overflow-x-auto max-h-[200px] overflow-y-auto custom-scroll">
+                                    <table className="w-full text-xs">
+                                        <thead className="sticky top-0 bg-slate-100">
+                                            <tr>
+                                                <th className="p-2 text-left">RC</th>
+                                                <th className="p-2 text-left">Parish</th>
+                                                <th className="p-2 text-right">Budget kWh</th>
+                                                <th className="p-2 text-right">Months Affected</th>
+                                                <th className="p-2 text-left">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {uniqueNoHistory.map((d,i) => (
+                                                <tr key={i} className="border-b hover:bg-blue-50/30">
+                                                    <td className="p-2 font-bold text-blue-700">{d.rc}</td>
+                                                    <td className="p-2 text-slate-600">{d.parish}</td>
+                                                    <td className="p-2 text-right font-bold">{formatNum(Math.round(d.totalBudget))}</td>
+                                                    <td className="p-2 text-right text-slate-500">{d.months}</td>
+                                                    <td className="p-2 text-blue-600 text-[10px]">Add account in Customer Data tab</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── ANOMALIES ── */}
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <div className="p-3 bg-purple-700 text-white font-bold text-xs flex justify-between items-center">
+                                <span>🟣 Month-on-Month Anomalies — Swings &gt;25% in 2026 ({anomalies.length} events)</span>
+                                <button onClick={()=>exportToExcel(anomalies.map(d=>({Account:d.acct,Name:d.name,RC:d.rc,From_Month:d.fromMonth,To_Month:d.toMonth,From_kWh:Math.round(d.from),To_kWh:Math.round(d.to),Swing_Pct:d.swing+'%'})),'Anomalies')} className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition">⬇ Excel</button>
+                            </div>
+                            <div className="overflow-x-auto max-h-[250px] overflow-y-auto custom-scroll">
+                                <table className="w-full text-xs">
+                                    <thead className="sticky top-0 bg-slate-100">
+                                        <tr>
+                                            <th className="p-2 text-left">Account</th>
+                                            <th className="p-2 text-left">Name</th>
+                                            <th className="p-2 text-left">RC</th>
+                                            <th className="p-2 text-left">From</th>
+                                            <th className="p-2 text-left">To</th>
+                                            <th className="p-2 text-right">From kWh</th>
+                                            <th className="p-2 text-right">To kWh</th>
+                                            <th className="p-2 text-right">Swing</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {anomalies.length === 0 && <tr><td colSpan="8" className="p-4 text-center text-slate-400">{maxActMonth26 === 0 ? 'No 2026 actuals loaded' : 'No anomalies >25% detected ✓'}</td></tr>}
+                                        {anomalies.slice(0,50).map((d,i) => (
+                                            <tr key={i} className="border-b hover:bg-purple-50/30">
+                                                <td className="p-2 font-mono text-slate-500">{d.acct}</td>
+                                                <td className="p-2 font-medium text-slate-700 max-w-[140px] truncate">{d.name}</td>
+                                                <td className="p-2"><span className="bg-purple-100 text-purple-700 px-1.5 rounded font-bold">{d.rc}</span></td>
+                                                <td className="p-2 text-slate-500">{d.fromMonth}</td>
+                                                <td className="p-2 text-slate-500">{d.toMonth}</td>
+                                                <td className="p-2 text-right text-slate-500">{formatNum(Math.round(d.from))}</td>
+                                                <td className="p-2 text-right font-bold">{formatNum(Math.round(d.to))}</td>
+                                                <td className={`p-2 text-right font-black ${parseFloat(d.swing)>0?'text-emerald-600':'text-red-600'}`}>{d.swing>0?'+':''}{d.swing}%</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
             const renderGlossaryTab = () => (
-                <div className="p-10 h-full overflow-y-auto custom-scroll">
+                <div className="p-4 h-full overflow-y-auto custom-scroll">
                     <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
                         <div>
-                            <h2 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><Icons.BookOpen /> Forecasting Scenarios Glossary</h2>
+                            <h2 className="text-base font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"><Icons.BookOpen /> Forecasting Scenarios Glossary</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="bg-purple-50/50 border border-purple-200 p-6 rounded-xl space-y-3">
                                     <h3 className="text-lg font-bold text-purple-800 flex items-center gap-2"><Icons.Users /> LE: Customer Volumetric Trend</h3>
@@ -3537,7 +3943,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
 
                     <header className="bg-white border-b px-6 py-4 flex justify-between items-center shrink-0 z-20">
                         <div>
-                            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.PieChart /> JPS Sales Analytics Model</h1>
+                            <h1 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.PieChart /> JPS Sales Analytics Model</h1>
                             <p className="text-xs text-slate-500">Commercial Analytics | Redistribution & Forecasting Engine</p>
                         </div>
                         <div className="flex items-center gap-4">
@@ -3628,6 +4034,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                     <button onClick={()=>setActiveTab('comparison')} className={`dashboard-tab ${activeTab==='comparison'?'active':''}`}><Icons.Grid /> Scenario Compare</button>
                                     <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator /> Allocations</button>
                                     <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp /> Variance Matrix</button>
+                                    <button onClick={()=>setActiveTab('validation')} className={`dashboard-tab ${activeTab==='validation'?'active':''}`}><Icons.CheckCircle /> Validation</button>
                                     <button onClick={()=>setActiveTab('customers')} className={`dashboard-tab ${activeTab==='customers'?'active':''}`}><Icons.Users /> Customer Data</button>
                                     <button onClick={()=>setActiveTab('dataentry')} className={`dashboard-tab ${activeTab==='dataentry'?'active':''}`}><Icons.Save /> Data Entry</button>
                                 </>
@@ -3691,6 +4098,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                             {activeTab === 'netgen' && renderNetGenTab()}
                                             {activeTab === 'rolling18' && renderRolling18Tab()}
                                             {activeTab === 'customers' && renderCustomerTab()}
+                                            {activeTab === 'validation' && renderValidationTab()}
                                             {activeTab === 'dataentry' && renderDataEntryTab()}
                                         </>
                                     )}
@@ -3704,7 +4112,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
                             <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[80vh]">
                                 <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50">
-                                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.History /> Saved Scenarios & Versions</h2>
+                                    <h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Icons.History /> Saved Scenarios & Versions</h2>
                                     <button onClick={() => setIsVersionModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition"><Icons.X /></button>
                                 </div>
                                 
