@@ -218,7 +218,7 @@
             const [rawActuals, setRawActuals] = React.useState([]);
             const [rawBudget, setRawBudget] = React.useState([]);
             const [originalBudget, setOriginalBudget] = React.useState([]);
-            const [isBudgetCommitted, setIsBudgetCommitted] = React.useState(false);
+            const [isBudgetCommitted, setIsBudgetCommitted] = React.useState(true); // always auto-committed
             
             const [isLoadingUrl, setIsLoadingUrl] = React.useState({ budget: false, actuals: false });
             const [loadError, setLoadError] = React.useState('');
@@ -563,7 +563,8 @@
                         setVarianceComments(parsed.comments || {});
                         setOverviewComments(parsed.overviewComments || '');
                         if (parsed.accountNameMap) setAccountNameMap(parsed.accountNameMap);
-                        showToast('Dashboard updated by a teammate', 'update');
+                        const updateUser = payload.new?.payload?.lastUpdatedBy || 'A teammate';
+                        showToast(`${updateUser} updated scenarios`, 'update');
                     })
                     .on('postgres_changes', {
                         event: 'INSERT',
@@ -620,7 +621,30 @@
                             }
                             return { netGen: ng, peak: pk, loaded: true };
                         });
-                        showToast('Net Gen data updated', 'update');
+                        showToast(`Net Gen ${monthNames[(r.month||1)-1]} ${r.year} updated`, 'update');
+                    })
+                    .on('postgres_changes', {
+                        event: 'DELETE',
+                        schema: 'public',
+                        table: 'net_gen_historical'
+                    }, (payload) => {
+                        if (!payload.old) return;
+                        const r = payload.old;
+                        setNetGenData(prev => {
+                            if (!prev || !prev.loaded) return prev;
+                            const ng = { ...prev.netGen };
+                            const pk = { ...prev.peak };
+                            if (ng[r.year]) {
+                                ng[r.year] = [...ng[r.year]];
+                                pk[r.year] = [...pk[r.year]];
+                                ng[r.year][r.month-1] = 0;
+                                pk[r.year][r.month-1] = 0;
+                            }
+                            return { netGen: ng, peak: pk, loaded: true };
+                        });
+                        // Refresh the ng table in data entry tab
+                        setNgTableData(prev => prev.filter(row => !(row.year === r.year && row.month === r.month)));
+                        showToast(`Net Gen ${monthNames[(r.month||1)-1]} ${r.year} deleted`, 'info');
                     })
                     .subscribe();
 
@@ -848,7 +872,7 @@
             }, [dimensions.rcs, dimensions.customers, advOverrideKey, advOverrideCustKey]);
 
             React.useEffect(() => {
-                if (rawBudget.length === 0 || isBudgetCommitted) return;
+                if (rawBudget.length === 0) return;
                 const bMonths = [...new Set(rawBudget.map(d => d.Month))].filter(Boolean);
                 const aMonths = [...new Set(rawActuals.map(d => d.Month))].filter(Boolean);
                 const aQuarters = [...new Set(rawActuals.map(d => {
@@ -873,7 +897,7 @@
             // Auto-allocation: use quarter average of actuals as weight basis
             // Eliminates NO HISTORY by falling back: same qtr → prior qtr → RC-only match
             React.useEffect(() => {
-                if (isBudgetCommitted || rawActuals.length === 0 || rawBudget.length === 0) return;
+                if (rawActuals.length === 0 || rawBudget.length === 0) return;
                 const allResults = [];
                 const bMonths = [...new Set(rawBudget.map(d=>d.Month))].filter(Boolean);
 
@@ -965,23 +989,31 @@
             }, [allocOverrides, rawBudget, rawActuals, isBudgetCommitted]);
 
 
-            const commitAllocation = React.useCallback(() => {
-                if (allocationResults.length === 0) return;
-                if (originalBudget.length === 0) setOriginalBudget([...rawBudget]);
-                setRawBudget(allocationResults.map(r => ({ 'Source': 'Model Allocation', 'Rate category': r.rc, 'Updated Parish': r.parish, 'Month': r.targetMonth, 'Sum of Budget': (r.finalA || 0).toFixed(6), 'JPS A/c': r.acct, 'Name': r.name, 'Industry': r.industry })));
-                setIsBudgetCommitted(true); 
-            }, [allocationResults, rawBudget, originalBudget]);
+            const commitAllocation = () => {}; // Allocation is now fully automatic
 
+            // Auto-apply allocation results whenever they change
             React.useEffect(() => {
-                if (allocationResults.length > 0 && !isBudgetCommitted && rawActuals.length > 0 && rawBudget.length > 0 && !hasAutoAllocated) {
-                    commitAllocation();
+                if (allocationResults.length === 0) return;
+                if (originalBudget.length === 0) setOriginalBudget(prev => prev.length > 0 ? prev : [...rawBudget]);
+                setRawBudget(allocationResults.map(r => ({
+                    'Source': 'Model Allocation',
+                    'Rate category': r.rc,
+                    'Updated Parish': r.parish,
+                    'Month': r.targetMonth,
+                    'Sum of Budget': (r.finalA || 0).toFixed(6),
+                    'JPS A/c': r.acct,
+                    'Name': r.name,
+                    'Industry': r.industry
+                })));
+                setIsBudgetCommitted(true);
+                if (!hasAutoAllocated) {
                     setHasAutoAllocated(true);
-                    logAuditEvent('AUTO_ALLOCATION', { 
+                    logAuditEvent('AUTO_ALLOCATION', {
                         rows: allocationResults.length,
                         unallocated: allocationResults.filter(r=>r.name==='NO HISTORY'||r.name==='ZERO HISTORY').length
                     });
                 }
-            }, [allocationResults, isBudgetCommitted, rawActuals.length, rawBudget.length, commitAllocation, hasAutoAllocated]);
+            }, [allocationResults]);
 
             const unlockAllocation = () => {
                 if(originalBudget.length > 0) setRawBudget([...originalBudget]);
@@ -1115,6 +1147,8 @@
                 setIsSyncingConfigs(true);
                 try {
                     const payloadToSave = {
+                        lastUpdatedBy: currentUser || 'Unknown',
+                        lastUpdatedAt: new Date().toISOString(),
                         versions: versionsToPush.map(v => ({
                             id: v.id, name: v.name, timestamp: v.timestamp,
                             isNormalizeHurricane: v.isNormalizeHurricane,
@@ -4226,9 +4260,9 @@
                             )}
 
                             {rawActuals.length > 0 && (
-                                <div className={`text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 ${isBudgetCommitted ? 'bg-emerald-50 text-emerald-700 border-emerald-200':'bg-orange-50 text-orange-700 border-orange-200'}`}>
-                                    <span className={`w-2 h-2 rounded-full ${isBudgetCommitted ? 'bg-emerald-500' : 'bg-orange-400 animate-pulse'}`}></span>
-                                    {isBudgetCommitted ? 'Granular Budget Active' : 'Allocating Budget...'}
+                                <div className={`text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 ${allocationResults.length > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200':'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                    <span className={`w-2 h-2 rounded-full ${allocationResults.length > 0 ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`}></span>
+                                    {allocationResults.length > 0 ? `Budget Allocated · ${allocationResults.filter(r=>r.name!=='NO HISTORY'&&r.name!=='ZERO HISTORY').length} accounts` : rawActuals.length > 0 && rawBudget.length > 0 ? 'Computing allocation...' : 'Awaiting data...'}
                                 </div>
                             )}
                             <div className={`text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 ${supabaseStatus === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : supabaseStatus === 'error' ? 'bg-red-50 text-red-700 border-red-200' : supabaseStatus === 'connecting' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
