@@ -1,4 +1,5 @@
-const { useState, useMemo, useEffect, useCallback, Component } = React;
+const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
+        const { createRef } = React;
         const { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
 
         class ErrorBoundary extends Component {
@@ -162,9 +163,9 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
             const [nameInput, setNameInput] = useState('');
             const [onlineUsers, setOnlineUsers] = useState({});  // { userId: { name, color, lastSeen } }
             const [realtimeToast, setRealtimeToast] = useState(null); // { msg, type }
-            const presenceChannelRef = React.useRef(null);
-            const realtimeChannelRef = React.useRef(null);
-            const userIdRef = React.useRef(() => {
+            const presenceChannelRef = useRef(null);
+            const realtimeChannelRef = useRef(null);
+            const userIdRef = useRef(() => {
                 let id = localStorage.getItem('jps_user_id');
                 if (!id) { id = 'u_' + Math.random().toString(36).substr(2, 9); localStorage.setItem('jps_user_id', id); }
                 return id;
@@ -306,7 +307,7 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
 
 
             // --- NET GEN HISTORICAL STATE (loaded from Supabase) ---
-            const [netGenData, setNetGenData] = React.useState(null);
+            const [netGenData, setNetGenData] = useState(null);
             // netGenData shape: { netGen: {2023:[],2024:[],2025:[]}, peak: {2023:[],2024:[],2025:[]}, loaded: false }
 
             // --- SORTING STATES (single declaration) ---
@@ -2154,7 +2155,7 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                     }
                 };
 
-                const [newAcct, setNewAcct] = React.useState({ acct: '', name: '', rc: 'RT40', parish: '', industry: '', kvaDemand: '', notes: '' });
+                const [newAcct, setNewAcct] = useState({ acct: '', name: '', rc: 'RT40', parish: '', industry: '', kvaDemand: '', notes: '' });
 
                 const handleAddAccount = () => {
                     if (!newAcct.acct || !newAcct.name) return;
@@ -2522,13 +2523,13 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                     return indices.reduce((s,v)=>s+v,0) / 3;
                 });
 
-                const [sysLossPct, setSysLossPct] = React.useState(26.0);
-                const [growthMethod, setGrowthMethod] = React.useState('seasonal');
-                const [flatGrowth, setFlatGrowth] = React.useState(0.5);
-                const [manualMonthly, setManualMonthly] = React.useState(Array(12).fill(0));
-                const [forecastBase, setForecastBase] = React.useState('norm2025');
-                const [peakGrowthPct, setPeakGrowthPct] = React.useState(1.0);
-                const [showNormalized, setShowNormalized] = React.useState(true);
+                const [sysLossPct, setSysLossPct] = useState(26.0);
+                const [growthMethod, setGrowthMethod] = useState('seasonal');
+                const [flatGrowth, setFlatGrowth] = useState(0.5);
+                const [manualMonthly, setManualMonthly] = useState(Array(12).fill(0));
+                const [forecastBase, setForecastBase] = useState('norm2025');
+                const [peakGrowthPct, setPeakGrowthPct] = useState(1.0);
+                const [showNormalized, setShowNormalized] = useState(true);
 
                 const avg3yr = monthNames.map((_,m) =>
                     (histNetGen[2023][m] + histNetGen[2024][m] + norm2025[m]) / 3
@@ -2856,11 +2857,11 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                     return idxs.reduce((s,v)=>s+v,0)/3;
                 });
 
-                const [r18SysLoss, setR18SysLoss] = React.useState(26.0);
-                const [r18Growth26, setR18Growth26] = React.useState(0.5);
-                const [r18Growth27, setR18Growth27] = React.useState(1.5);
-                const [r18Base, setR18Base] = React.useState('norm2025');
-                const [r18ShowRevenue, setR18ShowRevenue] = React.useState(true);
+                const [r18SysLoss, setR18SysLoss] = useState(26.0);
+                const [r18Growth26, setR18Growth26] = useState(0.5);
+                const [r18Growth27, setR18Growth27] = useState(1.5);
+                const [r18Base, setR18Base] = useState('norm2025');
+                const [r18ShowRevenue, setR18ShowRevenue] = useState(true);
 
                 const baseRef = r18Base === 'norm2025' ? norm2025 :
                     Array(12).fill(0).map((_,m)=>(histNetGen[2023][m]+histNetGen[2024][m]+norm2025[m])/3);
