@@ -304,6 +304,11 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
             // --- RISK & SCENARIO COMPARISON STATE ---
             const [riskThreshold, setRiskThreshold] = useState(10); // % below budget = at risk
 
+
+            // --- NET GEN HISTORICAL STATE (loaded from Supabase) ---
+            const [netGenData, setNetGenData] = React.useState(null);
+            // netGenData shape: { netGen: {2023:[],2024:[],2025:[]}, peak: {2023:[],2024:[],2025:[]}, loaded: false }
+
             // --- SORTING STATES (single declaration) ---
             const [monthlySort, setMonthlySort] = useState({key: null, direction: 'asc'});
             const [topSort, setTopSort] = useState({key: 'variance', direction: 'descending'});
@@ -2488,103 +2493,87 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
             // TAB: NET GENERATION & ROLLING FORECAST
             // ============================================================
             const renderNetGenTab = () => {
-                // Historical actuals (MWh)
-                const historicalNetGen = {
-                    2023: [354056, 322757, 371317, 367542, 409748, 404192, 429163, 427526, 404793, 410934, 383676, 379154],
-                    2024: [383402, 338069, 387545, 388134, 415685, 401045, 345983, 404490, 389210, 402469, 359066, 375838],
-                    2025: [372313, 336344, 375246, 365247, 396971, 396063, 427080, 426673, 406971, 355212, 245234, 309473],
-                };
-                // Hurricane-normalized 2025 (Nov/Dec restored to 23/24 avg)
-                const norm2025 = [...historicalNetGen[2025]];
-                norm2025[10] = (historicalNetGen[2023][10] + historicalNetGen[2024][10]) / 2; // 371,371
-                norm2025[11] = (historicalNetGen[2023][11] + historicalNetGen[2024][11]) / 2; // 377,496
+                if (!netGenData || !netGenData.loaded) {
+                    return (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
+                            <Icons.Wind />
+                            <p className="font-bold">Loading Net Generation data from Supabase...</p>
+                            <p className="text-xs text-slate-400">Ensure the net_gen_historical table exists and RLS allows reads.</p>
+                        </div>
+                    );
+                }
 
-                const historicalPeakMW = {
-                    2023: [580.4, 582.2, 599.3, 618.1, 643.8, 675.3, 692.0, 689.9, 687.5, 666.7, 639.8, 623.2],
-                    2024: [613.8, 607.4, 628.5, 644.5, 678.1, 672.6, 643.8, 664.0, 672.4, 651.2, 597.4, 624.7],
-                    2025: [588.9, 592.8, 601.9, 623.6, 646.7, 647.0, 684.2, 696.5, 676.3, 638.2, 462.3, 514.1],
-                };
-                const normPeak2025 = [...historicalPeakMW[2025]];
-                normPeak2025[10] = (historicalPeakMW[2023][10] + historicalPeakMW[2024][10]) / 2;
-                normPeak2025[11] = (historicalPeakMW[2023][11] + historicalPeakMW[2024][11]) / 2;
+                const histNetGen = netGenData.netGen;
+                const histPeakMW = netGenData.peak;
 
-                // 3-year seasonal index (using normalized 2025)
-                const allYears = [historicalNetGen[2023], historicalNetGen[2024], norm2025];
+                // Hurricane-normalize 2025 Nov/Dec
+                const norm2025 = [...histNetGen[2025]];
+                norm2025[10] = (histNetGen[2023][10] + histNetGen[2024][10]) / 2;
+                norm2025[11] = (histNetGen[2023][11] + histNetGen[2024][11]) / 2;
+                const normPeak2025 = [...histPeakMW[2025]];
+                normPeak2025[10] = (histPeakMW[2023][10] + histPeakMW[2024][10]) / 2;
+                normPeak2025[11] = (histPeakMW[2023][11] + histPeakMW[2024][11]) / 2;
+
+                // 3-year seasonal index
+                const allYears = [histNetGen[2023], histNetGen[2024], norm2025];
                 const annualAvgs = allYears.map(y => y.reduce((s,v)=>s+v,0)/12);
                 const seasonalIndex = monthNames.map((_,m) => {
                     const indices = allYears.map((yr,i) => yr[m] / annualAvgs[i]);
                     return indices.reduce((s,v)=>s+v,0) / 3;
                 });
 
-                // Forecast controls state (local to this tab via useState)
                 const [sysLossPct, setSysLossPct] = React.useState(26.0);
-                const [growthMethod, setGrowthMethod] = React.useState('seasonal'); // seasonal | flat | manual
+                const [growthMethod, setGrowthMethod] = React.useState('seasonal');
                 const [flatGrowth, setFlatGrowth] = React.useState(0.5);
                 const [manualMonthly, setManualMonthly] = React.useState(Array(12).fill(0));
-                const [forecastBase, setForecastBase] = React.useState('norm2025'); // norm2025 | avg3yr
+                const [forecastBase, setForecastBase] = React.useState('norm2025');
                 const [peakGrowthPct, setPeakGrowthPct] = React.useState(1.0);
                 const [showNormalized, setShowNormalized] = React.useState(true);
 
-                // Derive 3yr monthly avg for alternative base
                 const avg3yr = monthNames.map((_,m) =>
-                    (historicalNetGen[2023][m] + historicalNetGen[2024][m] + norm2025[m]) / 3
+                    (histNetGen[2023][m] + histNetGen[2024][m] + norm2025[m]) / 3
                 );
-
-                // Build 12-month rolling forecast (Jan–Dec 2026)
                 const baseYear = forecastBase === 'norm2025' ? norm2025 : avg3yr;
                 const basePeak = forecastBase === 'norm2025' ? normPeak2025 :
-                    monthNames.map((_,m) => (historicalPeakMW[2023][m]+historicalPeakMW[2024][m]+normPeak2025[m])/3);
+                    monthNames.map((_,m) => (histPeakMW[2023][m]+histPeakMW[2024][m]+normPeak2025[m])/3);
 
                 const forecastNetGen = monthNames.map((_,m) => {
                     if (growthMethod === 'flat') return baseYear[m] * (1 + flatGrowth/100);
                     if (growthMethod === 'manual') return baseYear[m] * (1 + (manualMonthly[m]||0)/100);
-                    // seasonal: apply overall flat growth but shape by seasonal index
                     const annualBase = baseYear.reduce((s,v)=>s+v,0);
                     const targetAnnual = annualBase * (1 + flatGrowth/100);
-                    const weightedAvgIndex = seasonalIndex.reduce((s,v)=>s+v,0)/12; // ~1.0
-                    return (targetAnnual / 12) * (seasonalIndex[m] / weightedAvgIndex);
+                    const wtAvgIdx = seasonalIndex.reduce((s,v)=>s+v,0)/12;
+                    return (targetAnnual / 12) * (seasonalIndex[m] / wtAvgIdx);
                 });
-
-                const forecastPeak = monthNames.map((_,m) =>
-                    basePeak[m] * (1 + peakGrowthPct/100)
-                );
-
-                // Billed Sales = Net Gen × (1 - SysLoss%)
+                const forecastPeak = monthNames.map((_,m) => basePeak[m] * (1 + peakGrowthPct/100));
                 const forecastBilled = forecastNetGen.map(v => v * (1 - sysLossPct/100));
-
-                // Implied load factor = MWh / (Peak MW × hours in month)
                 const daysInMonth = [31,28,31,30,31,30,31,31,30,31,30,31];
-                const loadFactor = forecastNetGen.map((ng, m) => {
-                    const hours = daysInMonth[m] * 24;
-                    return forecastPeak[m] > 0 ? (ng / (forecastPeak[m] * hours)) * 100 : 0;
-                });
+                const loadFactor = forecastNetGen.map((ng,m) => forecastPeak[m] > 0 ? (ng/(forecastPeak[m]*daysInMonth[m]*24))*100 : 0);
 
                 const totFcstNG = forecastNetGen.reduce((s,v)=>s+v,0);
                 const totFcstBilled = forecastBilled.reduce((s,v)=>s+v,0);
                 const totBase = baseYear.reduce((s,v)=>s+v,0);
                 const yoyPct = totBase > 0 ? (totFcstNG - totBase) / totBase * 100 : 0;
 
-                const chartData = monthNames.map((name, m) => ({
+                const chartData = monthNames.map((name,m) => ({
                     month: name.substring(0,3),
-                    'Net Gen 2023': Math.round(historicalNetGen[2023][m]),
-                    'Net Gen 2024': Math.round(historicalNetGen[2024][m]),
-                    'Net Gen 2025': showNormalized ? Math.round(norm2025[m]) : Math.round(historicalNetGen[2025][m]),
+                    'Net Gen 2023': Math.round(histNetGen[2023][m]),
+                    'Net Gen 2024': Math.round(histNetGen[2024][m]),
+                    'Net Gen 2025': showNormalized ? Math.round(norm2025[m]) : Math.round(histNetGen[2025][m]),
                     'Forecast 2026': Math.round(forecastNetGen[m]),
                     'Billed Sales 2026': Math.round(forecastBilled[m]),
                 }));
 
-                const peakChartData = monthNames.map((name, m) => ({
+                const peakChartData = monthNames.map((name,m) => ({
                     month: name.substring(0,3),
-                    '2023': Math.round(historicalPeakMW[2023][m]),
-                    '2024': Math.round(historicalPeakMW[2024][m]),
-                    '2025': showNormalized ? Math.round(normPeak2025[m]) : Math.round(historicalPeakMW[2025][m]),
-                    'Forecast 2026': Math.round(forecastPeak[m] * 10) / 10,
+                    '2023': Math.round(histPeakMW[2023][m]),
+                    '2024': Math.round(histPeakMW[2024][m]),
+                    '2025': showNormalized ? Math.round(normPeak2025[m]) : Math.round(histPeakMW[2025][m]),
+                    'Forecast 2026': Math.round(forecastPeak[m]*10)/10,
                 }));
 
                 return (
                     <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
-
-                        {/* Header */}
                         <div className="bg-white rounded-xl border p-5 shadow-sm flex items-center justify-between">
                             <div>
                                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.Wind /> Net Generation & 12-Month Rolling Forecast</h2>
@@ -2596,7 +2585,6 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                             </label>
                         </div>
 
-                        {/* KPI Strip */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">2026 Net Gen (MWh)</div>
@@ -2616,16 +2604,15 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">2025 Actual (Norm)</div>
                                 <div className="text-2xl font-black text-slate-600">{(norm2025.reduce((s,v)=>s+v,0)/1000).toFixed(0)}<span className="text-sm font-bold text-slate-400 ml-1">GWh</span></div>
-                                <div className="text-xs text-slate-400 mt-1">vs {(historicalNetGen[2025].reduce((s,v)=>s+v,0)/1000).toFixed(0)} raw</div>
+                                <div className="text-xs text-slate-400 mt-1">vs {(histNetGen[2025].reduce((s,v)=>s+v,0)/1000).toFixed(0)} raw</div>
                             </div>
                             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 shadow-sm">
-                                <div className="text-[10px] font-bold text-emerald-600 uppercase mb-1">1% Loss Reduction = </div>
+                                <div className="text-[10px] font-bold text-emerald-600 uppercase mb-1">1% Loss Reduction =</div>
                                 <div className="text-2xl font-black text-emerald-700">{formatUSDb(totFcstNG * 0.01 * (tariffRates['RT40'].energy / fxRate))}</div>
                                 <div className="text-xs text-emerald-600 mt-1">additional revenue</div>
                             </div>
                         </div>
 
-                        {/* Forecast Controls */}
                         <div className="bg-slate-800 text-white rounded-xl p-5 shadow-sm">
                             <h3 className="font-bold mb-4 flex items-center gap-2 text-slate-200"><Icons.Sliders /> Forecast Assumptions</h3>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
@@ -2646,10 +2633,10 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                                 </div>
                                 {growthMethod !== 'manual' && (
                                     <div>
-                                        <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Annual Growth % (Net Gen)</label>
+                                        <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Annual Growth %</label>
                                         <div className="flex items-center gap-2">
                                             <input type="range" min="-5" max="10" step="0.1" value={flatGrowth} onChange={e=>setFlatGrowth(parseFloat(e.target.value))} className="flex-1" />
-                                            <span className="text-sm font-black text-white w-12 text-right">{flatGrowth > 0 ? '+' : ''}{flatGrowth.toFixed(1)}%</span>
+                                            <span className="text-sm font-black text-white w-12 text-right">{flatGrowth>0?'+':''}{flatGrowth.toFixed(1)}%</span>
                                         </div>
                                     </div>
                                 )}
@@ -2664,15 +2651,13 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Peak Demand Growth %</label>
                                     <div className="flex items-center gap-2">
                                         <input type="range" min="-5" max="10" step="0.1" value={peakGrowthPct} onChange={e=>setPeakGrowthPct(parseFloat(e.target.value))} className="flex-1" />
-                                        <span className="text-sm font-black text-white w-12 text-right">{peakGrowthPct > 0 ? '+' : ''}{peakGrowthPct.toFixed(1)}%</span>
+                                        <span className="text-sm font-black text-white w-12 text-right">{peakGrowthPct>0?'+':''}{peakGrowthPct.toFixed(1)}%</span>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Manual monthly overrides */}
                             {growthMethod === 'manual' && (
                                 <div className="mt-4 pt-4 border-t border-slate-700">
-                                    <div className="text-[10px] font-bold uppercase text-slate-400 mb-2">Monthly Growth % Override (applied to base year)</div>
+                                    <div className="text-[10px] font-bold uppercase text-slate-400 mb-2">Monthly Growth % Override</div>
                                     <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
                                         {monthNames.map((m,i) => (
                                             <div key={m} className="text-center">
@@ -2687,7 +2672,6 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                             )}
                         </div>
 
-                        {/* Net Gen Chart */}
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.TrendingUp /> Net Generation — Historical vs 2026 Forecast (MWh)</h3>
                             <div className="h-[300px]">
@@ -2708,23 +2692,21 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                             </div>
                         </div>
 
-                        {/* Monthly Detail Table */}
                         <div className="bg-white rounded-xl border shadow-sm overflow-x-auto">
                             <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
                                 <h3 className="font-bold text-slate-800">12-Month Rolling Forecast Detail</h3>
                                 <button onClick={() => {
                                     const rows = monthNames.map((m,i) => ({
-                                        Month: m, 
-                                        'Net_Gen_2023_MWh': Math.round(historicalNetGen[2023][i]),
-                                        'Net_Gen_2024_MWh': Math.round(historicalNetGen[2024][i]),
-                                        'Net_Gen_2025_Actual': Math.round(historicalNetGen[2025][i]),
-                                        'Net_Gen_2025_Normalized': Math.round(norm2025[i]),
-                                        'Forecast_2026_NetGen_MWh': Math.round(forecastNetGen[i]),
-                                        'Forecast_2026_BilledSales_MWh': Math.round(forecastBilled[i]),
-                                        'Forecast_2026_SystemLoss_MWh': Math.round(forecastNetGen[i]-forecastBilled[i]),
-                                        'Peak_Demand_2026_MW': forecastPeak[i].toFixed(1),
-                                        'Load_Factor_Pct': loadFactor[i].toFixed(1),
-                                        'System_Loss_Pct': sysLossPct.toFixed(1),
+                                        Month: m,
+                                        Net_Gen_2023: Math.round(histNetGen[2023][i]),
+                                        Net_Gen_2024: Math.round(histNetGen[2024][i]),
+                                        Net_Gen_2025_Raw: Math.round(histNetGen[2025][i]),
+                                        Net_Gen_2025_Norm: Math.round(norm2025[i]),
+                                        Forecast_2026_NetGen: Math.round(forecastNetGen[i]),
+                                        Forecast_2026_Billed: Math.round(forecastBilled[i]),
+                                        System_Loss_MWh: Math.round(forecastNetGen[i]-forecastBilled[i]),
+                                        Peak_MW_2026: forecastPeak[i].toFixed(1),
+                                        Load_Factor_Pct: loadFactor[i].toFixed(1),
                                     }));
                                     exportCSV(rows, 'JPS_NetGen_Forecast_2026.csv');
                                 }} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border border-blue-200 transition">
@@ -2742,25 +2724,23 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                                         <th className="p-3 text-right text-[10px] text-slate-400">Seas. Idx</th>
                                         <th className="p-3 text-right font-bold text-blue-800 bg-blue-50 border-l-2 border-blue-200">2026 Net Gen</th>
                                         <th className="p-3 text-right font-bold text-emerald-700 bg-emerald-50">Billed Sales</th>
-                                        <th className="p-3 text-right text-amber-600 bg-amber-50">Sys Loss MWh</th>
+                                        <th className="p-3 text-right text-amber-600 bg-amber-50">Sys Loss</th>
                                         <th className="p-3 text-right text-purple-600">Peak MW</th>
                                         <th className="p-3 text-right text-slate-500">Load Factor</th>
-                                        <th className="p-3 text-right font-bold text-blue-700 border-l border-slate-200">YoY vs Norm</th>
+                                        <th className={`p-3 text-right font-bold border-l border-slate-200`}>YoY vs Norm</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {monthNames.map((m,i) => {
                                         const yoy = norm2025[i]>0?(forecastNetGen[i]-norm2025[i])/norm2025[i]*100:0;
-                                        const isHurricane = i >= 10 && historicalNetGen[2025][i] < norm2025[i] * 0.9;
+                                        const isHurricane = i >= 10 && histNetGen[2025][i] < norm2025[i] * 0.9;
                                         return (
                                             <tr key={m} className="border-b hover:bg-slate-50">
-                                                <td className="p-3 font-bold border-r table-pin-col bg-white z-10">
-                                                    {m.substring(0,3)}
-                                                </td>
-                                                <td className="p-3 text-right text-slate-400 text-xs">{formatNum(historicalNetGen[2023][i])}</td>
-                                                <td className="p-3 text-right text-slate-400 text-xs">{formatNum(historicalNetGen[2024][i])}</td>
+                                                <td className="p-3 font-bold border-r table-pin-col bg-white z-10">{m.substring(0,3)}</td>
+                                                <td className="p-3 text-right text-slate-400 text-xs">{formatNum(histNetGen[2023][i])}</td>
+                                                <td className="p-3 text-right text-slate-400 text-xs">{formatNum(histNetGen[2024][i])}</td>
                                                 <td className="p-3 text-right text-slate-500">
-                                                    {formatNum(historicalNetGen[2025][i])}
+                                                    {formatNum(histNetGen[2025][i])}
                                                     {isHurricane && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 rounded font-bold">HURR</span>}
                                                 </td>
                                                 <td className="p-3 text-right text-slate-700 bg-slate-50 font-medium">{formatNum(Math.round(norm2025[i]))}</td>
@@ -2775,26 +2755,25 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                                         );
                                     })}
                                 </tbody>
-                                <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-10">
+                                <tfoot className="bg-slate-200 font-black border-t-2 sticky bottom-0 z-10">
                                     <tr>
-                                        <td className="p-3 border-r table-pin-col bg-slate-200 z-20">TOTAL / AVG</td>
-                                        <td className="p-3 text-right text-xs">{formatNum(historicalNetGen[2023].reduce((s,v)=>s+v,0))}</td>
-                                        <td className="p-3 text-right text-xs">{formatNum(historicalNetGen[2024].reduce((s,v)=>s+v,0))}</td>
-                                        <td className="p-3 text-right">{formatNum(historicalNetGen[2025].reduce((s,v)=>s+v,0))}</td>
+                                        <td className="p-3 border-r table-pin-col bg-slate-200 z-20">TOTAL</td>
+                                        <td className="p-3 text-right text-xs">{formatNum(histNetGen[2023].reduce((s,v)=>s+v,0))}</td>
+                                        <td className="p-3 text-right text-xs">{formatNum(histNetGen[2024].reduce((s,v)=>s+v,0))}</td>
+                                        <td className="p-3 text-right">{formatNum(histNetGen[2025].reduce((s,v)=>s+v,0))}</td>
                                         <td className="p-3 text-right bg-slate-300">{formatNum(Math.round(norm2025.reduce((s,v)=>s+v,0)))}</td>
-                                        <td className="p-3 text-right text-slate-400 text-xs">{(seasonalIndex.reduce((s,v)=>s+v,0)/12).toFixed(3)}</td>
+                                        <td className="p-3"></td>
                                         <td className="p-3 text-right text-blue-900 bg-blue-100 border-l-2 border-blue-300">{formatNum(Math.round(totFcstNG))}</td>
                                         <td className="p-3 text-right text-emerald-800 bg-emerald-100">{formatNum(Math.round(totFcstBilled))}</td>
                                         <td className="p-3 text-right text-amber-700 bg-amber-100">{formatNum(Math.round(totFcstNG-totFcstBilled))}</td>
                                         <td className="p-3 text-right text-purple-700">{Math.max(...forecastPeak).toFixed(1)} pk</td>
                                         <td className="p-3 text-right">{(loadFactor.reduce((s,v)=>s+v,0)/12).toFixed(1)}%</td>
-                                        <td className={`p-3 text-right border-l border-slate-300 ${yoyPct>=0?'text-emerald-700':'text-red-600'}`}>{yoyPct>0?'+':''}{yoyPct.toFixed(1)}%</td>
+                                        <td className={`p-3 text-right border-l ${yoyPct>=0?'text-emerald-700':'text-red-600'}`}>{yoyPct>0?'+':''}{yoyPct.toFixed(1)}%</td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
 
-                        {/* Peak Demand Chart */}
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity /> Peak Demand — Historical vs 2026 Forecast (MW)</h3>
                             <div className="h-[250px]">
@@ -2814,10 +2793,8 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                             </div>
                         </div>
 
-                        {/* Sensitivity: System Loss Impact */}
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
-                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Calculator /> System Loss Sensitivity — Revenue Impact (US$)</h3>
-                            <p className="text-xs text-slate-500 mb-4">Shows how much additional revenue JPS captures at different system loss improvement levels vs the {sysLossPct}% base assumption. Uses blended energy rate.</p>
+                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Calculator /> System Loss Sensitivity</h3>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-100">
@@ -2830,30 +2807,19 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {[28, 27, 26, 25, 24, 23, 22].map(loss => {
-                                            const billed = totFcstNG * (1 - loss/100);
+                                        {[28,27,26,25,24,23,22].map(loss => {
+                                            const billed = totFcstNG*(1-loss/100);
                                             const delta = billed - totFcstBilled;
-                                            const blendedRate = Object.values(tariffRates).reduce((s,r)=>s+r.energy,0) / Object.keys(tariffRates).length;
-                                            const revDelta = (delta * blendedRate) / fxRate;
-                                            const isBase = Math.abs(loss - sysLossPct) < 0.01;
+                                            const blendedRate = Object.values(tariffRates).reduce((s,r)=>s+r.energy,0)/Object.keys(tariffRates).length;
+                                            const revDelta = (delta*blendedRate)/fxRate;
+                                            const isBase = Math.abs(loss-sysLossPct)<0.01;
                                             return (
-                                                <tr key={loss} className={`border-b ${isBase ? 'bg-blue-50 font-bold' : 'hover:bg-slate-50'}`}>
-                                                    <td className="p-3 font-bold">
-                                                        {loss}%
-                                                        {isBase && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">Base</span>}
-                                                    </td>
+                                                <tr key={loss} className={`border-b ${isBase?'bg-blue-50 font-bold':'hover:bg-slate-50'}`}>
+                                                    <td className="p-3 font-bold">{loss}%{isBase&&<span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">Base</span>}</td>
                                                     <td className="p-3 text-right">{(billed/1000).toFixed(1)}</td>
-                                                    <td className={`p-3 text-right font-bold ${delta>0?'text-emerald-600':delta<0?'text-red-500':'text-slate-400'}`}>
-                                                        {delta>0?'+':''}{(delta/1000).toFixed(1)}
-                                                    </td>
-                                                    <td className={`p-3 text-right font-bold ${revDelta>0?'text-emerald-600':revDelta<0?'text-red-500':'text-slate-400'}`}>
-                                                        {revDelta>0?'+':''}{formatUSDb(revDelta)}
-                                                    </td>
-                                                    <td className="p-3 text-right">
-                                                        <span className={`text-xs px-2 py-0.5 rounded font-bold ${loss<=24?'bg-emerald-100 text-emerald-700':loss<=26?'bg-amber-100 text-amber-700':'bg-red-100 text-red-700'}`}>
-                                                            {loss<=24?'Best Practice':loss<=26?'Current Range':'Above Target'}
-                                                        </span>
-                                                    </td>
+                                                    <td className={`p-3 text-right font-bold ${delta>0?'text-emerald-600':delta<0?'text-red-500':'text-slate-400'}`}>{delta>0?'+':''}{(delta/1000).toFixed(1)}</td>
+                                                    <td className={`p-3 text-right font-bold ${revDelta>0?'text-emerald-600':revDelta<0?'text-red-500':'text-slate-400'}`}>{revDelta>0?'+':''}{formatUSDb(revDelta)}</td>
+                                                    <td className="p-3 text-right"><span className={`text-xs px-2 py-0.5 rounded font-bold ${loss<=24?'bg-emerald-100 text-emerald-700':loss<=26?'bg-amber-100 text-amber-700':'bg-red-100 text-red-700'}`}>{loss<=24?'Best Practice':loss<=26?'Current Range':'Above Target'}</span></td>
                                                 </tr>
                                             );
                                         })}
@@ -2861,28 +2827,28 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                                 </table>
                             </div>
                         </div>
-
                     </div>
                 );
             };
 
-
             // ============================================================
             // TAB: ROLLING 18-MONTH FORECAST
-            // Jan 2026 – Jun 2027
             // ============================================================
             const renderRolling18Tab = () => {
-                // ── Historical Net Gen (from uploaded file) ──────────────────
-                const histNetGen = {
-                    2023: [354056,322757,371317,367542,409748,404192,429163,427526,404793,410934,383676,379154],
-                    2024: [383402,338069,387545,388134,415685,401045,345983,404490,389210,402469,359066,375838],
-                    2025: [372313,336344,375246,365247,396971,396063,427080,426673,406971,355212,245234,309473],
-                };
-                const norm2025 = [...histNetGen[2025]];
-                norm2025[10] = (histNetGen[2023][10]+histNetGen[2024][10])/2; // 371,371
-                norm2025[11] = (histNetGen[2023][11]+histNetGen[2024][11])/2; // 377,496
+                if (!netGenData || !netGenData.loaded) {
+                    return (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
+                            <Icons.TrendingUp />
+                            <p className="font-bold">Loading Net Generation data from Supabase...</p>
+                        </div>
+                    );
+                }
 
-                // Seasonal index (3yr normalized)
+                const histNetGen = netGenData.netGen;
+                const norm2025 = [...histNetGen[2025]];
+                norm2025[10] = (histNetGen[2023][10] + histNetGen[2024][10]) / 2;
+                norm2025[11] = (histNetGen[2023][11] + histNetGen[2024][11]) / 2;
+
                 const allYrs = [histNetGen[2023], histNetGen[2024], norm2025];
                 const annAvgs = allYrs.map(y => y.reduce((s,v)=>s+v,0)/12);
                 const seasIdx = Array(12).fill(0).map((_,m) => {
@@ -2890,160 +2856,106 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                     return idxs.reduce((s,v)=>s+v,0)/3;
                 });
 
-                // ── Forecast controls ─────────────────────────────────────────
-                const [r18SysLoss,   setR18SysLoss]   = React.useState(26.0);
-                const [r18Growth26,  setR18Growth26]  = React.useState(0.5);
-                const [r18Growth27,  setR18Growth27]  = React.useState(1.5);
-                const [r18Base,      setR18Base]      = React.useState('norm2025');
+                const [r18SysLoss, setR18SysLoss] = React.useState(26.0);
+                const [r18Growth26, setR18Growth26] = React.useState(0.5);
+                const [r18Growth27, setR18Growth27] = React.useState(1.5);
+                const [r18Base, setR18Base] = React.useState('norm2025');
+                const [r18ShowRevenue, setR18ShowRevenue] = React.useState(true);
 
-                const baseRef = r18Base === 'norm2025' ? norm2025
-                    : Array(12).fill(0).map((_,m)=>(histNetGen[2023][m]+histNetGen[2024][m]+norm2025[m])/3);
+                const baseRef = r18Base === 'norm2025' ? norm2025 :
+                    Array(12).fill(0).map((_,m)=>(histNetGen[2023][m]+histNetGen[2024][m]+norm2025[m])/3);
 
-                // ── Jan–Mar 2026 actuals (locked) ─────────────────────────────
-                // Pull billed MWh from actuals already loaded in the engine
-                const actBilledByMonth = {};
-                actuals.filter(a=>a.year===2026&&a.month<=3).forEach(a=>{
-                    actBilledByMonth[a.month]=(actBilledByMonth[a.month]||0)+a.kwh/1000;
+                const actualsBilledByMonth = {};
+                actuals.filter(a => a.year === 2026).forEach(a => {
+                    actualsBilledByMonth[a.month] = (actualsBilledByMonth[a.month]||0) + a.kwh/1000;
                 });
-                const maxActMonth = 3; // fixed per user requirement
+                const maxActMonth = Math.max(0, ...actuals.filter(a=>a.year===2026).map(a=>a.month));
 
-                // Actuals summary (Jan–Mar 2026)
-                const actSummary = [1,2,3].map(m=>({
-                    mNum: m,
-                    label: `${monthNames[m-1].substring(0,3)} 2026`,
-                    billedMwh: actBilledByMonth[m]||0,
-                    netGenMwh: histNetGen[2025]?.[m-1]||0,   // use 2025 actuals as proxy if no 2026 net gen uploaded
-                    revUSD: ((actBilledByMonth[m]||0)*1000
-                             * (Object.values(tariffRates).reduce((s,r)=>s+r.energy,0)/Object.keys(tariffRates).length))
-                             / fxRate,
-                }));
-                const actTotBilled = actSummary.reduce((s,r)=>s+r.billedMwh,0);
-                const actTotRev    = actSummary.reduce((s,r)=>s+r.revUSD,0);
+                const wtAvgIdx = seasIdx.reduce((s,v)=>s+v,0)/12;
+                const getFcstNG = (mIdx, yr) => {
+                    const annBase = baseRef.reduce((s,v)=>s+v,0);
+                    const g = yr === 2026 ? r18Growth26 : r18Growth27;
+                    return (annBase*(1+g/100)/12) * (seasIdx[mIdx]/wtAvgIdx);
+                };
 
-                // ── Build 18 forecast rows: Apr 2026 → Sep 2027 ──────────────
-                const forecastRows = [];
-                for (let i=0; i<18; i++) {
-                    // i=0 → Apr 2026 (mIdx=3), i=8 → Dec 2026, i=9 → Jan 2027 …
-                    const absMonth = 3 + i;            // 0-based, starting Apr=3
-                    const yr   = absMonth < 12 ? 2026 : 2027;
-                    const mIdx = absMonth % 12;
-                    const mNum = mIdx + 1;
-                    const label = `${monthNames[mIdx].substring(0,3)} ${yr}`;
-
-                    const growthPct = yr === 2026 ? r18Growth26 : r18Growth27;
-                    const annBase   = baseRef.reduce((s,v)=>s+v,0);
-                    const targetAnn = annBase * (1 + growthPct/100);
-                    const wtAvgIdx  = seasIdx.reduce((s,v)=>s+v,0)/12;
-                    const fcstNetGen  = (targetAnn/12) * (seasIdx[mIdx]/wtAvgIdx);
-                    const fcstBilled  = fcstNetGen * (1 - r18SysLoss/100);
-
+                const lockedActuals = [1,2,3].map(mNum => {
+                    const mIdx = mNum-1;
+                    const billedMwh = actualsBilledByMonth[mNum]||0;
+                    const netGenEst = billedMwh>0 ? billedMwh/(1-r18SysLoss/100) : getFcstNG(mIdx,2026);
                     const blendedRate = Object.values(tariffRates).reduce((s,r)=>s+r.energy,0)/Object.keys(tariffRates).length;
-                    const revUSD = (fcstBilled*1000*blendedRate)/fxRate;
+                    const revUSD = (billedMwh*1000*blendedRate)/fxRate;
+                    const budBilledMwh = budget.filter(b=>b.year===2026&&b.month===mNum).reduce((s,d)=>s+d.kwh,0)/1000;
+                    return { label:`${monthNames[mIdx].substring(0,3)} 2026`, mIdx, mNum, yr:2026,
+                        netGen:netGenEst, billed:billedMwh, revUSD, budBilledMwh,
+                        sysLoss:netGenEst-billedMwh, varBud:budBilledMwh>0?billedMwh-budBilledMwh:null };
+                });
 
-                    // Budget billed for 2026 months only
-                    const budBilledMwh = yr===2026
-                        ? budget.filter(b=>b.year===2026&&b.month===mNum).reduce((s,d)=>s+d.kwh,0)/1000
-                        : 0;
-
-                    // YoY base: same month prior year (normalized)
-                    const pyBase = baseRef[mIdx];
-                    const yoyPct = pyBase>0 ? (fcstNetGen-pyBase)/pyBase*100 : 0;
-
-                    forecastRows.push({i, yr, mIdx, mNum, label, fcstNetGen, fcstBilled,
-                                       revUSD, yoyPct, budBilledMwh, growthPct});
+                const fcstRows = [];
+                for (let i=0; i<18; i++) {
+                    const yr = i<9?2026:2027;
+                    const mIdx = i<9?i+3:i-9;
+                    const mNum = mIdx+1;
+                    const label = `${monthNames[mIdx].substring(0,3)} ${yr}`;
+                    const ng = getFcstNG(mIdx,yr);
+                    const billed = ng*(1-r18SysLoss/100);
+                    const blendedRate = Object.values(tariffRates).reduce((s,r)=>s+r.energy,0)/Object.keys(tariffRates).length;
+                    const revUSD = (billed*1000*blendedRate)/fxRate;
+                    const budBilledMwh = budget.filter(b=>b.year===2026&&b.month===mNum).reduce((s,d)=>s+d.kwh,0)/1000;
+                    const pyNG = yr===2026?norm2025[mIdx]:getFcstNG(mIdx,2026);
+                    const yoyPct = pyNG>0?(ng-pyNG)/pyNG*100:0;
+                    const g = yr===2026?r18Growth26:r18Growth27;
+                    fcstRows.push({i,yr,mIdx,mNum,label,ng,billed,revUSD,budBilledMwh,
+                        varBud:budBilledMwh>0?billed-budBilledMwh:null,yoyPct,g});
                 }
 
-                const fcst2026 = forecastRows.filter(r=>r.yr===2026);
-                const fcst2027 = forecastRows.filter(r=>r.yr===2027);
-
-                const sumNG  = arr => arr.reduce((s,r)=>s+r.fcstNetGen,0);
-                const sumBil = arr => arr.reduce((s,r)=>s+r.fcstBilled,0);
+                const fcst2026 = fcstRows.filter(r=>r.yr===2026);
+                const fcst2027 = fcstRows.filter(r=>r.yr===2027);
+                const sumNG  = arr => arr.reduce((s,r)=>s+r.ng,0);
+                const sumBil = arr => arr.reduce((s,r)=>s+r.billed,0);
                 const sumRev = arr => arr.reduce((s,r)=>s+r.revUSD,0);
 
-                // Full 2026 = actuals Jan–Mar + forecast Apr–Dec
-                const full2026Billed = actTotBilled + sumBil(fcst2026);
-                const full2026Rev    = actTotRev    + sumRev(fcst2026);
-                const full2026NG     = actSummary.reduce((s,r)=>s+r.netGenMwh,0) + sumNG(fcst2026);
-
-                // Chart: actuals (3 bars) + 18 forecast bars
                 const chartData = [
-                    ...actSummary.map(r=>({
-                        label: r.label,
-                        'Actual Billed (MWh)': Math.round(r.billedMwh),
-                        'Forecast Billed (MWh)': null,
-                        'Revenue (US$k)': Math.round(r.revUSD/1000),
-                        isActual: true, yr: 2026,
-                    })),
-                    ...forecastRows.map(r=>({
-                        label: r.label,
-                        'Actual Billed (MWh)': null,
-                        'Forecast Billed (MWh)': Math.round(r.fcstBilled),
-                        'Revenue (US$k)': Math.round(r.revUSD/1000),
-                        isActual: false, yr: r.yr,
-                    })),
+                    ...lockedActuals.map(r=>({label:r.label,'Net Gen':Math.round(r.netGen),'Billed Sales':Math.round(r.billed),'Revenue ($k)':Math.round(r.revUSD/1000),type:'actual'})),
+                    ...fcstRows.map(r=>({label:r.label,'Net Gen':Math.round(r.ng),'Billed Sales':Math.round(r.billed),'Revenue ($k)':Math.round(r.revUSD/1000),type:r.yr===2027?'fcst27':'fcst26'})),
                 ];
 
                 return (
                     <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
-
-                        {/* ── Header ── */}
-                        <div className="bg-white rounded-xl border p-5 shadow-sm">
-                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <Icons.TrendingUp /> Rolling 18-Month Forecast
-                            </h2>
-                            <p className="text-sm text-slate-500 mt-1">
-                                <span className="font-bold text-blue-700">Actuals locked: Jan–Mar 2026</span>
-                                <span className="mx-2 text-slate-300">|</span>
-                                <span className="font-bold text-emerald-700">Forecast: Apr 2026 → Sep 2027</span>
-                                <span className="mx-2 text-slate-300">|</span>
-                                18 forecast months · Seasonal index applied · Two independent growth rates
-                            </p>
+                        <div className="bg-white rounded-xl border p-5 shadow-sm flex items-center justify-between flex-wrap gap-4">
+                            <div>
+                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.TrendingUp /> Rolling 18-Month Forecast</h2>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    <span className="font-bold text-blue-700">Actuals locked: Jan–Mar 2026</span>
+                                    <span className="mx-2 text-slate-300">·</span>
+                                    <span className="font-bold text-emerald-700">Forecast: Apr 2026 → Sep 2027</span>
+                                </p>
+                            </div>
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+                                <input type="checkbox" checked={r18ShowRevenue} onChange={e=>setR18ShowRevenue(e.target.checked)} className="w-4 h-4" />Show Revenue bars
+                            </label>
                         </div>
 
-                        {/* ── Actuals Banner (Jan–Mar 2026) ── */}
-                        <div className="bg-blue-900 text-white rounded-xl p-5 shadow-sm">
-                            <div className="text-xs font-black uppercase tracking-widest text-blue-300 mb-3">
-                                ✓ Locked Actuals — Jan–Mar 2026
-                            </div>
-                            <div className="grid grid-cols-4 gap-4">
-                                {actSummary.map(r=>(
-                                    <div key={r.mNum} className="bg-blue-800/60 rounded-lg p-3 text-center">
-                                        <div className="text-xs font-bold text-blue-300 mb-1">{r.label}</div>
-                                        <div className="text-lg font-black">{formatNum(Math.round(r.billedMwh))} <span className="text-xs font-normal text-blue-300">MWh</span></div>
-                                        <div className="text-xs text-blue-300 mt-0.5">{formatUSDb(r.revUSD)}</div>
-                                    </div>
-                                ))}
-                                <div className="bg-blue-700/60 rounded-lg p-3 text-center border border-blue-500">
-                                    <div className="text-xs font-bold text-blue-200 mb-1">Q1 2026 Total</div>
-                                    <div className="text-lg font-black">{formatNum(Math.round(actTotBilled))} <span className="text-xs font-normal text-blue-200">MWh</span></div>
-                                    <div className="text-xs text-blue-200 mt-0.5">{formatUSDb(actTotRev)}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── KPI Cards ── */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             {[
-                                { label: 'Full Year 2026 (Act+Fcst)', ng: full2026NG, bil: full2026Billed, rev: full2026Rev, color: 'blue' },
-                                { label: 'Forecast Apr–Dec 2026', ng: sumNG(fcst2026), bil: sumBil(fcst2026), rev: sumRev(fcst2026), color: 'sky' },
-                                { label: 'Forecast Jan–Sep 2027', ng: sumNG(fcst2027), bil: sumBil(fcst2027), rev: sumRev(fcst2027), color: 'purple' },
-                                { label: '2027 Annualised Run-Rate', ng: sumNG(fcst2027)/9*12, bil: sumBil(fcst2027)/9*12, rev: sumRev(fcst2027)/9*12, color: 'amber' },
+                                {label:'Actuals Q1 2026',billed:lockedActuals.reduce((s,r)=>s+r.billed,0),rev:lockedActuals.reduce((s,r)=>s+r.revUSD,0),color:'blue',tag:'LOCKED'},
+                                {label:'Forecast Apr–Dec 2026',billed:sumBil(fcst2026),rev:sumRev(fcst2026),color:'emerald',tag:'9M FCST'},
+                                {label:'Forecast Jan–Sep 2027',billed:sumBil(fcst2027),rev:sumRev(fcst2027),color:'purple',tag:'9M FCST'},
+                                {label:'18-Month Fcst Total',billed:sumBil(fcstRows),rev:sumRev(fcstRows),color:'amber',tag:'18M'},
                             ].map((kpi,ki)=>(
-                                <div key={ki} className={`bg-white rounded-xl border p-4 shadow-sm border-l-4 ${
-                                    kpi.color==='blue'?'border-l-blue-600':kpi.color==='sky'?'border-l-sky-500':
-                                    kpi.color==='purple'?'border-l-purple-500':'border-l-amber-500'}`}>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">{kpi.label}</div>
-                                    <div className="text-lg font-black text-slate-800">{(kpi.ng/1000).toFixed(0)} <span className="text-xs font-bold text-slate-400">GWh Net Gen</span></div>
-                                    <div className="text-sm font-bold text-emerald-600">{(kpi.bil/1000).toFixed(0)} <span className="text-xs font-normal text-slate-400">GWh Billed</span></div>
+                                <div key={ki} className={`bg-white rounded-xl border p-4 shadow-sm border-l-4 ${kpi.color==='blue'?'border-l-blue-500':kpi.color==='emerald'?'border-l-emerald-500':kpi.color==='purple'?'border-l-purple-500':'border-l-amber-500'}`}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase">{kpi.label}</div>
+                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${kpi.color==='blue'?'bg-blue-100 text-blue-700':kpi.color==='emerald'?'bg-emerald-100 text-emerald-700':kpi.color==='purple'?'bg-purple-100 text-purple-700':'bg-amber-100 text-amber-700'}`}>{kpi.tag}</span>
+                                    </div>
+                                    <div className="text-lg font-black text-slate-800">{(kpi.billed/1000).toFixed(1)} <span className="text-xs font-bold text-slate-400">GWh Billed</span></div>
                                     <div className="text-sm font-bold text-blue-600 mt-1">{formatUSDb(kpi.rev)} <span className="text-xs font-normal text-slate-400">Revenue</span></div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* ── Controls ── */}
                         <div className="bg-slate-800 text-white rounded-xl p-5 shadow-sm">
-                            <h3 className="font-bold mb-4 text-slate-200 flex items-center gap-2"><Icons.Sliders /> Forecast Assumptions (Apr 2026 → Sep 2027)</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-5">
+                            <h3 className="font-bold mb-4 text-slate-200 flex items-center gap-2"><Icons.Sliders /> Forecast Assumptions (Apr 2026 – Sep 2027)</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                                 <div>
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Base Year</label>
                                     <select value={r18Base} onChange={e=>setR18Base(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none">
@@ -3052,201 +2964,185 @@ const { useState, useMemo, useEffect, useCallback, Component } = React;
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">2026 Net Gen Growth %</label>
+                                    <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">2026 Growth %</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="range" min="-5" max="10" step="0.1" value={r18Growth26}
-                                            onChange={e=>setR18Growth26(parseFloat(e.target.value))} className="flex-1" />
-                                        <span className="text-sm font-black text-sky-300 w-12 text-right">{r18Growth26>0?'+':''}{r18Growth26.toFixed(1)}%</span>
+                                        <input type="range" min="-5" max="10" step="0.1" value={r18Growth26} onChange={e=>setR18Growth26(parseFloat(e.target.value))} className="flex-1" />
+                                        <span className="text-sm font-black text-emerald-400 w-12 text-right">{r18Growth26>0?'+':''}{r18Growth26.toFixed(1)}%</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">2027 Net Gen Growth %</label>
+                                    <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">2027 Growth %</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="range" min="-5" max="10" step="0.1" value={r18Growth27}
-                                            onChange={e=>setR18Growth27(parseFloat(e.target.value))} className="flex-1" />
-                                        <span className="text-sm font-black text-purple-300 w-12 text-right">{r18Growth27>0?'+':''}{r18Growth27.toFixed(1)}%</span>
+                                        <input type="range" min="-5" max="10" step="0.1" value={r18Growth27} onChange={e=>setR18Growth27(parseFloat(e.target.value))} className="flex-1" />
+                                        <span className="text-sm font-black text-purple-400 w-12 text-right">{r18Growth27>0?'+':''}{r18Growth27.toFixed(1)}%</span>
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">System Loss %</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="range" min="15" max="35" step="0.1" value={r18SysLoss}
-                                            onChange={e=>setR18SysLoss(parseFloat(e.target.value))} className="flex-1" />
+                                        <input type="range" min="15" max="35" step="0.1" value={r18SysLoss} onChange={e=>setR18SysLoss(parseFloat(e.target.value))} className="flex-1" />
                                         <span className="text-sm font-black text-amber-400 w-12 text-right">{r18SysLoss.toFixed(1)}%</span>
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">FX Rate (J$/US$)</label>
-                                    <input type="number" value={fxRate} onChange={e=>setFxRate(parseFloat(e.target.value)||162)}
-                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none text-center font-bold" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* ── Bar Chart ── */}
                         <div className="bg-white rounded-xl border p-5 shadow-sm">
-                            <h3 className="font-bold text-slate-800 mb-1">Billed Sales — Actuals + 18-Month Forecast (MWh)</h3>
-                            <p className="text-xs text-slate-400 mb-4">Dark blue = actuals · Sky = 2026 forecast · Purple = 2027 forecast</p>
-                            <div className="h-[280px]">
+                            <h3 className="font-bold text-slate-800 mb-1">Net Gen & Billed Sales — Q1 Actuals + 18-Month Forecast (MWh)</h3>
+                            <div className="flex items-center gap-6 text-xs text-slate-500 mb-4">
+                                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-800 inline-block"></span> Jan–Mar 2026 Actuals</span>
+                                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span> Apr–Dec 2026 Forecast</span>
+                                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-purple-500 inline-block"></span> Jan–Sep 2027 Forecast</span>
+                            </div>
+                            <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={chartData} barSize={18} barGap={2}>
+                                    <BarChart data={chartData} barGap={1} barCategoryGap="20%">
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis dataKey="label" tick={{fontSize:9}} interval={0} angle={-40} textAnchor="end" height={55} />
-                                        <YAxis tickFormatter={v=>(v/1000).toFixed(0)+'k'} tick={{fontSize:10}} />
-                                        <Tooltip formatter={(v,n)=>v?[formatNum(v),n]:[null,n]}
-                                            contentStyle={{borderRadius:'8px',border:'none',boxShadow:'0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                        <Bar dataKey="Actual Billed (MWh)" fill="#1d4ed8" radius={[3,3,0,0]} />
-                                        <Bar dataKey="Forecast Billed (MWh)" radius={[3,3,0,0]}>
-                                            {chartData.filter(d=>!d.isActual).map((d,i)=>(
-                                                <Cell key={i} fill={d.yr===2027?'#7c3aed':'#0ea5e9'} />
-                                            ))}
+                                        <YAxis yAxisId="mwh" tickFormatter={v=>(v/1000).toFixed(0)+'k'} tick={{fontSize:10}} />
+                                        {r18ShowRevenue && <YAxis yAxisId="rev" orientation="right" tickFormatter={v=>'$'+v+'k'} tick={{fontSize:10}} />}
+                                        <Tooltip formatter={(v,n)=>n.includes('Revenue')?'US$'+formatNum(v)+'k':formatNum(v)+' MWh'} contentStyle={{borderRadius:'8px',border:'none',boxShadow:'0 4px 6px -1px rgb(0 0 0/0.1)'}} />
+                                        <Bar yAxisId="mwh" dataKey="Net Gen" radius={[3,3,0,0]}>
+                                            {chartData.map((d,i)=><Cell key={i} fill={d.type==='actual'?'#1d4ed8':d.type==='fcst27'?'#7c3aed':'#3b82f6'} />)}
                                         </Bar>
+                                        <Bar yAxisId="mwh" dataKey="Billed Sales" radius={[3,3,0,0]}>
+                                            {chartData.map((d,i)=><Cell key={i} fill={d.type==='actual'?'#065f46':d.type==='fcst27'?'#6d28d9':'#10b981'} />)}
+                                        </Bar>
+                                        {r18ShowRevenue && <Bar yAxisId="rev" dataKey="Revenue ($k)" fill="#f59e0b" opacity={0.65} radius={[3,3,0,0]} />}
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
 
-                        {/* ── 18-Month Forecast Table ── */}
-                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                            <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
-                                <div>
-                                    <h3 className="font-bold text-slate-800">18-Month Forecast Detail — Apr 2026 → Sep 2027</h3>
-                                    <p className="text-xs text-slate-400 mt-0.5">Net Gen → Billed Sales → System Loss → Revenue · Seasonal index applied per month</p>
-                                </div>
-                                <button onClick={()=>{
-                                    const csvRows = [
-                                        ...actSummary.map(r=>({
-                                            Period: r.label, Type: 'Actual',
-                                            Net_Gen_MWh: Math.round(r.netGenMwh),
-                                            Billed_Sales_MWh: Math.round(r.billedMwh),
-                                            System_Loss_MWh: Math.round(r.netGenMwh-r.billedMwh),
-                                            System_Loss_Pct: r18SysLoss.toFixed(1),
-                                            Budget_Billed_MWh: '',
-                                            Var_vs_Budget_MWh: '',
-                                            Revenue_USD: Math.round(r.revUSD),
-                                            YoY_Pct: '',
-                                            Growth_Assumption_Pct: '',
-                                            Seasonal_Index: '',
-                                        })),
-                                        ...forecastRows.map(r=>({
-                                            Period: r.label, Type: r.yr===2027?'Forecast 2027':'Forecast 2026',
-                                            Net_Gen_MWh: Math.round(r.fcstNetGen),
-                                            Billed_Sales_MWh: Math.round(r.fcstBilled),
-                                            System_Loss_MWh: Math.round(r.fcstNetGen-r.fcstBilled),
-                                            System_Loss_Pct: r18SysLoss.toFixed(1),
-                                            Budget_Billed_MWh: r.budBilledMwh>0?Math.round(r.budBilledMwh):'',
-                                            Var_vs_Budget_MWh: r.budBilledMwh>0?Math.round(r.fcstBilled-r.budBilledMwh):'',
-                                            Revenue_USD: Math.round(r.revUSD),
-                                            YoY_Pct: r.yoyPct.toFixed(1),
-                                            Growth_Assumption_Pct: r.growthPct.toFixed(1),
-                                            Seasonal_Index: seasIdx[r.mIdx].toFixed(4),
-                                        })),
-                                    ];
-                                    exportCSV(csvRows, 'JPS_Rolling18M_Apr2026_Sep2027.csv');
-                                }} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border border-blue-200 transition">
-                                    <Icons.Download /> Export CSV
-                                </button>
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl overflow-hidden shadow-sm">
+                            <div className="p-4 bg-blue-700 text-white font-bold text-sm flex items-center gap-2">
+                                <Icons.CheckCircle /> Locked Actuals — Jan–Mar 2026
                             </div>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm whitespace-nowrap">
-                                    <thead>
-                                        <tr className="bg-slate-100">
-                                            <th className="p-3 text-left font-bold border-r table-pin-col bg-slate-100 z-20">Period</th>
-                                            <th className="p-3 text-right text-slate-500 text-xs">Seas. Idx</th>
-                                            <th className="p-3 text-right text-slate-500 text-xs">Growth %</th>
-                                            <th className="p-3 text-right font-bold text-blue-800 bg-blue-50 border-l-2 border-blue-200">Net Gen (MWh)</th>
-                                            <th className="p-3 text-right font-bold text-emerald-700 bg-emerald-50">Billed Sales (MWh)</th>
-                                            <th className="p-3 text-right text-amber-600 bg-amber-50">Sys Loss (MWh)</th>
-                                            <th className="p-3 text-right text-amber-600 bg-amber-50 text-xs">Loss %</th>
-                                            <th className="p-3 text-right text-slate-500 border-l border-slate-200">Bud Billed</th>
-                                            <th className="p-3 text-right font-bold">Var vs Bud</th>
-                                            <th className="p-3 text-right font-bold text-blue-600 bg-blue-50 border-l-2 border-blue-200">Revenue (US$)</th>
-                                            <th className="p-3 text-right">YoY %</th>
-                                        </tr>
-                                    </thead>
+                                <table className="w-full text-sm">
+                                    <thead><tr className="bg-blue-100 text-blue-800">
+                                        <th className="p-3 text-left font-bold">Period</th>
+                                        <th className="p-3 text-right font-bold">Net Gen Est.</th>
+                                        <th className="p-3 text-right font-bold">Billed Sales</th>
+                                        <th className="p-3 text-right font-bold">Sys Loss</th>
+                                        <th className="p-3 text-right font-bold">Budget Billed</th>
+                                        <th className="p-3 text-right font-bold">Var vs Budget</th>
+                                        <th className="p-3 text-right font-bold">Revenue (US$)</th>
+                                    </tr></thead>
                                     <tbody>
-                                        {forecastRows.map((r,i)=>{
-                                            const varBud = r.budBilledMwh>0 ? r.fcstBilled-r.budBilledMwh : null;
-                                            const yrBreak = i===9; // Jan 2027
-                                            return (
-                                                <React.Fragment key={r.label}>
-                                                    {yrBreak && (
-                                                        <tr className="bg-purple-900">
-                                                            <td colSpan="11" className="p-2 text-center text-xs font-black text-purple-200 uppercase tracking-widest">
-                                                                ── 2027 Forecast ──
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                    <tr className={`border-b transition ${r.yr===2027?'bg-purple-50/40 hover:bg-purple-50':'hover:bg-slate-50'}`}>
-                                                        <td className={`p-3 font-bold border-r table-pin-col z-10 ${r.yr===2027?'bg-purple-50/70':'bg-white'}`}>
-                                                            {r.label}
-                                                            <span className={`ml-2 text-[9px] font-black px-1.5 py-0.5 rounded-full ${r.yr===2027?'bg-purple-100 text-purple-700':'bg-sky-100 text-sky-700'}`}>
-                                                                {r.yr===2027?'FCST 27':'FCST'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-3 text-right text-xs text-slate-400">{seasIdx[r.mIdx].toFixed(3)}</td>
-                                                        <td className="p-3 text-right text-xs text-slate-500">{r.growthPct>0?'+':''}{r.growthPct.toFixed(1)}%</td>
-                                                        <td className="p-3 text-right font-bold text-blue-800 bg-blue-50/60 border-l-2 border-blue-200">{formatNum(Math.round(r.fcstNetGen))}</td>
-                                                        <td className="p-3 text-right font-bold text-emerald-700 bg-emerald-50/60">{formatNum(Math.round(r.fcstBilled))}</td>
-                                                        <td className="p-3 text-right text-amber-600 bg-amber-50/60">{formatNum(Math.round(r.fcstNetGen-r.fcstBilled))}</td>
-                                                        <td className="p-3 text-right text-amber-600 bg-amber-50/60 text-xs">{r18SysLoss.toFixed(1)}%</td>
-                                                        <td className="p-3 text-right text-slate-400 border-l border-slate-100">{r.budBilledMwh>0?formatNum(Math.round(r.budBilledMwh)):'—'}</td>
-                                                        <td className={`p-3 text-right font-bold ${varBud===null?'text-slate-300':varBud>=0?'text-emerald-600':'text-red-500'}`}>
-                                                            {varBud===null?'—':`${varBud>0?'+':''}${formatNum(Math.round(varBud))}`}
-                                                        </td>
-                                                        <td className="p-3 text-right font-bold text-blue-700 bg-blue-50/60 border-l-2 border-blue-200">{formatUSDb(r.revUSD)}</td>
-                                                        <td className={`p-3 text-right font-bold ${r.yoyPct>=0?'text-emerald-600':'text-red-500'}`}>
-                                                            {r.yoyPct>0?'+':''}{r.yoyPct.toFixed(1)}%
-                                                        </td>
-                                                    </tr>
-                                                </React.Fragment>
-                                            );
-                                        })}
+                                        {lockedActuals.map((r,i)=>(
+                                            <tr key={i} className="border-b border-blue-200 hover:bg-blue-100/50">
+                                                <td className="p-3 font-bold text-blue-900">{r.label} <span className="ml-2 text-[9px] bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full font-black">ACT</span></td>
+                                                <td className="p-3 text-right text-slate-600">{r.netGen>0?formatNum(Math.round(r.netGen)):'—'}</td>
+                                                <td className="p-3 text-right font-bold text-blue-800">{formatNum(Math.round(r.billed))}</td>
+                                                <td className="p-3 text-right text-amber-700">{r.netGen>0?formatNum(Math.round(r.sysLoss)):'—'}</td>
+                                                <td className="p-3 text-right text-slate-500">{r.budBilledMwh>0?formatNum(Math.round(r.budBilledMwh)):'—'}</td>
+                                                <td className={`p-3 text-right font-bold ${r.varBud===null?'text-slate-300':r.varBud>=0?'text-emerald-600':'text-red-500'}`}>{r.varBud===null?'—':`${r.varBud>0?'+':''}${formatNum(Math.round(r.varBud))}`}</td>
+                                                <td className="p-3 text-right font-bold text-blue-800">{formatUSDb(r.revUSD)}</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
-                                    <tfoot className="bg-slate-200 font-black border-t-2 border-slate-300 sticky bottom-0 z-10">
-                                        <tr className="border-b border-slate-300">
-                                            <td className="p-3 border-r table-pin-col bg-slate-200 z-20 text-sky-900">APR–DEC 2026</td>
-                                            <td colSpan="2" className="p-3"></td>
-                                            <td className="p-3 text-right text-sky-900 bg-blue-100/60 border-l-2 border-blue-300">{formatNum(Math.round(sumNG(fcst2026)))}</td>
-                                            <td className="p-3 text-right text-emerald-900 bg-emerald-100/60">{formatNum(Math.round(sumBil(fcst2026)))}</td>
-                                            <td className="p-3 text-right text-amber-700 bg-amber-100/60">{formatNum(Math.round(sumNG(fcst2026)-sumBil(fcst2026)))}</td>
-                                            <td className="p-3 bg-amber-100/60 text-amber-700 text-xs text-right">{r18SysLoss.toFixed(1)}%</td>
-                                            <td className="p-3 text-right">{formatNum(Math.round(fcst2026.reduce((s,r)=>s+r.budBilledMwh,0)))}</td>
-                                            <td className={`p-3 text-right ${(sumBil(fcst2026)-fcst2026.reduce((s,r)=>s+r.budBilledMwh,0))>=0?'text-emerald-700':'text-red-600'}`}>
-                                                {(()=>{const v=sumBil(fcst2026)-fcst2026.reduce((s,r)=>s+r.budBilledMwh,0);return `${v>0?'+':''}${formatNum(Math.round(v))}`})()}
-                                            </td>
-                                            <td className="p-3 text-right text-sky-900 bg-blue-100/60 border-l-2 border-blue-300">{formatUSDb(sumRev(fcst2026))}</td>
-                                            <td className="p-3"></td>
-                                        </tr>
-                                        <tr className="border-b border-slate-300">
-                                            <td className="p-3 border-r table-pin-col bg-slate-200 z-20 text-purple-900">JAN–SEP 2027</td>
-                                            <td colSpan="2" className="p-3"></td>
-                                            <td className="p-3 text-right text-purple-900 bg-purple-100/60 border-l-2 border-purple-300">{formatNum(Math.round(sumNG(fcst2027)))}</td>
-                                            <td className="p-3 text-right text-purple-900 bg-purple-100/60">{formatNum(Math.round(sumBil(fcst2027)))}</td>
-                                            <td className="p-3 text-right text-amber-700 bg-amber-100/60">{formatNum(Math.round(sumNG(fcst2027)-sumBil(fcst2027)))}</td>
-                                            <td className="p-3 bg-amber-100/60 text-amber-700 text-xs text-right">{r18SysLoss.toFixed(1)}%</td>
-                                            <td className="p-3 text-right text-slate-400">—</td>
-                                            <td className="p-3 text-right text-slate-400">—</td>
-                                            <td className="p-3 text-right text-purple-900 bg-purple-100/60 border-l-2 border-purple-300">{formatUSDb(sumRev(fcst2027))}</td>
-                                            <td className="p-3"></td>
-                                        </tr>
+                                    <tfoot className="bg-blue-200 font-black">
                                         <tr>
-                                            <td className="p-3 border-r table-pin-col bg-slate-300 z-20">FULL YR 2026 (incl. actuals)</td>
-                                            <td colSpan="2" className="p-3 bg-slate-300"></td>
-                                            <td className="p-3 text-right bg-slate-300 border-l-2 border-slate-400">{formatNum(Math.round(full2026NG))}</td>
-                                            <td className="p-3 text-right bg-slate-300">{formatNum(Math.round(full2026Billed))}</td>
-                                            <td className="p-3 text-right bg-slate-300">{formatNum(Math.round(full2026NG-full2026Billed))}</td>
-                                            <td className="p-3 bg-slate-300"></td>
-                                            <td className="p-3 bg-slate-300"></td>
-                                            <td className="p-3 bg-slate-300"></td>
-                                            <td className="p-3 text-right bg-slate-300 border-l-2 border-slate-400">{formatUSDb(full2026Rev)}</td>
-                                            <td className="p-3 bg-slate-300"></td>
+                                            <td className="p-3 text-blue-900">Q1 2026 TOTAL</td>
+                                            <td className="p-3 text-right text-slate-600">{formatNum(Math.round(lockedActuals.reduce((s,r)=>s+r.netGen,0)))}</td>
+                                            <td className="p-3 text-right text-blue-900">{formatNum(Math.round(lockedActuals.reduce((s,r)=>s+r.billed,0)))}</td>
+                                            <td className="p-3 text-right text-amber-700">{formatNum(Math.round(lockedActuals.reduce((s,r)=>s+r.sysLoss,0)))}</td>
+                                            <td className="p-3 text-right">{formatNum(Math.round(lockedActuals.reduce((s,r)=>s+r.budBilledMwh,0)))}</td>
+                                            <td className={`p-3 text-right ${lockedActuals.reduce((s,r)=>s+(r.varBud||0),0)>=0?'text-emerald-700':'text-red-600'}`}>{(()=>{const v=lockedActuals.reduce((s,r)=>s+(r.varBud||0),0);return `${v>0?'+':''}${formatNum(Math.round(v))}`})()}</td>
+                                            <td className="p-3 text-right text-blue-900">{formatUSDb(lockedActuals.reduce((s,r)=>s+r.revUSD,0))}</td>
                                         </tr>
                                     </tfoot>
                                 </table>
                             </div>
                         </div>
 
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-bold text-slate-800">18-Month Forecast — Apr 2026 → Sep 2027</h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">Apr–Dec 2026 +{r18Growth26.toFixed(1)}% · Jan–Sep 2027 +{r18Growth27.toFixed(1)}% · {r18SysLoss.toFixed(1)}% system loss</p>
+                                </div>
+                                <button onClick={() => {
+                                    const allRows = [
+                                        ...lockedActuals.map(r=>({Period:r.label,Type:'Actual',Net_Gen_MWh:Math.round(r.netGen),Billed_MWh:Math.round(r.billed),Revenue_USD:Math.round(r.revUSD)})),
+                                        ...fcstRows.map(r=>({Period:r.label,Type:r.yr===2027?'Forecast 2027':'Forecast 2026',Net_Gen_MWh:Math.round(r.ng),Billed_MWh:Math.round(r.billed),Revenue_USD:Math.round(r.revUSD),YoY_Pct:r.yoyPct.toFixed(1)+'%'}))
+                                    ];
+                                    exportCSV(allRows,'JPS_Rolling18M_Apr2026_Sep2027.csv');
+                                }} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 border border-blue-200 transition">
+                                    <Icons.Download /> Export CSV
+                                </button>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm whitespace-nowrap">
+                                    <thead><tr className="bg-slate-100 text-slate-600">
+                                        <th className="p-3 text-left font-bold border-r table-pin-col bg-slate-100 z-20">Period</th>
+                                        <th className="p-3 text-right font-bold text-blue-700 bg-blue-50 border-l-2 border-blue-200">Net Gen (MWh)</th>
+                                        <th className="p-3 text-right font-bold text-emerald-700 bg-emerald-50">Billed (MWh)</th>
+                                        <th className="p-3 text-right text-amber-600 bg-amber-50">Sys Loss</th>
+                                        <th className="p-3 text-right text-amber-600 bg-amber-50">Loss %</th>
+                                        <th className="p-3 text-right text-slate-500 border-l border-slate-200">Budget Billed</th>
+                                        <th className="p-3 text-right font-bold">Var vs Bud</th>
+                                        <th className="p-3 text-right font-bold text-blue-700 bg-blue-50 border-l-2 border-blue-200">Revenue (US$)</th>
+                                        <th className="p-3 text-right">YoY %</th>
+                                    </tr></thead>
+                                    <tbody>
+                                        {fcstRows.map((r,i) => {
+                                            const isYrBreak = i===9;
+                                            return (
+                                                <React.Fragment key={r.label}>
+                                                    {isYrBreak && <tr className="bg-purple-900"><td colSpan="9" className="p-2 text-center text-[11px] font-black text-purple-200 uppercase tracking-widest">── 2027 Forecast · +{r18Growth27.toFixed(1)}% ──</td></tr>}
+                                                    <tr className={`border-b transition ${r.yr===2027?'bg-purple-50/40 hover:bg-purple-50':'hover:bg-slate-50'}`}>
+                                                        <td className={`p-3 font-bold border-r table-pin-col z-10 ${r.yr===2027?'bg-purple-50/70':'bg-white'}`}>
+                                                            {r.label}<span className={`ml-2 text-[9px] font-black px-1.5 py-0.5 rounded-full ${r.yr===2027?'bg-purple-100 text-purple-700':'bg-slate-100 text-slate-500'}`}>{r.yr===2027?'FCST 27':'FCST 26'}</span>
+                                                        </td>
+                                                        <td className="p-3 text-right font-bold text-blue-800 bg-blue-50/40 border-l-2 border-blue-100">{formatNum(Math.round(r.ng))}</td>
+                                                        <td className="p-3 text-right font-bold text-emerald-700 bg-emerald-50/40">{formatNum(Math.round(r.billed))}</td>
+                                                        <td className="p-3 text-right text-amber-600 bg-amber-50/40">{formatNum(Math.round(r.ng-r.billed))}</td>
+                                                        <td className="p-3 text-right text-amber-600 bg-amber-50/40">{r18SysLoss.toFixed(1)}%</td>
+                                                        <td className="p-3 text-right text-slate-400 border-l border-slate-100">{r.budBilledMwh>0?formatNum(Math.round(r.budBilledMwh)):'—'}</td>
+                                                        <td className={`p-3 text-right font-bold ${r.varBud===null?'text-slate-300':r.varBud>=0?'text-emerald-600':'text-red-500'}`}>{r.varBud===null?'—':`${r.varBud>0?'+':''}${formatNum(Math.round(r.varBud))}`}</td>
+                                                        <td className="p-3 text-right font-bold text-blue-700 bg-blue-50/40 border-l-2 border-blue-100">{formatUSDb(r.revUSD)}</td>
+                                                        <td className={`p-3 text-right font-bold ${r.yoyPct>=0?'text-emerald-600':'text-red-500'}`}>{r.yoyPct>0?'+':''}{r.yoyPct.toFixed(1)}%</td>
+                                                    </tr>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot className="bg-slate-200 font-black border-t-2 sticky bottom-0 z-10">
+                                        <tr className="border-b border-slate-300">
+                                            <td className="p-3 border-r table-pin-col bg-slate-200 z-20 text-emerald-900">Apr–Dec 2026 (9M)</td>
+                                            <td className="p-3 text-right bg-blue-100/60 border-l-2 border-blue-300">{formatNum(Math.round(sumNG(fcst2026)))}</td>
+                                            <td className="p-3 text-right bg-emerald-100/60">{formatNum(Math.round(sumBil(fcst2026)))}</td>
+                                            <td className="p-3 text-right bg-amber-100/60">{formatNum(Math.round(sumNG(fcst2026)-sumBil(fcst2026)))}</td>
+                                            <td className="p-3 bg-amber-100/60">{r18SysLoss.toFixed(1)}%</td>
+                                            <td className="p-3 text-right">{formatNum(Math.round(fcst2026.reduce((s,r)=>s+r.budBilledMwh,0)))}</td>
+                                            <td className={`p-3 text-right ${(sumBil(fcst2026)-fcst2026.reduce((s,r)=>s+r.budBilledMwh,0))>=0?'text-emerald-700':'text-red-600'}`}>{(()=>{const v=sumBil(fcst2026)-fcst2026.reduce((s,r)=>s+r.budBilledMwh,0);return `${v>0?'+':''}${formatNum(Math.round(v))}`})()}</td>
+                                            <td className="p-3 text-right bg-blue-100/60 border-l-2 border-blue-300">{formatUSDb(sumRev(fcst2026))}</td>
+                                            <td className="p-3"></td>
+                                        </tr>
+                                        <tr className="border-b border-slate-300">
+                                            <td className="p-3 border-r table-pin-col bg-slate-200 z-20 text-purple-900">Jan–Sep 2027 (9M)</td>
+                                            <td className="p-3 text-right bg-purple-100/60 border-l-2 border-purple-300">{formatNum(Math.round(sumNG(fcst2027)))}</td>
+                                            <td className="p-3 text-right bg-purple-100/60">{formatNum(Math.round(sumBil(fcst2027)))}</td>
+                                            <td className="p-3 text-right bg-amber-100/60">{formatNum(Math.round(sumNG(fcst2027)-sumBil(fcst2027)))}</td>
+                                            <td className="p-3 bg-amber-100/60">{r18SysLoss.toFixed(1)}%</td>
+                                            <td className="p-3 text-right text-slate-400">—</td><td className="p-3 text-right text-slate-400">—</td>
+                                            <td className="p-3 text-right bg-purple-100/60 border-l-2 border-purple-300">{formatUSDb(sumRev(fcst2027))}</td>
+                                            <td className="p-3"></td>
+                                        </tr>
+                                        <tr>
+                                            <td className="p-3 border-r table-pin-col bg-slate-300 z-20">18-Month Forecast Total</td>
+                                            <td className="p-3 text-right bg-slate-300 border-l-2 border-slate-400">{formatNum(Math.round(sumNG(fcstRows)))}</td>
+                                            <td className="p-3 text-right bg-slate-300">{formatNum(Math.round(sumBil(fcstRows)))}</td>
+                                            <td className="p-3 bg-slate-300" colSpan="5"></td>
+                                            <td className="p-3 text-right bg-slate-300 border-l-2 border-slate-400">{formatUSDb(sumRev(fcstRows))}</td>
+                                            <td className="p-3 bg-slate-300"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 );
             };
