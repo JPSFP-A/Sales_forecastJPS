@@ -3148,6 +3148,316 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                 );
             };
 
+
+            // ============================================================
+            // TAB: DATA ENTRY — Net Gen Actuals + CSV Upload
+            // ============================================================
+            const renderDataEntryTab = () => {
+                const [entryYear, setEntryYear] = React.useState(2026);
+                const [entryMonth, setEntryMonth] = React.useState(new Date().getMonth() + 1);
+                const [entryNetGen, setEntryNetGen] = React.useState('');
+                const [entryPeak, setEntryPeak] = React.useState('');
+                const [isSavingNG, setIsSavingNG] = React.useState(false);
+                const [ngMessage, setNgMessage] = React.useState(null); // {text, type}
+                const [ngTableData, setNgTableData] = React.useState([]);
+                const [isLoadingNgTable, setIsLoadingNgTable] = React.useState(false);
+                const [editingRow, setEditingRow] = React.useState(null); // {year, month, net_gen_mwh, peak_mw}
+
+                // CSV Upload state
+                const [uploadingActuals, setUploadingActuals] = React.useState(false);
+                const [uploadingBudget, setUploadingBudget] = React.useState(false);
+                const [uploadMessage, setUploadMessage] = React.useState(null);
+
+                const sb = React.useMemo(() => {
+                    const url = window.EMBEDDED_SUPABASE_URL;
+                    const key = window.EMBEDDED_SUPABASE_KEY;
+                    if (!url || !key) return null;
+                    return window.supabase.createClient(url, key);
+                }, []);
+
+                // Load net gen table on mount
+                React.useEffect(() => {
+                    if (!sb) return;
+                    setIsLoadingNgTable(true);
+                    sb.from('net_gen_historical')
+                      .select('*')
+                      .order('year', { ascending: false })
+                      .order('month', { ascending: false })
+                      .then(({ data, error }) => {
+                          setIsLoadingNgTable(false);
+                          if (!error && data) setNgTableData(data);
+                      });
+                }, [sb]);
+
+                const showMsg = (text, type = 'success') => {
+                    setNgMessage({ text, type });
+                    setTimeout(() => setNgMessage(null), 4000);
+                };
+
+                const handleSaveNetGen = async () => {
+                    if (!sb) return showMsg('Supabase not configured', 'error');
+                    if (!entryNetGen || !entryPeak) return showMsg('Enter both Net Gen MWh and Peak MW', 'error');
+                    setIsSavingNG(true);
+                    const { error } = await sb.from('net_gen_historical')
+                        .upsert({ year: entryYear, month: entryMonth, net_gen_mwh: parseFloat(entryNetGen), peak_mw: parseFloat(entryPeak) }, { onConflict: 'year,month' });
+                    setIsSavingNG(false);
+                    if (error) {
+                        showMsg('Save failed: ' + error.message, 'error');
+                    } else {
+                        showMsg(`✓ ${monthNames[entryMonth-1]} ${entryYear} saved — Net Gen: ${formatNum(parseFloat(entryNetGen))} MWh, Peak: ${entryPeak} MW`);
+                        setEntryNetGen(''); setEntryPeak('');
+                        // Refresh table
+                        const { data } = await sb.from('net_gen_historical').select('*').order('year', { ascending: false }).order('month', { ascending: false });
+                        if (data) setNgTableData(data);
+                        // Refresh global netGenData
+                        const ng = { 2023: Array(12).fill(0), 2024: Array(12).fill(0), 2025: Array(12).fill(0), 2026: Array(12).fill(0) };
+                        const pk = { 2023: Array(12).fill(0), 2024: Array(12).fill(0), 2025: Array(12).fill(0), 2026: Array(12).fill(0) };
+                        data.forEach(r => { if (ng[r.year]) { ng[r.year][r.month-1] = Number(r.net_gen_mwh); pk[r.year][r.month-1] = Number(r.peak_mw); } });
+                        setNetGenData({ netGen: ng, peak: pk, loaded: true });
+                    }
+                };
+
+                const handleDeleteRow = async (year, month) => {
+                    if (!sb) return;
+                    if (!confirm(`Delete ${monthNames[month-1]} ${year}?`)) return;
+                    const { error } = await sb.from('net_gen_historical').delete().eq('year', year).eq('month', month);
+                    if (!error) {
+                        const { data } = await sb.from('net_gen_historical').select('*').order('year', { ascending: false }).order('month', { ascending: false });
+                        if (data) setNgTableData(data);
+                        showMsg(`Deleted ${monthNames[month-1]} ${year}`);
+                    }
+                };
+
+                const handleSaveEdit = async () => {
+                    if (!sb || !editingRow) return;
+                    const { error } = await sb.from('net_gen_historical')
+                        .update({ net_gen_mwh: parseFloat(editingRow.net_gen_mwh), peak_mw: parseFloat(editingRow.peak_mw) })
+                        .eq('year', editingRow.year).eq('month', editingRow.month);
+                    if (!error) {
+                        setEditingRow(null);
+                        const { data } = await sb.from('net_gen_historical').select('*').order('year', { ascending: false }).order('month', { ascending: false });
+                        if (data) setNgTableData(data);
+                        showMsg('Row updated');
+                    } else {
+                        showMsg('Update failed: ' + error.message, 'error');
+                    }
+                };
+
+                // CSV upload to Supabase Storage
+                const handleCSVUpload = async (file, filename, setUploading) => {
+                    if (!sb) return showMsg('Supabase not configured', 'error');
+                    if (!file) return;
+                    setUploading(true);
+                    setUploadMessage(null);
+                    try {
+                        const { error } = await sb.storage.from('jps_data').upload(filename, file, { upsert: true, contentType: 'text/csv' });
+                        if (error) throw error;
+                        setUploadMessage({ text: `✓ ${filename} uploaded to Supabase. Refresh the page to load the new data.`, type: 'success' });
+                        // Trigger re-fetch of actuals/budget
+                        const text = await file.text();
+                        const parsed = parseCSV(text);
+                        if (filename === 'actuals.csv') setRawActuals(parsed);
+                        else { setRawBudget(parsed); setOriginalBudget([...parsed]); setIsBudgetCommitted(false); }
+                        setUploadMessage({ text: `✓ ${filename} uploaded and loaded into the dashboard.`, type: 'success' });
+                    } catch (e) {
+                        setUploadMessage({ text: 'Upload failed: ' + e.message, type: 'error' });
+                    } finally {
+                        setUploading(false);
+                    }
+                };
+
+                // Group table data by year
+                const groupedByYear = {};
+                ngTableData.forEach(r => {
+                    if (!groupedByYear[r.year]) groupedByYear[r.year] = [];
+                    groupedByYear[r.year].push(r);
+                });
+
+                return (
+                    <div className="p-6 h-full overflow-y-auto custom-scroll space-y-6">
+
+                        {/* Header */}
+                        <div className="bg-white rounded-xl border p-5 shadow-sm">
+                            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icons.Save /> Data Entry</h2>
+                            <p className="text-sm text-slate-500 mt-1">Enter net generation actuals, upload CSVs, and manage historical data — all synced directly to Supabase.</p>
+                        </div>
+
+                        {/* Toast */}
+                        {ngMessage && (
+                            <div className={`rounded-xl p-4 font-bold text-sm flex items-center gap-3 shadow-sm ${ngMessage.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
+                                <span>{ngMessage.type === 'error' ? '⚠️' : '✅'}</span>
+                                {ngMessage.text}
+                            </div>
+                        )}
+
+                        {/* ── NET GEN ENTRY ── */}
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <div className="p-4 bg-slate-800 text-white font-bold flex items-center gap-2">
+                                <Icons.Wind /> Net Generation Monthly Actuals
+                            </div>
+                            <div className="p-5">
+                                <p className="text-xs text-slate-500 mb-4">Enter or update a monthly net generation figure. Saves directly to <code className="bg-slate-100 px-1 rounded">net_gen_historical</code> table. Used by the Net Gen Forecast and Rolling 18M tabs.</p>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Year</label>
+                                        <select value={entryYear} onChange={e=>setEntryYear(parseInt(e.target.value))} className="w-full border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 bg-white font-bold">
+                                            {[2023,2024,2025,2026,2027].map(y=><option key={y} value={y}>{y}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Month</label>
+                                        <select value={entryMonth} onChange={e=>setEntryMonth(parseInt(e.target.value))} className="w-full border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 bg-white font-bold">
+                                            {monthNames.map((m,i)=><option key={i} value={i+1}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Net Gen (MWh)</label>
+                                        <input type="number" value={entryNetGen} onChange={e=>setEntryNetGen(e.target.value)}
+                                            placeholder="e.g. 385000"
+                                            className="w-full border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 font-medium" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">Peak Demand (MW)</label>
+                                        <input type="number" value={entryPeak} onChange={e=>setEntryPeak(e.target.value)}
+                                            placeholder="e.g. 625.5"
+                                            className="w-full border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 font-medium" />
+                                    </div>
+                                    <div className="flex items-end">
+                                        <button onClick={handleSaveNetGen} disabled={isSavingNG || !entryNetGen || !entryPeak}
+                                            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white py-2.5 px-4 rounded-lg font-bold text-sm transition shadow flex items-center justify-center gap-2">
+                                            {isSavingNG ? <><Icons.RefreshCw /> Saving...</> : <><Icons.Save /> Save</>}
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-400">If the month already exists, it will be overwritten with the new values.</p>
+                            </div>
+                        </div>
+
+                        {/* ── NET GEN HISTORY TABLE ── */}
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <div className="p-4 bg-slate-50 border-b flex justify-between items-center">
+                                <h3 className="font-bold text-slate-800">Net Generation History ({ngTableData.length} records)</h3>
+                                {isLoadingNgTable && <span className="text-xs text-slate-400 animate-pulse">Loading...</span>}
+                            </div>
+                            <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scroll">
+                                <table className="w-full text-sm">
+                                    <thead className="sticky top-0 bg-slate-100 z-10">
+                                        <tr>
+                                            <th className="p-3 text-left font-bold text-slate-600">Year</th>
+                                            <th className="p-3 text-left font-bold text-slate-600">Month</th>
+                                            <th className="p-3 text-right font-bold text-blue-700">Net Gen (MWh)</th>
+                                            <th className="p-3 text-right font-bold text-purple-700">Peak MW</th>
+                                            <th className="p-3 text-right font-bold text-emerald-700">Billed Sales Est.</th>
+                                            <th className="p-3 w-24"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {ngTableData.length === 0 && !isLoadingNgTable && (
+                                            <tr><td colSpan="6" className="p-6 text-center text-slate-400">No data found. Add records above.</td></tr>
+                                        )}
+                                        {Object.keys(groupedByYear).sort((a,b)=>b-a).map(year => (
+                                            <React.Fragment key={year}>
+                                                <tr className="bg-slate-800">
+                                                    <td colSpan="6" className="px-3 py-1.5 text-xs font-black text-white uppercase tracking-widest">{year}</td>
+                                                </tr>
+                                                {groupedByYear[year].sort((a,b)=>b.month-a.month).map(row => {
+                                                    const isEditing = editingRow && editingRow.year === row.year && editingRow.month === row.month;
+                                                    const billedEst = row.net_gen_mwh * 0.74; // ~26% system loss
+                                                    const isHurr = row.year === 2025 && row.month >= 10 && row.net_gen_mwh < 340000;
+                                                    return (
+                                                        <tr key={`${row.year}-${row.month}`} className={`border-b hover:bg-slate-50 ${isEditing ? 'bg-blue-50' : ''}`}>
+                                                            <td className="p-3 font-bold text-slate-700">{row.year}</td>
+                                                            <td className="p-3 text-slate-700">
+                                                                {monthNames[row.month-1]}
+                                                                {isHurr && <span className="ml-2 text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">HURR</span>}
+                                                            </td>
+                                                            <td className="p-3 text-right font-bold text-blue-700">
+                                                                {isEditing
+                                                                    ? <input type="number" value={editingRow.net_gen_mwh} onChange={e=>setEditingRow(p=>({...p,net_gen_mwh:e.target.value}))} className="w-28 border rounded px-2 py-1 text-right text-sm outline-none focus:border-blue-400" />
+                                                                    : formatNum(Math.round(row.net_gen_mwh))
+                                                                }
+                                                            </td>
+                                                            <td className="p-3 text-right text-purple-600">
+                                                                {isEditing
+                                                                    ? <input type="number" value={editingRow.peak_mw} onChange={e=>setEditingRow(p=>({...p,peak_mw:e.target.value}))} className="w-20 border rounded px-2 py-1 text-right text-sm outline-none focus:border-purple-400" />
+                                                                    : row.peak_mw.toFixed(1)
+                                                                }
+                                                            </td>
+                                                            <td className="p-3 text-right text-emerald-600 text-xs">{formatNum(Math.round(billedEst))}</td>
+                                                            <td className="p-3 text-right">
+                                                                {isEditing ? (
+                                                                    <div className="flex items-center gap-2 justify-end">
+                                                                        <button onClick={handleSaveEdit} className="text-xs bg-emerald-600 text-white px-2.5 py-1 rounded font-bold hover:bg-emerald-700 transition">Save</button>
+                                                                        <button onClick={()=>setEditingRow(null)} className="text-xs bg-slate-200 text-slate-600 px-2.5 py-1 rounded font-bold hover:bg-slate-300 transition">Cancel</button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-2 justify-end">
+                                                                        <button onClick={()=>setEditingRow({...row})} className="text-slate-400 hover:text-blue-600 transition p-1" title="Edit"><Icons.Eye /></button>
+                                                                        <button onClick={()=>handleDeleteRow(row.year, row.month)} className="text-slate-400 hover:text-red-500 transition p-1" title="Delete"><Icons.Trash /></button>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* ── CSV UPLOAD ── */}
+                        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                            <div className="p-4 bg-slate-800 text-white font-bold flex items-center gap-2">
+                                <Icons.CloudUp /> Upload Data Files to Supabase
+                            </div>
+                            <div className="p-5 space-y-4">
+                                <p className="text-xs text-slate-500">Upload new Actuals or Budget CSVs. Files go directly to the <code className="bg-slate-100 px-1 rounded">jps_data</code> storage bucket and reload into the dashboard immediately.</p>
+
+                                {uploadMessage && (
+                                    <div className={`rounded-lg p-3 font-bold text-sm flex items-center gap-2 ${uploadMessage.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
+                                        {uploadMessage.type === 'error' ? '⚠️' : '✅'} {uploadMessage.text}
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    {/* Actuals Upload */}
+                                    <div className={`border-2 border-dashed rounded-xl p-5 text-center transition ${uploadingActuals ? 'border-blue-300 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}
+                                        onDragOver={e=>{e.preventDefault();}}
+                                        onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)handleCSVUpload(f,'actuals.csv',setUploadingActuals);}}>
+                                        <div className="text-blue-500 flex justify-center mb-2"><Icons.Database /></div>
+                                        <h4 className="font-bold text-slate-700 mb-1">Actuals CSV</h4>
+                                        <p className="text-xs text-slate-400 mb-3">Drag & drop or click to upload<br/><code className="text-slate-500">actuals.csv</code></p>
+                                        <label className={`cursor-pointer inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow ${uploadingActuals?'opacity-50 pointer-events-none':''}`}>
+                                            {uploadingActuals ? 'Uploading...' : 'Choose File'}
+                                            <input type="file" accept=".csv" className="hidden" onChange={e=>{if(e.target.files[0])handleCSVUpload(e.target.files[0],'actuals.csv',setUploadingActuals);e.target.value='';}} />
+                                        </label>
+                                        {rawActuals.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2">✓ {rawActuals.length.toLocaleString()} rows loaded</p>}
+                                    </div>
+
+                                    {/* Budget Upload */}
+                                    <div className={`border-2 border-dashed rounded-xl p-5 text-center transition ${uploadingBudget ? 'border-purple-300 bg-purple-50' : 'border-slate-200 hover:border-purple-300'}`}
+                                        onDragOver={e=>{e.preventDefault();}}
+                                        onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)handleCSVUpload(f,'budget.csv',setUploadingBudget);}}>
+                                        <div className="text-purple-500 flex justify-center mb-2"><Icons.Activity /></div>
+                                        <h4 className="font-bold text-slate-700 mb-1">Budget CSV</h4>
+                                        <p className="text-xs text-slate-400 mb-3">Drag & drop or click to upload<br/><code className="text-slate-500">budget.csv</code></p>
+                                        <label className={`cursor-pointer inline-block bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow ${uploadingBudget?'opacity-50 pointer-events-none':''}`}>
+                                            {uploadingBudget ? 'Uploading...' : 'Choose File'}
+                                            <input type="file" accept=".csv" className="hidden" onChange={e=>{if(e.target.files[0])handleCSVUpload(e.target.files[0],'budget.csv',setUploadingBudget);e.target.value='';}} />
+                                        </label>
+                                        {rawBudget.length > 0 && <p className="text-xs text-emerald-600 font-bold mt-2">✓ {rawBudget.length.toLocaleString()} rows loaded</p>}
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-400">Files are stored in Supabase and auto-loaded on next app open for all team members.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                );
+            };
+
             const renderGlossaryTab = () => (
                 <div className="p-10 h-full overflow-y-auto custom-scroll">
                     <div className="max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10">
@@ -3319,6 +3629,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                     <button onClick={()=>setActiveTab('allocation')} className={`dashboard-tab ${activeTab==='allocation'?'active':''}`}><Icons.Calculator /> Allocations</button>
                                     <button onClick={()=>setActiveTab('variance')} className={`dashboard-tab ${activeTab==='variance'?'active':''}`}><Icons.TrendingUp /> Variance Matrix</button>
                                     <button onClick={()=>setActiveTab('customers')} className={`dashboard-tab ${activeTab==='customers'?'active':''}`}><Icons.Users /> Customer Data</button>
+                                    <button onClick={()=>setActiveTab('dataentry')} className={`dashboard-tab ${activeTab==='dataentry'?'active':''}`}><Icons.Save /> Data Entry</button>
                                 </>
                             )}
                             
@@ -3380,6 +3691,7 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
                                             {activeTab === 'netgen' && renderNetGenTab()}
                                             {activeTab === 'rolling18' && renderRolling18Tab()}
                                             {activeTab === 'customers' && renderCustomerTab()}
+                                            {activeTab === 'dataentry' && renderDataEntryTab()}
                                         </>
                                     )}
                                 </ErrorBoundary>
