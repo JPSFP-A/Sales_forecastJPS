@@ -264,11 +264,11 @@
             const [isNormalizeHurricane, setIsNormalizeHurricane] = React.useState(true);
 
             // Exec Summary Overview State
-            const [overviewScenario, setOverviewScenario] = React.useState('leBase');
+            const [overviewScenario, setOverviewScenario] = React.useState('leCustom');
             const [overviewComments, setOverviewComments] = React.useState('');
 
             // Pivot State & Explanations
-            const [pivotScenario, setPivotScenario] = React.useState('leBase');
+            const [pivotScenario, setPivotScenario] = React.useState('leCustom');
             const [moversRC, setMoversRC] = React.useState('All');
             const [moversTimeFrame, setMoversTimeFrame] = React.useState('FY'); 
             const [expandedPivotRC, setExpandedPivotRC] = React.useState(null);
@@ -430,10 +430,12 @@
                                 return null;
                             };
 
-                            const actText = await downloadCSV('actuals.csv');
+                            // Parallel fetch for speed
+                            const [actText, budText] = await Promise.all([
+                                downloadCSV('actuals.csv'),
+                                downloadCSV('budget.csv')
+                            ]);
                             if (actText && isMounted) { setRawActuals(parseCSV(actText)); cloudSuccess = true; }
-
-                            const budText = await downloadCSV('budget.csv');
                             if (budText && isMounted) {
                                 const pb = parseCSV(budText);
                                 setRawBudget(pb); setOriginalBudget([...pb]); cloudSuccess = true;
@@ -481,11 +483,13 @@
                 return () => { isMounted = false; };
             }, []);
 
-            // 3. REALTIME + PRESENCE SUBSCRIPTION
+            // 3. REALTIME + PRESENCE SUBSCRIPTION (deferred — non-blocking)
             React.useEffect(() => {
                 const url = window.EMBEDDED_SUPABASE_URL;
                 const key = window.EMBEDDED_SUPABASE_KEY;
                 if (!url || !key || !currentUser) return;
+                // Defer to not block initial render
+                const timer = setTimeout(() => {
 
                 const sb = window.supabase.createClient(url, key);
 
@@ -544,6 +548,8 @@
                     if (presenceChannelRef.current) sb.removeChannel(presenceChannelRef.current);
                     if (realtimeChannelRef.current) sb.removeChannel(realtimeChannelRef.current);
                 };
+                }, 3000); // 3s delay — let data load first
+                return () => clearTimeout(timer);
             }, [currentUser]);
 
 
@@ -593,6 +599,25 @@
                       setNetGenData({ netGen: ng, peak: pk, loaded: true });
                   });
             }, []);
+
+            // Load net gen table when Data Entry tab is opened
+            React.useEffect(() => {
+                if (activeTab !== 'dataentry') return;
+                const url = window.EMBEDDED_SUPABASE_URL;
+                const key = window.EMBEDDED_SUPABASE_KEY;
+                if (!url || !key) return;
+                const sbDE = window.supabase.createClient(url, key);
+                setIsLoadingNgTable(true);
+                sbDE.from('net_gen_historical')
+                  .select('*')
+                  .order('year', { ascending: false })
+                  .order('month', { ascending: false })
+                  .then(({ data, error }) => {
+                      setIsLoadingNgTable(false);
+                      if (!error && data) setNgTableData(data);
+                  });
+            }, [activeTab]);
+
 
             // --- REVENUE HELPERS ---
             const getRcKey = (rc) => {
@@ -1261,6 +1286,41 @@
             };
 
             const [expandedChart, setExpandedChart] = React.useState(null);
+
+            // --- NET GEN TAB STATE (hoisted from render fn) ---
+            const [ngSysLossPct, setNgSysLossPct] = React.useState(26.0);
+            const [ngGrowthMethod, setNgGrowthMethod] = React.useState('seasonal');
+            const [ngFlatGrowth, setNgFlatGrowth] = React.useState(0.5);
+            const [ngManualMonthly, setNgManualMonthly] = React.useState(Array(12).fill(0));
+            const [ngForecastBase, setNgForecastBase] = React.useState('norm2025');
+            const [ngPeakGrowthPct, setNgPeakGrowthPct] = React.useState(1.0);
+            const [ngShowNormalized, setNgShowNormalized] = React.useState(true);
+
+            // --- ROLLING 18M TAB STATE (hoisted) ---
+            const [r18SysLoss, setR18SysLoss] = React.useState(26.0);
+            const [r18Growth26, setR18Growth26] = React.useState(0.5);
+            const [r18Growth27, setR18Growth27] = React.useState(1.5);
+            const [r18Base, setR18Base] = React.useState('norm2025');
+            const [r18ShowRevenue, setR18ShowRevenue] = React.useState(true);
+
+            // --- DATA ENTRY TAB STATE (hoisted) ---
+            const [entryYear, setEntryYear] = React.useState(2026);
+            const [entryMonth, setEntryMonth] = React.useState(new Date().getMonth() + 1);
+            const [entryNetGen, setEntryNetGen] = React.useState('');
+            const [entryPeak, setEntryPeak] = React.useState('');
+            const [isSavingNG, setIsSavingNG] = React.useState(false);
+            const [ngMessage, setNgMessage] = React.useState(null);
+            const [ngTableData, setNgTableData] = React.useState([]);
+            const [isLoadingNgTable, setIsLoadingNgTable] = React.useState(false);
+            const [editingRow, setEditingRow] = React.useState(null);
+            const [uploadingActuals, setUploadingActuals] = React.useState(false);
+            const [uploadingBudget, setUploadingBudget] = React.useState(false);
+            const [uploadMessage, setUploadMessage] = React.useState(null);
+
+            // --- CUSTOMER TAB STATE (hoisted) ---
+            const [newAcct, setNewAcct] = React.useState({ acct: '', name: '', rc: 'RT40', parish: '', industry: '', kvaDemand: '', notes: '' });
+
+
 
             const ChartWrapper = ({ id, title, children, data, filename }) => {
                 const isExpanded = expandedChart === id;
@@ -2286,7 +2346,6 @@
                     }
                 };
 
-                const [newAcct, setNewAcct] = React.useState({ acct: '', name: '', rc: 'RT40', parish: '', industry: '', kvaDemand: '', notes: '' });
 
                 const handleAddAccount = () => {
                     if (!newAcct.acct || !newAcct.name) return;
@@ -2654,31 +2713,24 @@
                     return indices.reduce((s,v)=>s+v,0) / 3;
                 });
 
-                const [sysLossPct, setSysLossPct] = React.useState(26.0);
-                const [growthMethod, setGrowthMethod] = React.useState('seasonal');
-                const [flatGrowth, setFlatGrowth] = React.useState(0.5);
-                const [manualMonthly, setManualMonthly] = React.useState(Array(12).fill(0));
-                const [forecastBase, setForecastBase] = React.useState('norm2025');
-                const [peakGrowthPct, setPeakGrowthPct] = React.useState(1.0);
-                const [showNormalized, setShowNormalized] = React.useState(true);
 
                 const avg3yr = monthNames.map((_,m) =>
                     (histNetGen[2023][m] + histNetGen[2024][m] + norm2025[m]) / 3
                 );
-                const baseYear = forecastBase === 'norm2025' ? norm2025 : avg3yr;
-                const basePeak = forecastBase === 'norm2025' ? normPeak2025 :
+                const baseYear = ngForecastBase === 'norm2025' ? norm2025 : avg3yr;
+                const basePeak = ngForecastBase === 'norm2025' ? normPeak2025 :
                     monthNames.map((_,m) => (histPeakMW[2023][m]+histPeakMW[2024][m]+normPeak2025[m])/3);
 
                 const forecastNetGen = monthNames.map((_,m) => {
-                    if (growthMethod === 'flat') return baseYear[m] * (1 + flatGrowth/100);
-                    if (growthMethod === 'manual') return baseYear[m] * (1 + (manualMonthly[m]||0)/100);
+                    if (ngGrowthMethod === 'flat') return baseYear[m] * (1 + ngFlatGrowth/100);
+                    if (ngGrowthMethod === 'manual') return baseYear[m] * (1 + (ngManualMonthly[m]||0)/100);
                     const annualBase = baseYear.reduce((s,v)=>s+v,0);
-                    const targetAnnual = annualBase * (1 + flatGrowth/100);
+                    const targetAnnual = annualBase * (1 + ngFlatGrowth/100);
                     const wtAvgIdx = seasonalIndex.reduce((s,v)=>s+v,0)/12;
                     return (targetAnnual / 12) * (seasonalIndex[m] / wtAvgIdx);
                 });
-                const forecastPeak = monthNames.map((_,m) => basePeak[m] * (1 + peakGrowthPct/100));
-                const forecastBilled = forecastNetGen.map(v => v * (1 - sysLossPct/100));
+                const forecastPeak = monthNames.map((_,m) => basePeak[m] * (1 + ngPeakGrowthPct/100));
+                const forecastBilled = forecastNetGen.map(v => v * (1 - ngSysLossPct/100));
                 const daysInMonth = [31,28,31,30,31,30,31,31,30,31,30,31];
                 const loadFactor = forecastNetGen.map((ng,m) => forecastPeak[m] > 0 ? (ng/(forecastPeak[m]*daysInMonth[m]*24))*100 : 0);
 
@@ -2691,7 +2743,7 @@
                     month: name.substring(0,3),
                     'Net Gen 2023': Math.round(histNetGen[2023][m]),
                     'Net Gen 2024': Math.round(histNetGen[2024][m]),
-                    'Net Gen 2025': showNormalized ? Math.round(norm2025[m]) : Math.round(histNetGen[2025][m]),
+                    'Net Gen 2025': ngShowNormalized ? Math.round(norm2025[m]) : Math.round(histNetGen[2025][m]),
                     'Forecast 2026': Math.round(forecastNetGen[m]),
                     'Billed Sales 2026': Math.round(forecastBilled[m]),
                 }));
@@ -2700,7 +2752,7 @@
                     month: name.substring(0,3),
                     '2023': Math.round(histPeakMW[2023][m]),
                     '2024': Math.round(histPeakMW[2024][m]),
-                    '2025': showNormalized ? Math.round(normPeak2025[m]) : Math.round(histPeakMW[2025][m]),
+                    '2025': ngShowNormalized ? Math.round(normPeak2025[m]) : Math.round(histPeakMW[2025][m]),
                     'Forecast 2026': Math.round(forecastPeak[m]*10)/10,
                 }));
 
@@ -2712,7 +2764,7 @@
                                 <p className="text-sm text-slate-500 mt-1">Historical 2023–2025 actuals + 2026 projection. Net Gen → Billed Sales via System Loss %.</p>
                             </div>
                             <label className="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-pointer">
-                                <input type="checkbox" checked={showNormalized} onChange={e=>setShowNormalized(e.target.checked)} className="w-4 h-4" />
+                                <input type="checkbox" checked={ngShowNormalized} onChange={e=>setNgShowNormalized(e.target.checked)} className="w-4 h-4" />
                                 Hurricane-normalize 2025
                             </label>
                         </div>
@@ -2726,12 +2778,12 @@
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Billed Sales (MWh)</div>
                                 <div className="text-base font-black text-blue-700">{(totFcstBilled/1000).toFixed(0)}<span className="text-sm font-bold text-blue-400 ml-1">GWh</span></div>
-                                <div className="text-xs text-slate-400 mt-1">@ {sysLossPct}% system loss</div>
+                                <div className="text-xs text-slate-400 mt-1">@ {ngSysLossPct}% system loss</div>
                             </div>
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">System Loss (MWh)</div>
                                 <div className="text-base font-black text-amber-600">{((totFcstNG-totFcstBilled)/1000).toFixed(0)}<span className="text-sm font-bold text-amber-400 ml-1">GWh</span></div>
-                                <div className="text-xs text-slate-400 mt-1">{sysLossPct}% of Net Gen</div>
+                                <div className="text-xs text-slate-400 mt-1">{ngSysLossPct}% of Net Gen</div>
                             </div>
                             <div className="bg-white rounded-xl border p-4 shadow-sm">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">2025 Actual (Norm)</div>
@@ -2750,52 +2802,52 @@
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                                 <div>
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Forecast Base Year</label>
-                                    <select value={forecastBase} onChange={e=>setForecastBase(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none">
+                                    <select value={ngForecastBase} onChange={e=>setNgForecastBase(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none">
                                         <option value="norm2025">2025 Normalized</option>
                                         <option value="avg3yr">3-Year Average</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Growth Method</label>
-                                    <select value={growthMethod} onChange={e=>setGrowthMethod(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none">
+                                    <select value={ngGrowthMethod} onChange={e=>setNgGrowthMethod(e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white outline-none">
                                         <option value="seasonal">Seasonal Index + Growth</option>
                                         <option value="flat">Flat YoY Growth %</option>
                                         <option value="manual">Manual per Month</option>
                                     </select>
                                 </div>
-                                {growthMethod !== 'manual' && (
+                                {ngGrowthMethod !== 'manual' && (
                                     <div>
                                         <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Annual Growth %</label>
                                         <div className="flex items-center gap-2">
-                                            <input type="range" min="-5" max="10" step="0.1" value={flatGrowth} onChange={e=>setFlatGrowth(parseFloat(e.target.value))} className="flex-1" />
-                                            <span className="text-sm font-black text-white w-12 text-right">{flatGrowth>0?'+':''}{flatGrowth.toFixed(1)}%</span>
+                                            <input type="range" min="-5" max="10" step="0.1" value={ngFlatGrowth} onChange={e=>setNgFlatGrowth(parseFloat(e.target.value))} className="flex-1" />
+                                            <span className="text-sm font-black text-white w-12 text-right">{ngFlatGrowth>0?'+':''}{ngFlatGrowth.toFixed(1)}%</span>
                                         </div>
                                     </div>
                                 )}
                                 <div>
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">System Loss %</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="range" min="15" max="35" step="0.1" value={sysLossPct} onChange={e=>setSysLossPct(parseFloat(e.target.value))} className="flex-1" />
-                                        <span className="text-sm font-black text-amber-400 w-12 text-right">{sysLossPct.toFixed(1)}%</span>
+                                        <input type="range" min="15" max="35" step="0.1" value={ngSysLossPct} onChange={e=>setNgSysLossPct(parseFloat(e.target.value))} className="flex-1" />
+                                        <span className="text-sm font-black text-amber-400 w-12 text-right">{ngSysLossPct.toFixed(1)}%</span>
                                     </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Peak Demand Growth %</label>
                                     <div className="flex items-center gap-2">
-                                        <input type="range" min="-5" max="10" step="0.1" value={peakGrowthPct} onChange={e=>setPeakGrowthPct(parseFloat(e.target.value))} className="flex-1" />
-                                        <span className="text-sm font-black text-white w-12 text-right">{peakGrowthPct>0?'+':''}{peakGrowthPct.toFixed(1)}%</span>
+                                        <input type="range" min="-5" max="10" step="0.1" value={ngPeakGrowthPct} onChange={e=>setNgPeakGrowthPct(parseFloat(e.target.value))} className="flex-1" />
+                                        <span className="text-sm font-black text-white w-12 text-right">{ngPeakGrowthPct>0?'+':''}{ngPeakGrowthPct.toFixed(1)}%</span>
                                     </div>
                                 </div>
                             </div>
-                            {growthMethod === 'manual' && (
+                            {ngGrowthMethod === 'manual' && (
                                 <div className="mt-4 pt-4 border-t border-slate-700">
                                     <div className="text-[10px] font-bold uppercase text-slate-400 mb-2">Monthly Growth % Override</div>
                                     <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
                                         {monthNames.map((m,i) => (
                                             <div key={m} className="text-center">
                                                 <div className="text-[9px] text-slate-400 mb-1">{m.substring(0,3)}</div>
-                                                <input type="number" value={manualMonthly[i]} step="0.1"
-                                                    onChange={e => { const n=[...manualMonthly]; n[i]=parseFloat(e.target.value)||0; setManualMonthly(n); }}
+                                                <input type="number" value={ngManualMonthly[i]} step="0.1"
+                                                    onChange={e => { const n=[...ngManualMonthly]; n[i]=parseFloat(e.target.value)||0; setNgManualMonthly(n); }}
                                                     className="w-full bg-slate-700 border border-slate-600 rounded px-1 py-1 text-xs text-center text-white outline-none" />
                                             </div>
                                         ))}
@@ -2944,7 +2996,7 @@
                                             const delta = billed - totFcstBilled;
                                             const blendedRate = Object.values(tariffRates).reduce((s,r)=>s+r.energy,0)/Object.keys(tariffRates).length;
                                             const revDelta = (delta*blendedRate)/fxRate;
-                                            const isBase = Math.abs(loss-sysLossPct)<0.01;
+                                            const isBase = Math.abs(loss-ngSysLossPct)<0.01;
                                             return (
                                                 <tr key={loss} className={`border-b ${isBase?'bg-blue-50 font-bold':'hover:bg-slate-50'}`}>
                                                     <td className="p-3 font-bold">{loss}%{isBase&&<span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">Base</span>}</td>
@@ -2988,11 +3040,6 @@
                     return idxs.reduce((s,v)=>s+v,0)/3;
                 });
 
-                const [r18SysLoss, setR18SysLoss] = React.useState(26.0);
-                const [r18Growth26, setR18Growth26] = React.useState(0.5);
-                const [r18Growth27, setR18Growth27] = React.useState(1.5);
-                const [r18Base, setR18Base] = React.useState('norm2025');
-                const [r18ShowRevenue, setR18ShowRevenue] = React.useState(true);
 
                 const baseRef = r18Base === 'norm2025' ? norm2025 :
                     Array(12).fill(0).map((_,m)=>(histNetGen[2023][m]+histNetGen[2024][m]+norm2025[m])/3);
@@ -3284,41 +3331,17 @@
             // TAB: DATA ENTRY — Net Gen Actuals + CSV Upload
             // ============================================================
             const renderDataEntryTab = () => {
-                const [entryYear, setEntryYear] = React.useState(2026);
-                const [entryMonth, setEntryMonth] = React.useState(new Date().getMonth() + 1);
-                const [entryNetGen, setEntryNetGen] = React.useState('');
-                const [entryPeak, setEntryPeak] = React.useState('');
-                const [isSavingNG, setIsSavingNG] = React.useState(false);
-                const [ngMessage, setNgMessage] = React.useState(null); // {text, type}
-                const [ngTableData, setNgTableData] = React.useState([]);
-                const [isLoadingNgTable, setIsLoadingNgTable] = React.useState(false);
-                const [editingRow, setEditingRow] = React.useState(null); // {year, month, net_gen_mwh, peak_mw}
 
                 // CSV Upload state
-                const [uploadingActuals, setUploadingActuals] = React.useState(false);
-                const [uploadingBudget, setUploadingBudget] = React.useState(false);
-                const [uploadMessage, setUploadMessage] = React.useState(null);
 
-                const sb = React.useMemo(() => {
+                const sb = (() => {
                     const url = window.EMBEDDED_SUPABASE_URL;
                     const key = window.EMBEDDED_SUPABASE_KEY;
                     if (!url || !key) return null;
                     return window.supabase.createClient(url, key);
-                }, []);
+                })();
 
-                // Load net gen table on mount
-                React.useEffect(() => {
-                    if (!sb) return;
-                    setIsLoadingNgTable(true);
-                    sb.from('net_gen_historical')
-                      .select('*')
-                      .order('year', { ascending: false })
-                      .order('month', { ascending: false })
-                      .then(({ data, error }) => {
-                          setIsLoadingNgTable(false);
-                          if (!error && data) setNgTableData(data);
-                      });
-                }, [sb]);
+
 
                 const showMsg = (text, type = 'success') => {
                     setNgMessage({ text, type });
