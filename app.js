@@ -165,11 +165,11 @@ const { useState, useMemo, useEffect, useCallback, useRef, Component } = React;
             const [realtimeToast, setRealtimeToast] = useState(null); // { msg, type }
             const presenceChannelRef = useRef(null);
             const realtimeChannelRef = useRef(null);
-            const userIdRef = useRef(() => {
+            const userIdRef = useMemo(() => {
                 let id = localStorage.getItem('jps_user_id');
                 if (!id) { id = 'u_' + Math.random().toString(36).substr(2, 9); localStorage.setItem('jps_user_id', id); }
                 return id;
-            })();
+            }, []);
 
             const AVATAR_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16'];
             const getColor = (userId) => AVATAR_COLORS[Math.abs(userId.split('').reduce((a,c)=>a+c.charCodeAt(0),0)) % AVATAR_COLORS.length];
