@@ -5,29 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JPS Sales Analytics & Forecasting Model</title>
 
-    <!-- Preconnect to CDN origins for faster DNS -->
     <link rel="preconnect" href="https://cdn.tailwindcss.com">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://unpkg.com">
 
-    <!-- Tailwind CSS -->
+    <!-- Tailwind — must be sync (it processes DOM classes) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Critical styles inline — visible immediately, no FOUC -->
     <style>
         body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #f1f5f9; }
         #loading-splash {
             position: fixed; inset: 0; background: #0f172a;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 9999; transition: opacity 0.4s;
+            z-index: 9999; transition: opacity 0.5s;
         }
         #loading-splash.hidden { opacity: 0; pointer-events: none; }
         .splash-logo { color: #38bdf8; font-size: 2rem; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; }
         .splash-sub { color: #64748b; font-size: 0.8rem; margin-bottom: 32px; }
-        .splash-bar { width: 200px; height: 3px; background: #1e293b; border-radius: 2px; overflow: hidden; }
-        .splash-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 2px; animation: fill 1.5s ease-in-out infinite; }
-        @keyframes fill { 0%{width:0%} 70%{width:90%} 100%{width:100%} }
-        .splash-step { color: #475569; font-size: 0.7rem; margin-top: 12px; height: 16px; }
+        .splash-bar { width: 220px; height: 3px; background: #1e293b; border-radius: 2px; overflow: hidden; }
+        .splash-fill { height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 2px; animation: fill 2s ease-in-out infinite; }
+        @keyframes fill { 0%{width:5%} 70%{width:85%} 100%{width:100%} }
+        .splash-step { color: #475569; font-size: 0.7rem; margin-top: 12px; }
         .custom-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
         .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -39,10 +37,32 @@
         .dashboard-tab.active { background: #e0f2fe; color: #0ea5e9; font-weight: 700; }
         th.sortable:hover { background-color: #e2e8f0; cursor: pointer; transition: background-color 0.2s; }
     </style>
+
+    <!-- Credentials available immediately -->
+    <script>
+        window.EMBEDDED_SUPABASE_URL = 'https://bhrswnbenkvflpdjhfpa.supabase.co';
+        window.EMBEDDED_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJocnN3bmJlbmt2ZmxwZGpoZnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMTc0OTcsImV4cCI6MjA5MTg5MzQ5N30.JupFs0tnMn3k282PqFOSMi2ch-wtB7Ewv7O8fN16-94';
+        window.__hideSplash = function() {
+            var s = document.getElementById('loading-splash');
+            if (s) { s.classList.add('hidden'); setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s); }, 600); }
+        };
+        setTimeout(window.__hideSplash, 12000); // hard fallback
+    </script>
+
+    <!--
+        LOAD ORDER: defer guarantees scripts execute in declared order
+        after HTML is parsed, but download in parallel.
+        app.js is last — React/ReactDOM/Recharts all defined before it runs.
+    -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script defer src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script defer src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+    <script defer src="app.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans h-screen overflow-hidden flex flex-col">
 
-    <!-- Loading splash — visible immediately while JS loads -->
     <div id="loading-splash">
         <div class="splash-logo">⚡ JPS Analytics</div>
         <div class="splash-sub">Sales Intelligence Platform</div>
@@ -52,44 +72,5 @@
 
     <div id="root" class="h-full flex flex-col"></div>
 
-    <!-- Credentials — inline, loads instantly -->
-    <script>
-        window.EMBEDDED_SUPABASE_URL = 'https://bhrswnbenkvflpdjhfpa.supabase.co';
-        window.EMBEDDED_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJocnN3bmJlbmt2ZmxwZGpoZnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMTc0OTcsImV4cCI6MjA5MTg5MzQ5N30.JupFs0tnMn3k282PqFOSMi2ch-wtB7Ewv7O8fN16-94';
-        document.getElementById('splash-step').textContent = 'Loading libraries...';
-    </script>
-
-    <!-- Load all CDN scripts in parallel using async -->
-    <!-- They set globals so order matters — use onload chain -->
-    <script>
-        var _loaded = 0;
-        var _total = 5;
-        var _steps = ['Loading Supabase...','Loading React...','Loading charts...','Initialising...','Starting app...'];
-        function _onLib() {
-            _loaded++;
-            var el = document.getElementById('splash-step');
-            if (el && _steps[_loaded-1]) el.textContent = _steps[_loaded-1];
-        }
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onload="_onLib()"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" onload="_onLib()"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" onload="_onLib()"></script>
-    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" onload="_onLib()"></script>
-    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js" onload="_onLib()"></script>
-
-    <!-- Pre-compiled app — NO Babel, loads and runs immediately -->
-    <script src="app.js" onload="document.getElementById('splash-step').textContent='Data loading...'"></script>
-
-    <!-- Hide splash once React has mounted -->
-    <script>
-        // React will call this after first render
-        window.__hideSplash = function() {
-            var splash = document.getElementById('loading-splash');
-            if (splash) { splash.classList.add('hidden'); setTimeout(function(){ splash.remove(); }, 500); }
-        };
-        // Fallback: hide after 8s regardless
-        setTimeout(window.__hideSplash, 8000);
-    </script>
 </body>
 </html>
