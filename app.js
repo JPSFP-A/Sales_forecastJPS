@@ -878,6 +878,16 @@ var parseCSV = function parseCSV(text) {
   return data;
 };
 function App() {
+  // SINGLETON: one Supabase client, reused everywhere
+  var _sbSingleton = null;
+  var getSB = function() {
+    if (_sbSingleton) return _sbSingleton;
+    var u = window.EMBEDDED_SUPABASE_URL || '';
+    var k = window.EMBEDDED_SUPABASE_KEY || '';
+    if (u && k) _sbSingleton = window.supabase.createClient(u, k);
+    return _sbSingleton;
+  };
+
   var _React$useState = React.useState('overview'),
     _React$useState2 = _slicedToArray(_React$useState, 2),
     activeTab = _React$useState2[0],
@@ -1001,16 +1011,17 @@ function App() {
     isBudgetCommitted = _React$useState22[0],
     setIsBudgetCommitted = _React$useState22[1]; // always auto-committed
 
-  // Dynamic budget year — derived from actual data, not hardcoded
+  // Dynamic budget year — auto-detected from uploaded CSV data
   var budgetYear = React.useMemo(function() {
-    if (!rawBudget.length) return 2026;
+    if (!rawBudget.length) return new Date().getFullYear();
     var yrs = rawBudget.map(function(d) {
       return parseTimeStr(d['Month']).year;
-    }).filter(function(y) { return y > 2020; });
-    return yrs.length ? Math.max.apply(null, yrs) : 2026;
+    }).filter(function(y) { return y > 2020 && y < 2035; });
+    return yrs.length ? Math.max.apply(null, yrs) : new Date().getFullYear();
   }, [rawBudget]);
 
   var priorYear = budgetYear - 1;
+
 
   var _React$useState23 = React.useState({
       budget: false,
@@ -1391,7 +1402,7 @@ function App() {
                   while (1) switch (_context.n) {
                     case 0:
                       _context.n = 1;
-                      return supabaseClient.storage.from('jps_data').download(filename);
+                      return fetch(supabaseClient.storage.from('jps_data').getPublicUrl(filename).data.publicUrl, {cache: 'no-store'});
                     case 1:
                       _yield$supabaseClient = _context.v;
                       data = _yield$supabaseClient.data;
@@ -1516,7 +1527,7 @@ function App() {
                     while (1) switch (_context3.n) {
                       case 0:
                         _context3.n = 1;
-                        return supabaseClient.storage.from('jps_data').download(filename);
+                        return fetch(supabaseClient.storage.from('jps_data').getPublicUrl(filename).data.publicUrl, {cache: 'no-store'});
                       case 1:
                         _yield$supabaseClient3 = _context3.v;
                         data = _yield$supabaseClient3.data;
@@ -1644,10 +1655,7 @@ function App() {
   // Load audit log when Audit Log tab is opened
   React.useEffect(function () {
     if (activeTab !== 'auditlog') return;
-    var url = window.EMBEDDED_SUPABASE_URL;
-    var key = window.EMBEDDED_SUPABASE_KEY;
-    if (!url || !key) return;
-    var sb = window.supabase.createClient(url, key);
+    var sb = getSB(); if (!sb) return;
     sb.from('audit_log').select('*').order('created_at', {
       ascending: false
     }).limit(500).then(function (_ref10) {
@@ -1900,10 +1908,7 @@ function App() {
 
   // Fetch net gen historical from Supabase on boot
   React.useEffect(function () {
-    var url = window.EMBEDDED_SUPABASE_URL;
-    var key = window.EMBEDDED_SUPABASE_KEY;
-    if (!url || !key) return;
-    var sb = window.supabase.createClient(url, key);
+    var sb = getSB(); if (!sb) return;
     sb.from('net_gen_historical').select('*').order('year', {
       ascending: true
     }).order('month', {
@@ -1936,10 +1941,7 @@ function App() {
   // Load net gen table when Data Entry tab is opened
   React.useEffect(function () {
     if (activeTab !== 'dataentry') return;
-    var url = window.EMBEDDED_SUPABASE_URL;
-    var key = window.EMBEDDED_SUPABASE_KEY;
-    if (!url || !key) return;
-    var sbDE = window.supabase.createClient(url, key);
+    var sbDE = getSB(); if (!sbDE) return;
     setIsLoadingNgTable(true);
     sbDE.from('net_gen_historical').select('*').order('year', {
       ascending: false
@@ -2209,6 +2211,7 @@ function App() {
   // Eliminates NO HISTORY by falling back: same qtr → prior qtr → RC-only match
   React.useEffect(function () {
     if (rawActuals.length === 0 || rawBudget.length === 0) return;
+                if (rawBudget[0] && rawBudget[0]['Source'] === 'Model Allocation') return;
     var allResults = [];
     var bMonths = _toConsumableArray(new Set(rawBudget.map(function (d) {
       return d.Month;
@@ -3173,10 +3176,7 @@ function App() {
     }); // keep last 200 in memory
 
     // Persist to Supabase
-    var url = window.EMBEDDED_SUPABASE_URL;
-    var key = window.EMBEDDED_SUPABASE_KEY;
-    if (!url || !key) return;
-    var sb = window.supabase.createClient(url, key);
+    var sb = getSB(); if (!sb) return;
     sb.from('audit_log').insert({
       user_name: entry.user,
       action: entry.action,
@@ -3231,10 +3231,8 @@ function App() {
     _React$useState142 = _slicedToArray(_React$useState141, 2),
     r18Growth27 = _React$useState142[0],
     setR18Growth27 = _React$useState142[1];
-  var _React$useState_r18g28 = React.useState(2.0),
-    _r18g28_arr = _slicedToArray(_React$useState_r18g28, 2),
-    r18Growth28 = _r18g28_arr[0],
-    setR18Growth28 = _r18g28_arr[1];
+  var _rg28 = React.useState(2.0), _rg28a = _slicedToArray(_rg28, 2),
+    r18Growth28 = _rg28a[0], setR18Growth28 = _rg28a[1];
   var _React$useState143 = React.useState('norm2025'),
     _React$useState144 = _slicedToArray(_React$useState143, 2),
     r18Base = _React$useState144[0],
@@ -3313,9 +3311,13 @@ function App() {
     auditFilter = _React$useState174[0],
     setAuditFilter = _React$useState174[1];
   // Validation sort states
-  var _vs1 = React.useState({key:'totalKwh',direction:'descending'}), _vs1a = _slicedToArray(_vs1,2), droppedSort=_vs1a[0], setDroppedSort=_vs1a[1];
-  var _vs2 = React.useState({key:'pct',direction:'ascending'}), _vs2a = _slicedToArray(_vs2,2), deflSort=_vs2a[0], setDeflSort=_vs2a[1];
-  var _vs3 = React.useState({key:'swing',direction:'ascending'}), _vs3a = _slicedToArray(_vs3,2), anomSort=_vs3a[0], setAnomalySort=_vs3a[1];
+  var _vs1 = React.useState({key:'totalKwh',direction:'descending'}), _vs1a = _slicedToArray(_vs1,2),
+    droppedSort = _vs1a[0], setDroppedSort = _vs1a[1];
+  var _vs2 = React.useState({key:'pct',direction:'ascending'}), _vs2a = _slicedToArray(_vs2,2),
+    deflSort = _vs2a[0], setDeflSort = _vs2a[1];
+  var _vs3 = React.useState({key:'swing',direction:'ascending'}), _vs3a = _slicedToArray(_vs3,2),
+    anomSort = _vs3a[0], setAnomalySort = _vs3a[1];
+
   var ChartWrapper = function ChartWrapper(_ref24) {
     var id = _ref24.id,
       title = _ref24.title,
@@ -5008,6 +5010,13 @@ function App() {
     var fAct = getFiltered(actuals);
     var fBud = getFiltered(budget);
     var fLE = getFiltered(leDataset);
+    // Current month summary vars
+    var _maxM = Math.max.apply(null, [0].concat(actuals.filter(function(a){return a.year===budgetYear;}).map(function(a){return a.month;})));
+    var _cmAct = fAct.filter(function(d){return d.year===budgetYear&&d.month===_maxM;}).reduce(function(s,d){return s+d.kwh;},0);
+    var _cmPY  = fAct.filter(function(d){return d.year===priorYear&&d.month===_maxM;}).reduce(function(s,d){return s+d.kwh;},0);
+    var _cmBud = fBud.filter(function(d){return d.year===budgetYear&&d.month===_maxM;}).reduce(function(s,d){return s+d.kwh;},0);
+    var _cmLE  = fLE.filter(function(d){return d.year===budgetYear&&d.month===_maxM;}).reduce(function(s,d){return s+d.kwh;},0);
+    var _cmName = _maxM > 0 ? monthNames[_maxM-1] : '';
     var fLeCust = getFiltered(leCustGrowth);
     var fLeRC = getFiltered(leRCGrowth);
     var fLeBase = getFiltered(leBaseGrowth);
@@ -5089,32 +5098,6 @@ function App() {
     return /*#__PURE__*/React.createElement("div", {
       className: "p-6 h-full overflow-y-auto custom-scroll space-y-3"
     }, customControls, /*#__PURE__*/React.createElement("div", {
-      className: "grid grid-cols-2 md:grid-cols-4 gap-3"
-    },
-      /*#__PURE__*/React.createElement("div", {className: "bg-white rounded-xl border p-3 shadow-sm border-l-4 border-l-slate-400"},
-        /*#__PURE__*/React.createElement("div", {className: "text-[10px] font-bold text-slate-400 uppercase mb-0.5"}, currMonthName + " " + String(budgetYear) + " Actual"),
-        /*#__PURE__*/React.createElement("div", {className: "text-base font-black text-slate-800"}, formatNum(Math.round(currMonthActKwh))),
-        currMonthPYKwh > 0 ? /*#__PURE__*/React.createElement("div", {className: "text-xs font-bold " + (currMonthActKwh >= currMonthPYKwh ? "text-emerald-600" : "text-red-500")},
-          (((currMonthActKwh - currMonthPYKwh) / currMonthPYKwh) * 100).toFixed(1) + "% vs PY") : null
-      ),
-      /*#__PURE__*/React.createElement("div", {className: "bg-white rounded-xl border p-3 shadow-sm border-l-4 border-l-slate-300"},
-        /*#__PURE__*/React.createElement("div", {className: "text-[10px] font-bold text-slate-400 uppercase mb-0.5"}, currMonthName + " " + String(priorYear) + " Actual"),
-        /*#__PURE__*/React.createElement("div", {className: "text-base font-black text-slate-500"}, formatNum(Math.round(currMonthPYKwh)))
-      ),
-      /*#__PURE__*/React.createElement("div", {className: "bg-white rounded-xl border p-3 shadow-sm border-l-4 border-l-blue-400"},
-        /*#__PURE__*/React.createElement("div", {className: "text-[10px] font-bold text-slate-400 uppercase mb-0.5"}, currMonthName + " Budget"),
-        /*#__PURE__*/React.createElement("div", {className: "text-base font-black text-blue-700"}, formatNum(Math.round(currMonthBudKwh))),
-        currMonthBudKwh > 0 ? /*#__PURE__*/React.createElement("div", {className: "text-xs font-bold " + (currMonthActKwh >= currMonthBudKwh ? "text-emerald-600" : "text-red-500")},
-          (((currMonthActKwh - currMonthBudKwh) / currMonthBudKwh) * 100).toFixed(1) + "% vs Bud") : null
-      ),
-      /*#__PURE__*/React.createElement("div", {className: "bg-white rounded-xl border p-3 shadow-sm border-l-4 border-l-indigo-400"},
-        /*#__PURE__*/React.createElement("div", {className: "text-[10px] font-bold text-slate-400 uppercase mb-0.5"}, "Full Year LE vs Bud"),
-        /*#__PURE__*/React.createElement("div", {className: "text-base font-black " + (totLE >= totB26 ? "text-emerald-600" : "text-red-500")},
-          (totLE >= totB26 ? "+" : "") + formatNum(Math.round(totLE - totB26))),
-        totB26 > 0 ? /*#__PURE__*/React.createElement("div", {className: "text-xs text-slate-400"},
-          (((totLE - totB26) / totB26) * 100).toFixed(1) + "% of full year") : null
-      )
-    ), /*#__PURE__*/React.createElement("div", {
       className: "flex justify-end gap-3"
     }, /*#__PURE__*/React.createElement("button", {
       onClick: function onClick() {
@@ -5131,7 +5114,7 @@ function App() {
       className: "text-right"
     }, /*#__PURE__*/React.createElement("div", {
       className: "text-[10px] text-slate-400 font-bold uppercase"
-    }, "FY " + String(budgetYear) + " Forecasted Gap to Budget"), /*#__PURE__*/React.createElement("div", {
+    }, "FY 2026 Forecasted Gap to Budget"), /*#__PURE__*/React.createElement("div", {
       className: "text-xl font-black ".concat(totLE - totB26 >= 0 ? 'text-emerald-600' : 'text-red-500')
     }, formatNum(totLE - totB26)))), /*#__PURE__*/React.createElement("div", {
       className: "bg-white rounded-xl border shadow-sm overflow-x-auto"
@@ -6599,7 +6582,7 @@ function App() {
       }).reduce(function (s, d) {
         return s + d.kwh;
       }, 0) / 1000;
-      var pyNG = yr === budgetYear ? (norm2025 ? norm2025[mIdx] : 0) : yr === budgetYear + 1 ? getFcstNG(mIdx, budgetYear) : getFcstNG(mIdx, budgetYear + 1);
+      var pyNG = yr === 2026 ? norm2025[mIdx] : getFcstNG(mIdx, 2026);
       var yoyPct = pyNG > 0 ? (ng - pyNG) / pyNG * 100 : 0;
       var g = yr === budgetYear ? r18Growth26 : yr === budgetYear + 1 ? r18Growth27 : r18Growth28;
       fcstRows.push({
@@ -6627,7 +6610,7 @@ function App() {
       return r.yr === 2027;
     });
     var fcst2028 = fcstRows.filter(function (r) {
-      return r.yr === 2028;
+      return r.yr === budgetYear + 2;
     });
     var sumNG = function sumNG(arr) {
       return arr.reduce(function (s, r) {
@@ -6675,7 +6658,7 @@ function App() {
       className: "mx-2 text-slate-300"
     }, "\xB7"), /*#__PURE__*/React.createElement("span", {
       className: "font-bold text-emerald-700"
-    }, "Forecast: Apr " + String(budgetYear) + " \u2192 Mar " + String(budgetYear + 2)))), /*#__PURE__*/React.createElement("label", {
+    }, "Forecast: Apr 2026 \u2192 Sep 2027"))), /*#__PURE__*/React.createElement("label", {
       className: "flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer"
     }, /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
@@ -6701,7 +6684,7 @@ function App() {
       billed: sumBil(fcst2026),
       rev: sumRev(fcst2026),
       color: 'emerald',
-      tag: 'FCST'
+      tag: '9M FCST'
     }, {
       label: 'Forecast Jan–Sep 2027',
       billed: sumBil(fcst2027),
@@ -6709,17 +6692,11 @@ function App() {
       color: 'purple',
       tag: '9M FCST'
     }, {
-      label: "Forecast Jan–Mar " + String(budgetYear + 2),
-      billed: sumBil(fcst2028),
-      rev: sumRev(fcst2028),
-      color: 'indigo',
-      tag: "Q1 " + String(budgetYear + 2)
-    }, {
-      label: '24-Month Fcst Total',
+      label: '18-Month Fcst Total',
       billed: sumBil(fcstRows),
       rev: sumRev(fcstRows),
       color: 'amber',
-      tag: '24M'
+      tag: '18M'
     }].map(function (kpi, ki) {
       return /*#__PURE__*/React.createElement("div", {
         key: ki,
@@ -7029,7 +7006,7 @@ function App() {
     }, "Revenue (US$)"), /*#__PURE__*/React.createElement("th", {
       className: "p-3 text-right"
     }, "YoY %"))), /*#__PURE__*/React.createElement("tbody", null, fcstRows.map(function (r, i) {
-      var isYrBreak = i === 9; var isYrBreak28 = i === 21;
+      var isYrBreak = i === 9;
       return /*#__PURE__*/React.createElement(React.Fragment, {
         key: r.label
       }, isYrBreak && /*#__PURE__*/React.createElement("tr", {
@@ -7037,7 +7014,7 @@ function App() {
       }, /*#__PURE__*/React.createElement("td", {
         colSpan: "9",
         className: "p-2 text-center text-[11px] font-black text-purple-200 uppercase tracking-widest"
-      }, "\u2500\u2500 2027 Forecast \xB7 +", r18Growth27.toFixed(1), "% \u2500\u2500")), isYrBreak28 && /*#__PURE__*/React.createElement("tr", {className: "bg-indigo-900"}, /*#__PURE__*/React.createElement("td", {colSpan: "9", className: "p-2 text-center text-[11px] font-black text-indigo-200 uppercase tracking-widest"}, "── " + String(budgetYear + 2) + " Forecast · +" + r18Growth28.toFixed(1) + "% ──")), /*#__PURE__*/React.createElement("tr", {
+      }, "\u2500\u2500 2027 Forecast \xB7 +", r18Growth27.toFixed(1), "% \u2500\u2500")), /*#__PURE__*/React.createElement("tr", {
         className: "border-b transition ".concat(r.yr === 2027 ? 'bg-purple-50/40 hover:bg-purple-50' : 'hover:bg-slate-50')
       }, /*#__PURE__*/React.createElement("td", {
         className: "p-3 font-bold border-r table-pin-col z-10 ".concat(r.yr === 2027 ? 'bg-purple-50/70' : 'bg-white')
@@ -7095,7 +7072,7 @@ function App() {
       className: "border-b border-slate-300"
     }, /*#__PURE__*/React.createElement("td", {
       className: "p-3 border-r table-pin-col bg-slate-200 z-20 text-purple-900"
-    }, "Jan\u2013Dec 2027"), /*#__PURE__*/React.createElement("td", {
+    }, "Jan\u2013Sep 2027 (9M)"), /*#__PURE__*/React.createElement("td", {
       className: "p-3 text-right bg-purple-100/60 border-l-2 border-purple-300"
     }, formatNum(Math.round(sumNG(fcst2027)))), /*#__PURE__*/React.createElement("td", {
       className: "p-3 text-right bg-purple-100/60"
@@ -7113,7 +7090,7 @@ function App() {
       className: "p-3"
     })), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
       className: "p-3 border-r table-pin-col bg-slate-300 z-20"
-    }, "24-Month Forecast Total"), /*#__PURE__*/React.createElement("td", {
+    }, "18-Month Forecast Total"), /*#__PURE__*/React.createElement("td", {
       className: "p-3 text-right bg-slate-300 border-l-2 border-slate-400"
     }, formatNum(Math.round(sumNG(fcstRows)))), /*#__PURE__*/React.createElement("td", {
       className: "p-3 text-right bg-slate-300"
@@ -7823,7 +7800,7 @@ function App() {
           });
         }
       });
-      deflections.sort(function(a,b){ return parseFloat(a.pct)-parseFloat(b.pct); }); deflections = sortArray(deflections, deflSort);
+      deflections.sort(function(a,b){return parseFloat(a.pct)-parseFloat(b.pct);}); deflections = sortArray(deflections, deflSort);
     }
 
     // ── ANOMALIES ──
@@ -7868,23 +7845,13 @@ function App() {
         }
       }
     });
-    anomalies.sort(function(a,b){ return Math.abs(parseFloat(b.swing))-Math.abs(parseFloat(a.swing)); });
-      anomalies = sortArray(anomalies, anomSort);
+    anomalies.sort(function(a,b){return Math.abs(parseFloat(b.swing))-Math.abs(parseFloat(a.swing));}); anomalies = sortArray(anomalies, anomSort);
     var totalDroppedKwh = droppedDetails.reduce(function (s, d) {
       return s + d.totalKwh;
     }, 0);
     var totalDeflectedKwh = deflections.reduce(function (s, d) {
       return s + (d.kwh25 - d.kwh26);
     }, 0);
-
-  // Current month data for scenario summary
-  var maxActMonthCurr = Math.max.apply(null, [0].concat(actuals.filter(function(a){ return a.year === budgetYear; }).map(function(a){ return a.month; })));
-  var currMonthActKwh = fAct.filter(function(d){ return d.year === budgetYear && d.month === maxActMonthCurr; }).reduce(function(s,d){ return s+d.kwh; },0);
-  var currMonthPYKwh = fAct.filter(function(d){ return d.year === priorYear && d.month === maxActMonthCurr; }).reduce(function(s,d){ return s+d.kwh; },0);
-  var currMonthBudKwh = fBud.filter(function(d){ return d.year === budgetYear && d.month === maxActMonthCurr; }).reduce(function(s,d){ return s+d.kwh; },0);
-  var currMonthLEKwh = fLE.filter(function(d){ return d.year === budgetYear && d.month === maxActMonthCurr; }).reduce(function(s,d){ return s+d.kwh; },0);
-  var currMonthName = maxActMonthCurr > 0 ? monthNames[maxActMonthCurr-1] : 'N/A';
-
     return /*#__PURE__*/React.createElement("div", {
       className: "p-4 h-full overflow-y-auto custom-scroll space-y-3"
     }, /*#__PURE__*/React.createElement("div", {
@@ -7946,7 +7913,19 @@ function App() {
       className: "sticky top-0 bg-slate-100"
     }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
       className: "p-2 text-left"
-    }, /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=droppedSort.key==="acct"&&droppedSort.direction==="descending"?"ascending":"descending";setDroppedSort({key:"acct",direction:nd}); }}, "Account", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},droppedSort.key==="acct"?(droppedSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=droppedSort.key==="name"&&droppedSort.direction==="descending"?"ascending":"descending";setDroppedSort({key:"name",direction:nd}); }}, "Name", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},droppedSort.key==="name"?(droppedSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=droppedSort.key==="rc"&&droppedSort.direction==="descending"?"ascending":"descending";setDroppedSort({key:"rc",direction:nd}); }}, "RC", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},droppedSort.key==="rc"?(droppedSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=droppedSort.key==="industry"&&droppedSort.direction==="descending"?"ascending":"descending";setDroppedSort({key:"industry",direction:nd}); }}, "Industry", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},droppedSort.key==="industry"?(droppedSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=droppedSort.key==="parish"&&droppedSort.direction==="descending"?"ascending":"descending";setDroppedSort({key:"parish",direction:nd}); }}, "Parish", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},droppedSort.key==="parish"?(droppedSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=droppedSort.key==="totalKwh"&&droppedSort.direction==="descending"?"ascending":"descending";setDroppedSort({key:"totalKwh",direction:nd}); }}, "kWh 2025", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},droppedSort.key==="totalKwh"?(droppedSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=droppedSort.key==="lastMonth"&&droppedSort.direction==="descending"?"ascending":"descending";setDroppedSort({key:"lastMonth",direction:nd}); }}, "Last Active", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},droppedSort.key==="lastMonth"?(droppedSort.direction==="descending"?"▼":"▲"):"↕")))), /*#__PURE__*/React.createElement("tbody", null, droppedDetails.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    }, "Account"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-left"
+    }, "Name"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-left"
+    }, "RC"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-left"
+    }, "Industry"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-left"
+    }, "Parish"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-right"
+    }, "2025 kWh"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-right"
+    }, "Last Active"))), /*#__PURE__*/React.createElement("tbody", null, droppedDetails.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
       colSpan: "7",
       className: "p-4 text-center text-slate-400"
     }, "No dropped accounts detected \u2713")), droppedDetails.map(function (d, i) {
@@ -8005,7 +7984,21 @@ function App() {
       className: "sticky top-0 bg-slate-100"
     }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
       className: "p-2 text-left"
-    }, /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="acct"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"acct",direction:nd}); }}, "Account", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="acct"?(deflSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="name"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"name",direction:nd}); }}, "Name", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="name"?(deflSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="rc"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"rc",direction:nd}); }}, "RC", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="rc"?(deflSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="industry"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"industry",direction:nd}); }}, "Industry", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="industry"?(deflSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="kwh25"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"kwh25",direction:nd}); }}, "YTD PY", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="kwh25"?(deflSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="kwh26"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"kwh26",direction:nd}); }}, "YTD CY", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="kwh26"?(deflSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="pct"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"pct",direction:nd}); }}, "Change %", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="pct"?(deflSort.direction==="descending"?"▼":"▲"):"↕")), /*#__PURE__*/React.createElement("th", {className: "p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick: function(){ var nd=deflSort.key==="kwhLost"&&deflSort.direction==="descending"?"ascending":"descending";setDeflSort({key:"kwhLost",direction:nd}); }}, "kWh Lost", React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},deflSort.key==="kwhLost"?(deflSort.direction==="descending"?"▼":"▲"):"↕")))), /*#__PURE__*/React.createElement("tbody", null, deflections.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    }, "Account"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-left"
+    }, "Name"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-left"
+    }, "RC"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-left"
+    }, "Industry"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-right"
+    }, "YTD 2025"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-right"
+    }, "YTD 2026"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-right"
+    }, "Change"), /*#__PURE__*/React.createElement("th", {
+      className: "p-2 text-right"
+    }, "kWh Lost"))), /*#__PURE__*/React.createElement("tbody", null, deflections.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
       colSpan: "8",
       className: "p-4 text-center text-slate-400"
     }, maxActMonth26 === 0 ? 'No 2026 actuals loaded yet' : 'No deflections >20% detected ✓')), deflections.map(function (d, i) {
@@ -8610,586 +8603,7 @@ function App() {
       return setActiveTab('data');
     },
     className: "bg-slate-800 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-slate-900 transition"
-  }, "Go to Data Hub")) : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === 'data' && renderDataTab(), activeTab === 'overview' && renderOverviewTab(), activeTab === 'monthly' && renderMonthlyTab(), activeTab === 'allocation' && renderAllocationTab(), activeTab === 'leCust' && renderLeCustTab(), activeTab === 'leRC' && renderLeRCTab(), activeTab === 'leBase' && renderLeBaseTab(), activeTab === 'leCustom' && renderLeCustomTab(), activeTab === 'pivot' && renderPivotTab(), activeTab === 'variance' && renderVarianceTab(), activeTab === 'glossary' && renderGlossaryTab(), activeTab === 'comparison' && renderComparisonTab(), activeTab === 'netgen' && renderNetGenTab(), activeTab === 'rolling18' && renderRolling18Tab(), activeTab === 'customers' && renderCustomerTab(), activeTab === 'validation' && renderValidationTab(), activeTab === 'auditlog' && renderAuditLogTab(), activeTab === 'dataentry' && renderDataEntryTab()))))), isVersionModalOpen && /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[80vh]"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "px-6 py-4 border-b flex justify-between items-center bg-slate-50"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-base font-bold text-slate-800 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(Icons.History, null), " Saved Scenarios & Versions"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setIsVersionModalOpen(false);
-    },
-    className: "text-slate-400 hover:text-slate-600 transition"
-  }, /*#__PURE__*/React.createElement(Icons.X, null))), /*#__PURE__*/React.createElement("div", {
-    className: "bg-slate-800 p-4 flex justify-between items-center text-white shrink-0 shadow-inner"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 text-sm"
-  }, /*#__PURE__*/React.createElement(Icons.CloudUp, null), /*#__PURE__*/React.createElement("span", {
-    className: "font-bold"
-  }, "Cloud Sync"), /*#__PURE__*/React.createElement("span", {
-    className: "text-slate-400 text-xs ml-2"
-  }, "Pulling overwrites unsaved local versions.")), /*#__PURE__*/React.createElement("div", {
-    className: "flex gap-2"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: pullScenariosFromCloud,
-    disabled: isSyncingConfigs,
-    className: "bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm font-bold shadow-sm transition disabled:opacity-50 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(Icons.CloudDown, null), " ", isSyncingConfigs ? 'Pulling...' : 'Pull Config from Cloud'))), /*#__PURE__*/React.createElement("div", {
-    className: "p-6 overflow-y-auto flex-1 bg-slate-50/50"
-  }, savedVersions.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "text-center py-10 text-slate-500"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "flex justify-center mb-3 text-slate-300"
-  }, /*#__PURE__*/React.createElement(Icons.Save, null)), /*#__PURE__*/React.createElement("p", {
-    className: "font-medium"
-  }, "No versions saved locally."), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm mt-1 mb-4"
-  }, "Save a version from the header, or pull from the cloud.")) : /*#__PURE__*/React.createElement("div", {
-    className: "space-y-3"
-  }, savedVersions.map(function (v) {
-    var _v$advOverrides, _v$advOverrides2;
-    return /*#__PURE__*/React.createElement("div", {
-      key: v.id,
-      className: "bg-white border rounded-xl p-4 flex items-center justify-between shadow-sm transition ".concat(v.isDefault ? 'border-amber-400 bg-amber-50/20' : 'hover:border-blue-300')
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h4", {
-      className: "font-bold text-slate-800 text-lg flex items-center gap-2"
-    }, v.isDefault && /*#__PURE__*/React.createElement("span", {
-      className: "text-amber-500 flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-100 rounded-full border border-amber-200"
-    }, /*#__PURE__*/React.createElement(Icons.Star, {
-      filled: true
-    }), " Default"), v.name), /*#__PURE__*/React.createElement("p", {
-      className: "text-xs text-slate-500 mt-1 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Icons.Calendar, {
-      className: "inline w-3 h-3 mr-1"
-    }), " ", v.timestamp), /*#__PURE__*/React.createElement("span", {
-      className: "text-slate-300"
-    }, "|"), v.savedBy && /*#__PURE__*/React.createElement("span", {
-      className: "text-blue-500 font-bold"
-    }, "by ", v.savedBy), v.savedBy && /*#__PURE__*/React.createElement("span", {
-      className: "text-slate-300"
-    }, "|"), /*#__PURE__*/React.createElement("span", null, "Overrides: ", Object.keys(v.allocOverrides || {}).length + Object.keys(((_v$advOverrides = v.advOverrides) === null || _v$advOverrides === void 0 ? void 0 : _v$advOverrides.pct) || {}).length + Object.keys(((_v$advOverrides2 = v.advOverrides) === null || _v$advOverrides2 === void 0 ? void 0 : _v$advOverrides2.vol) || {}).length), /*#__PURE__*/React.createElement("span", {
-      className: "text-slate-300"
-    }, "|"), /*#__PURE__*/React.createElement("span", {
-      className: v.isNormalizeHurricane ? 'text-emerald-600' : 'text-slate-400'
-    }, "Hurricane Norm: ", v.isNormalizeHurricane ? 'ON' : 'OFF'))), /*#__PURE__*/React.createElement("div", {
-      className: "flex gap-2"
-    }, !v.isDefault && /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return handleSetDefaultVersion(v.id);
-      },
-      className: "bg-white border hover:bg-amber-50 hover:text-amber-600 text-slate-500 px-3 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center gap-1",
-      title: "Set as default scenario"
-    }, /*#__PURE__*/React.createElement(Icons.Star, null), " Make Default"), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return handleRestoreVersion(v);
-      },
-      className: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition"
-    }, "Restore"), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return handleDeleteVersion(v.id);
-      },
-      className: "bg-white border hover:bg-red-50 text-red-500 p-2 rounded-lg shadow-sm transition",
-      title: "Delete"
-    }, /*#__PURE__*/React.createElement(Icons.Trash, null))));
-  }))))));
-}
-var root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(/*#__PURE__*/React.createElement(App, null));
-// Hide loading splash once React mounts
-if (typeof window.__hideSplash === 'function') { setTimeout(window.__hideSplash, 200); }/*#__PURE__*/React.createElement("th",{className:"p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="acct"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"acct",direction:nd});}},"Account",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="acct"?(anomSort.direction==="descending"?"▼":"▲"):"↕")),/*#__PURE__*/React.createElement("th",{className:"p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="name"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"name",direction:nd});}},"Name",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="name"?(anomSort.direction==="descending"?"▼":"▲"):"↕")),/*#__PURE__*/React.createElement("th",{className:"p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="rc"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"rc",direction:nd});}},"RC",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="rc"?(anomSort.direction==="descending"?"▼":"▲"):"↕")),/*#__PURE__*/React.createElement("th",{className:"p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="fromMonth"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"fromMonth",direction:nd});}},"From",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="fromMonth"?(anomSort.direction==="descending"?"▼":"▲"):"↕")),/*#__PURE__*/React.createElement("th",{className:"p-2 text-left sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="toMonth"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"toMonth",direction:nd});}},"To",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="toMonth"?(anomSort.direction==="descending"?"▼":"▲"):"↕")),/*#__PURE__*/React.createElement("th",{className:"p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="from"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"from",direction:nd});}},"From kWh",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="from"?(anomSort.direction==="descending"?"▼":"▲"):"↕")),/*#__PURE__*/React.createElement("th",{className:"p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="to"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"to",direction:nd});}},"To kWh",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="to"?(anomSort.direction==="descending"?"▼":"▲"):"↕")),/*#__PURE__*/React.createElement("th",{className:"p-2 text-right sortable cursor-pointer select-none hover:bg-slate-200",onClick:function(){var nd=anomSort.key==="swing"&&anomSort.direction==="descending"?"ascending":"descending";setAnomalySort({key:"swing",direction:nd});}},"Swing %",React.createElement("span",{className:"ml-1 text-[10px] opacity-60"},anomSort.key==="swing"?(anomSort.direction==="descending"?"▼":"▲"):"↕")))), /*#__PURE__*/React.createElement("tbody", null, anomalies.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
-      colSpan: "8",
-      className: "p-4 text-center text-slate-400"
-    }, maxActMonth26 === 0 ? 'No 2026 actuals loaded' : 'No anomalies >25% detected ✓')), anomalies.slice(0, 50).map(function (d, i) {
-      return /*#__PURE__*/React.createElement("tr", {
-        key: i,
-        className: "border-b hover:bg-purple-50/30"
-      }, /*#__PURE__*/React.createElement("td", {
-        className: "p-2 font-mono text-slate-500"
-      }, d.acct), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 font-medium text-slate-700 max-w-[140px] truncate"
-      }, d.name), /*#__PURE__*/React.createElement("td", {
-        className: "p-2"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "bg-purple-100 text-purple-700 px-1.5 rounded font-bold"
-      }, d.rc)), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 text-slate-500"
-      }, d.fromMonth), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 text-slate-500"
-      }, d.toMonth), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 text-right text-slate-500"
-      }, formatNum(Math.round(d.from))), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 text-right font-bold"
-      }, formatNum(Math.round(d.to))), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 text-right font-black ".concat(parseFloat(d.swing) > 0 ? 'text-emerald-600' : 'text-red-600')
-      }, d.swing > 0 ? '+' : '', d.swing, "%"));
-    }))))));
-  };
-
-  // ============================================================
-  // TAB: AUDIT LOG
-  // ============================================================
-  var renderAuditLogTab = function renderAuditLogTab() {
-    // Audit entries loaded by top-level useEffect
-
-    var ACTION_COLORS = {
-      'AUTO_ALLOCATION': 'bg-blue-100 text-blue-700',
-      'SAVE_SCENARIO': 'bg-emerald-100 text-emerald-700',
-      'NET_GEN_ENTRY': 'bg-purple-100 text-purple-700',
-      'CSV_UPLOAD': 'bg-amber-100 text-amber-700',
-      'NET_GEN_DELETE': 'bg-red-100 text-red-700',
-      'NET_GEN_UPDATE': 'bg-orange-100 text-orange-700'
-    };
-    var actionTypes = ['ALL'].concat(_toConsumableArray(Object.keys(ACTION_COLORS)));
-    var filtered = auditFilter === 'ALL' ? auditLog : auditLog.filter(function (e) {
-      return e.action === auditFilter;
-    });
-    var formatTimestamp = function formatTimestamp(ts) {
-      try {
-        var d = new Date(ts);
-        return d.toLocaleString('en-US', {
-          month: 'short',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-      } catch (_unused) {
-        return ts;
-      }
-    };
-    var formatDetails = function formatDetails(action, details) {
-      if (!details) return '';
-      switch (action) {
-        case 'AUTO_ALLOCATION':
-          return "".concat(details.rows, " rows allocated \xB7 ").concat(details.unallocated, " unresolved");
-        case 'SAVE_SCENARIO':
-          return "Scenario: \"".concat(details.name, "\"");
-        case 'NET_GEN_ENTRY':
-          return "".concat(monthNames[(details.month || 1) - 1], " ").concat(details.year, " \u2014 ").concat(formatNum(details.net_gen_mwh), " MWh / ").concat(details.peak_mw, " MW");
-        case 'NET_GEN_UPDATE':
-          return "".concat(monthNames[(details.month || 1) - 1], " ").concat(details.year, " updated");
-        case 'NET_GEN_DELETE':
-          return "".concat(monthNames[(details.month || 1) - 1], " ").concat(details.year, " deleted");
-        case 'CSV_UPLOAD':
-          return "".concat(details.filename, " \u2014 ").concat(formatNum(details.rows), " rows");
-        default:
-          return JSON.stringify(details).slice(0, 80);
-      }
-    };
-    return /*#__PURE__*/React.createElement("div", {
-      className: "p-4 h-full flex flex-col space-y-3 overflow-hidden"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-white rounded-xl border p-3 shadow-sm flex items-center justify-between flex-wrap gap-3 shrink-0"
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
-      className: "text-base font-bold text-slate-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.History, null), " Audit Log"), /*#__PURE__*/React.createElement("p", {
-      className: "text-xs text-slate-500"
-    }, filtered.length, " events \xB7 Real-time \xB7 All team activity")), /*#__PURE__*/React.createElement("div", {
-      className: "flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement("select", {
-      value: auditFilter,
-      onChange: function onChange(e) {
-        return setAuditFilter(e.target.value);
-      },
-      className: "border rounded-lg px-2 py-1.5 text-xs font-bold outline-none focus:border-blue-400 bg-white"
-    }, actionTypes.map(function (t) {
-      return /*#__PURE__*/React.createElement("option", {
-        key: t,
-        value: t
-      }, t.replace(/_/g, ' '));
-    })), /*#__PURE__*/React.createElement("button", {
-      onClick: function onClick() {
-        return exportToExcel(filtered.map(function (e) {
-          return {
-            Timestamp: e.timestamp,
-            User: e.user,
-            Action: e.action,
-            Details: formatDetails(e.action, e.details)
-          };
-        }), 'Audit_Log');
-      },
-      className: "text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold border transition flex items-center gap-1"
-    }, /*#__PURE__*/React.createElement(Icons.Download, null), " Excel"))), /*#__PURE__*/React.createElement("div", {
-      className: "bg-white rounded-xl border shadow-sm flex-1 overflow-hidden flex flex-col"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "overflow-y-auto custom-scroll flex-1"
-    }, /*#__PURE__*/React.createElement("table", {
-      className: "w-full text-xs"
-    }, /*#__PURE__*/React.createElement("thead", {
-      className: "sticky top-0 bg-slate-100 z-10"
-    }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
-      className: "p-2 text-left font-bold text-slate-600 w-32"
-    }, "Time"), /*#__PURE__*/React.createElement("th", {
-      className: "p-2 text-left font-bold text-slate-600 w-28"
-    }, "User"), /*#__PURE__*/React.createElement("th", {
-      className: "p-2 text-left font-bold text-slate-600 w-36"
-    }, "Action"), /*#__PURE__*/React.createElement("th", {
-      className: "p-2 text-left font-bold text-slate-600"
-    }, "Details"))), /*#__PURE__*/React.createElement("tbody", null, filtered.length === 0 && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
-      colSpan: "4",
-      className: "p-8 text-center text-slate-400"
-    }, "No audit events yet. Actions like saving scenarios, uploading data, and entering net gen figures will appear here in real-time.")), filtered.map(function (entry, i) {
-      return /*#__PURE__*/React.createElement("tr", {
-        key: entry.id || i,
-        className: "border-b hover:bg-slate-50 ".concat(entry.user === currentUser ? 'bg-blue-50/20' : '')
-      }, /*#__PURE__*/React.createElement("td", {
-        className: "p-2 text-slate-500 whitespace-nowrap font-mono"
-      }, formatTimestamp(entry.timestamp)), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 font-bold text-slate-700"
-      }, /*#__PURE__*/React.createElement("div", {
-        className: "flex items-center gap-1.5"
-      }, /*#__PURE__*/React.createElement("div", {
-        className: "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white flex-shrink-0",
-        style: {
-          backgroundColor: getColor(entry.user || 'unknown')
-        }
-      }, (entry.user || '?').substring(0, 2).toUpperCase()), /*#__PURE__*/React.createElement("span", {
-        className: "truncate max-w-[80px]",
-        title: entry.user
-      }, entry.user))), /*#__PURE__*/React.createElement("td", {
-        className: "p-2"
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "px-2 py-0.5 rounded-full text-[10px] font-black ".concat(ACTION_COLORS[entry.action] || 'bg-slate-100 text-slate-600')
-      }, entry.action.replace(/_/g, ' '))), /*#__PURE__*/React.createElement("td", {
-        className: "p-2 text-slate-600"
-      }, formatDetails(entry.action, entry.details)));
-    }))))));
-  };
-  var renderGlossaryTab = function renderGlossaryTab() {
-    return /*#__PURE__*/React.createElement("div", {
-      className: "p-4 h-full overflow-y-auto custom-scroll"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10"
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
-      className: "text-base font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"
-    }, /*#__PURE__*/React.createElement(Icons.BookOpen, null), " Forecasting Scenarios Glossary"), /*#__PURE__*/React.createElement("div", {
-      className: "grid grid-cols-1 md:grid-cols-2 gap-6"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-purple-50/50 border border-purple-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-purple-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Users, null), " LE: Customer Volumetric Trend"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " Calculates the absolute average monthly kWh variance for ", /*#__PURE__*/React.createElement("em", null, "each individual customer"), " (Q1 2026 vs Q1 2025). This volumetric difference is then added to or subtracted from that customer's remaining budgeted months.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-blue-50/50 border border-blue-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-blue-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Zap, null), " LE: Rate Class Volumetric Trend"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " Calculates the absolute average monthly kWh variance for the ", /*#__PURE__*/React.createElement("em", null, "entire Rate Class"), " (Q1 2026 vs Q1 2025). This aggregate class variance is then spread proportionally across all customers based on their budget share.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-orange-50/50 border border-orange-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-orange-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Briefcase, null), " LE: Base Trend (Hybrid)"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " A blended approach. Uses ", /*#__PURE__*/React.createElement("em", null, "Customer Volumetric Trend"), " for RT10, RT20, RT60 and ", /*#__PURE__*/React.createElement("em", null, "Rate Class Volumetric Trend"), " for all other classes.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-indigo-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Sliders, null), " LE: Advanced Scenario Builder"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " Allows manual definition of percentage multipliers (Industry, Month, RC) or specific volumetric allocations (Customers) applied to the remaining Base Budget.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-slate-50 border border-slate-200 p-6 rounded-xl space-y-3 md:col-span-2"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-slate-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Grid, null), " Pivot & Movers: Top/Bottom Performers"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Formula:"), " ", /*#__PURE__*/React.createElement("code", null, "Variance (GWh) = 2026 Target Scenario - 2025 Base Actuals")), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Timeframe:"), " 'FY' compares full 12 months. 'YTD' compares Jan to global month filter. 'MTD' compares only the specific global month."), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Note:"), " Aggregated classes (RT10, RT20, EV, BU) excluded from Movers list to focus on individually managed accounts."))))));
-  };
-  return /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col h-full w-full bg-slate-100"
-  }, showNamePrompt && /*#__PURE__*/React.createElement("div", {
-    className: "fixed inset-0 bg-slate-900/70 flex items-center justify-center z-[100] backdrop-blur-sm"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-5"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-3xl"
-  }, "\uD83D\uDC64"), /*#__PURE__*/React.createElement("div", {
-    className: "text-center"
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-xl font-black text-slate-800"
-  }, "Welcome to JPS Analytics"), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm text-slate-500 mt-1"
-  }, "Enter your name so teammates can see you're online.")), /*#__PURE__*/React.createElement("input", {
-    autoFocus: true,
-    type: "text",
-    value: nameInput,
-    onChange: function onChange(e) {
-      return setNameInput(e.target.value);
-    },
-    onKeyDown: function onKeyDown(e) {
-      return e.key === 'Enter' && handleNameSubmit();
-    },
-    placeholder: "e.g. Jordache Campbell",
-    className: "w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-blue-400 text-center"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: handleNameSubmit,
-    disabled: !nameInput.trim(),
-    className: "w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white py-3 rounded-xl font-bold text-sm transition shadow"
-  }, "Enter Dashboard"))), realtimeToast && /*#__PURE__*/React.createElement("div", {
-    className: "fixed bottom-6 right-6 z-[90] px-4 py-3 rounded-xl shadow-xl text-sm font-bold flex items-center gap-2 transition-all animate-pulse\n                            ".concat(realtimeToast.type === 'join' ? 'bg-emerald-600 text-white' : realtimeToast.type === 'leave' ? 'bg-slate-600 text-white' : 'bg-blue-600 text-white')
-  }, realtimeToast.type === 'join' ? '🟢' : realtimeToast.type === 'leave' ? '⚫' : '🔄', realtimeToast.msg), /*#__PURE__*/React.createElement("header", {
-    className: "bg-white border-b px-6 py-4 flex justify-between items-center shrink-0 z-20"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
-    className: "text-base font-bold text-slate-800 flex items-center gap-2"
-  }, /*#__PURE__*/React.createElement(Icons.PieChart, null), " JPS Sales Analytics Model"), /*#__PURE__*/React.createElement("p", {
-    className: "text-xs text-slate-500"
-  }, "Commercial Analytics | Redistribution & Forecasting Engine")), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-4"
-  }, Object.keys(onlineUsers).length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 border-r pr-4 border-slate-200"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] font-bold text-slate-400 uppercase tracking-wider"
-  }, "Online"), /*#__PURE__*/React.createElement("div", {
-    className: "flex -space-x-2"
-  }, Object.entries(onlineUsers).map(function (_ref52) {
-    var _ref53 = _slicedToArray(_ref52, 2),
-      uid = _ref53[0],
-      user = _ref53[1];
-    return /*#__PURE__*/React.createElement("div", {
-      key: uid,
-      title: user.name,
-      className: "w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[11px] font-black text-white shadow-sm cursor-default select-none",
-      style: {
-        backgroundColor: user.color
-      }
-    }, getInitials(user.name));
-  })), /*#__PURE__*/React.createElement("span", {
-    className: "text-xs text-emerald-600 font-bold flex items-center gap-1"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"
-  }), Object.keys(onlineUsers).length, " live")), currentUser && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 border-r pr-4 border-slate-200"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm",
-    style: {
-      backgroundColor: getColor(userIdRef)
-    }
-  }, getInitials(currentUser)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "text-xs font-bold text-slate-700 leading-none"
-  }, currentUser), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      setNameInput(currentUser);
-      setShowNamePrompt(true);
-    },
-    className: "text-[10px] text-slate-400 hover:text-blue-500 transition leading-none"
-  }, "change"))), rawActuals.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 ".concat(allocationResults.length > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200')
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2 h-2 rounded-full ".concat(allocationResults.length > 0 ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse')
-  }), allocationResults.length > 0 ? "Budget Allocated \xB7 ".concat(allocationResults.filter(function (r) {
-    return r.name !== 'NO HISTORY' && r.name !== 'ZERO HISTORY';
-  }).length, " accounts") : rawActuals.length > 0 && rawBudget.length > 0 ? 'Computing allocation...' : 'Awaiting data...'), /*#__PURE__*/React.createElement("div", {
-    className: "text-xs px-3 py-1.5 rounded-full border shadow-sm flex items-center gap-2 ".concat(supabaseStatus === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : supabaseStatus === 'error' ? 'bg-red-50 text-red-700 border-red-200' : supabaseStatus === 'connecting' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200')
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "w-2 h-2 rounded-full ".concat(supabaseStatus === 'connected' ? 'bg-emerald-500' : supabaseStatus === 'error' ? 'bg-red-500' : supabaseStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-slate-400')
-  }), supabaseStatus === 'connected' ? 'Cloud Sync Active' : supabaseStatus === 'error' ? 'Cloud Sync Error' : supabaseStatus === 'connecting' ? 'Connecting...' : 'Local Mode'), (rawActuals.length > 0 || rawBudget.length > 0) && /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 border-l pl-4 border-slate-200"
-  }, rawActuals.length > 0 && rawBudget.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
-    onClick: handleSaveVersion,
-    className: "flex items-center gap-1.5 text-sm bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg border shadow-sm transition font-medium"
-  }, /*#__PURE__*/React.createElement(Icons.Save, null), " Save Scenario"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setIsVersionModalOpen(true);
-    },
-    className: "flex items-center gap-1.5 text-sm bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg border shadow-sm transition font-medium"
-  }, /*#__PURE__*/React.createElement(Icons.History, null), " Versions ", /*#__PURE__*/React.createElement("span", {
-    className: "bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-xs ml-1"
-  }, savedVersions.length))), /*#__PURE__*/React.createElement("button", {
-    onClick: handleClearData,
-    className: "flex items-center gap-1.5 text-sm bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg border border-red-200 shadow-sm transition font-medium",
-    title: "Clear all data and restart"
-  }, /*#__PURE__*/React.createElement(Icons.RefreshCw, null), " Reset")))), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-1 overflow-hidden"
-  }, /*#__PURE__*/React.createElement("aside", {
-    className: "w-56 bg-white border-r flex flex-col gap-1 p-4 shrink-0 overflow-y-auto custom-scroll z-10 shadow-sm"
-  }, rawActuals.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 mt-2"
-  }, "Executive"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('overview');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'overview' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Building, null), " Overview"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('monthly');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'monthly' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Calendar, null), " Monthly Trend"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('pivot');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'pivot' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Grid, null), " Pivot & Movers"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('netgen');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'netgen' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Wind, null), " Net Gen Forecast"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('rolling18');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'rolling18' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Calendar, null), " Rolling 18M Forecast"), /*#__PURE__*/React.createElement("div", {
-    className: "h-px bg-slate-200 my-3 mx-2"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1"
-  }, "Forecast Scenarios"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('leCust');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'leCust' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Users, null), " LE: Cust Vol"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('leRC');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'leRC' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Zap, null), " LE: RC Vol"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('leBase');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'leBase' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Briefcase, null), " LE: Base"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('leCustom');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'leCustom' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Sliders, null), " LE: Advanced"), /*#__PURE__*/React.createElement("div", {
-    className: "h-px bg-slate-200 my-3 mx-2"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1"
-  }, "Analysis Engine"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('comparison');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'comparison' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Grid, null), " Scenario Compare"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('variance');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'variance' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.TrendingUp, null), " Variance Matrix"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('validation');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'validation' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.CheckCircle, null), " Validation"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('auditlog');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'auditlog' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.History, null), " Audit Log"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('customers');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'customers' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Users, null), " Customer Data"), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('dataentry');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'dataentry' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Save, null), " Data Entry")), /*#__PURE__*/React.createElement("div", {
-    className: "mt-auto"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('glossary');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'glossary' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.BookOpen, null), " Glossary"), /*#__PURE__*/React.createElement("div", {
-    className: "h-px bg-slate-200 my-3 mx-2"
-  }), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('data');
-    },
-    className: "dashboard-tab ".concat(activeTab === 'data' ? 'active' : '')
-  }, /*#__PURE__*/React.createElement(Icons.Database, null), " Data Hub")), /*#__PURE__*/React.createElement("main", {
-    className: "flex-1 flex flex-col min-w-0 overflow-hidden relative"
-  }, rawActuals.length > 0 && ['overview', 'monthly', 'leCust', 'leRC', 'leBase', 'leCustom', 'variance', 'pivot', 'netgen'].includes(activeTab) && /*#__PURE__*/React.createElement("div", {
-    className: "bg-white border-b px-6 py-2 flex gap-4 items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shadow-sm shrink-0 overflow-x-auto z-10 relative"
-  }, /*#__PURE__*/React.createElement(Icons.Filter, null), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-1 border-r pr-3"
-  }, /*#__PURE__*/React.createElement(Icons.Calendar, null), /*#__PURE__*/React.createElement("select", {
-    value: ytdMonth,
-    onChange: function onChange(e) {
-      return setYtdMonth(e.target.value);
-    },
-    className: "bg-transparent text-blue-700 outline-none"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "All"
-  }, "Full Year (YTD)"), monthNames.map(function (m) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: m,
-      value: m
-    }, "YTD: ", m);
-  }))), /*#__PURE__*/React.createElement("select", {
-    value: fCust,
-    onChange: function onChange(e) {
-      return setFCust(e.target.value);
-    },
-    className: "bg-transparent outline-none max-w-[150px] truncate pr-2"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "All"
-  }, "All Customers"), dimensions.customers.map(function (c) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: c,
-      value: c
-    }, c);
-  })), /*#__PURE__*/React.createElement("select", {
-    value: fRC,
-    onChange: function onChange(e) {
-      return setFRC(e.target.value);
-    },
-    className: "bg-transparent outline-none"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "All"
-  }, "All Rates"), dimensions.rcs.map(function (r) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: r
-    }, r);
-  })), /*#__PURE__*/React.createElement("select", {
-    value: fParish,
-    onChange: function onChange(e) {
-      return setFParish(e.target.value);
-    },
-    className: "bg-transparent outline-none"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "All"
-  }, "All Parishes"), dimensions.parishes.map(function (p) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: p
-    }, p);
-  })), /*#__PURE__*/React.createElement("select", {
-    value: fInd,
-    onChange: function onChange(e) {
-      return setFInd(e.target.value);
-    },
-    className: "bg-transparent outline-none"
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "All"
-  }, "All Industries"), dimensions.inds.map(function (i) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: i
-    }, i);
-  }))), /*#__PURE__*/React.createElement("div", {
-    className: "flex-1 overflow-hidden relative bg-slate-50/50 z-0"
-  }, /*#__PURE__*/React.createElement(ErrorBoundary, null, rawActuals.length === 0 && activeTab !== 'data' && activeTab !== 'glossary' ? /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-col items-center justify-center h-full text-slate-500"
-  }, /*#__PURE__*/React.createElement(Icons.CloudDown, null), /*#__PURE__*/React.createElement("h2", {
-    className: "text-xl font-bold mb-2 mt-4"
-  }, "Fetching Cloud Data..."), /*#__PURE__*/React.createElement("p", {
-    className: "text-sm mb-6 max-w-md text-center"
-  }, "Auto-loading from your repository. If this persists, configure data sources manually."), /*#__PURE__*/React.createElement("button", {
-    onClick: function onClick() {
-      return setActiveTab('data');
-    },
-    className: "bg-slate-800 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-slate-900 transition"
-  }, "Go to Data Hub")) : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === 'data' && renderDataTab(), activeTab === 'overview' && renderOverviewTab(), activeTab === 'monthly' && renderMonthlyTab(), activeTab === 'allocation' && renderAllocationTab(), activeTab === 'leCust' && renderLeCustTab(), activeTab === 'leRC' && renderLeRCTab(), activeTab === 'leBase' && renderLeBaseTab(), activeTab === 'leCustom' && renderLeCustomTab(), activeTab === 'pivot' && renderPivotTab(), activeTab === 'variance' && renderVarianceTab(), activeTab === 'glossary' && renderGlossaryTab(), activeTab === 'comparison' && renderComparisonTab(), activeTab === 'netgen' && renderNetGenTab(), activeTab === 'rolling18' && renderRolling18Tab(), activeTab === 'customers' && renderCustomerTab(), activeTab === 'validation' && renderValidationTab(), activeTab === 'auditlog' && renderAuditLogTab(), activeTab === 'dataentry' && renderDataEntryTab()))))), isVersionModalOpen && /*#__PURE__*/React.createElement("div", {
+  }, "Go to Data Hub")) : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === 'data' && renderDataTab(), activeTab === 'overview' && renderOverviewTab(), activeTab === 'monthly' && renderMonthlyTab(), activeTab === 'allocation' && renderAllocationTab(), activeTab === 'leCust' && renderLeCustTab(), activeTab === 'leRC' && renderLeRCTab(), activeTab === 'leBase' && renderLeBaseTab(), activeTab === 'leCustom' && renderLeCustomTab(), activeTab === 'pivot' && renderPivotTab(), activeTab === 'variance' && renderVarianceTab(), activeTab === 'glossary' && renderGlossaryTab(), activeTab === 'comparison' && renderComparisonTab(), activeTab === 'netgen' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderNetGenTab()), activeTab === 'rolling18' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderRolling18Tab()), activeTab === 'customers' && renderCustomerTab(), activeTab === 'validation' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderValidationTab()), activeTab === 'auditlog' && renderAuditLogTab(), activeTab === 'dataentry' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderDataEntryTab())))))), isVersionModalOpen && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm"
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[80vh]"
