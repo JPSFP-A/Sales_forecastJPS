@@ -985,6 +985,8 @@ function App() {
     _React$useState14 = _slicedToArray(_React$useState13, 2),
     supabaseStatus = _React$useState14[0],
     setSupabaseStatus = _React$useState14[1];
+  var _cse = React.useState(null), _csea = _slicedToArray(_cse, 2),
+    cloudSyncError = _csea[0], setCloudSyncError = _csea[1];
   var updateSupabaseConfig = function updateSupabaseConfig(field, value) {
     setSupabaseConfig(function (prev) {
       var next = _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, field, value));
@@ -1477,8 +1479,8 @@ function App() {
           case 6:
             _context2.p = 6;
             _t = _context2.v;
-            console.error("Cloud Sync Error", _t);
-            if (!silent) alert("Failed to fetch from Supabase. Check your URL, Key, and ensure table/bucket exist.");
+            console.error(cloudSyncError ? "Sync Error: " + cloudSyncError.substring(0, 40) : "Cloud Sync Error", _t);
+            if (!silent) console.error("Supabase boot fetch failed");
             setSupabaseStatus('error');
             return _context2.a(2, false);
           case 7:
@@ -2610,12 +2612,11 @@ function App() {
           case 5:
             _context6.p = 5;
             _t7 = _context6.v;
-            console.error("Silent sync failed", _t7);
-            alert("Failed to sync to Supabase: " + _t7.message);
+            console.error("Cloud sync failed", _t7 && _t7.message ? _t7.message : _t7);
             setSupabaseStatus('error');
           case 6:
             _context6.p = 6;
-            setIsSyncingConfigs(false);
+            setIsSyncingConfigs(false); setCloudSyncError(_t7 && _t7.message ? _t7.message : 'Unknown error');
             return _context6.f(6);
           case 7:
             return _context6.a(2);
