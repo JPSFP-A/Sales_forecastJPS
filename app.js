@@ -687,7 +687,8 @@ var Icons = {
       x2: "15",
       y2: "21"
     }));
-  }
+  },
+  HelpCircle: function() { return /*#__PURE__*/React.createElement("svg", {xmlns:"http://www.w3.org/2000/svg",width:"14",height:"14",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"}, /*#__PURE__*/React.createElement("circle",{cx:"12",cy:"12",r:"10"}), /*#__PURE__*/React.createElement("path",{d:"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"}), /*#__PURE__*/React.createElement("line",{x1:"12",y1:"17",x2:"12.01",y2:"17"})); },
 };
 
 // --- Generic Sorting Helper ---
