@@ -8238,51 +8238,174 @@ function App() {
       }, formatDetails(entry.action, entry.details)));
     }))))));
   };
-  var renderGlossaryTab = function renderGlossaryTab() {
-    return /*#__PURE__*/React.createElement("div", {
-      className: "p-4 h-full overflow-y-auto custom-scroll"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "max-w-5xl mx-auto bg-white p-8 rounded-xl border shadow-sm space-y-10"
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
-      className: "text-base font-black text-slate-800 mb-6 flex items-center gap-2 border-b pb-4"
-    }, /*#__PURE__*/React.createElement(Icons.BookOpen, null), " Forecasting Scenarios Glossary"), /*#__PURE__*/React.createElement("div", {
-      className: "grid grid-cols-1 md:grid-cols-2 gap-6"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "bg-purple-50/50 border border-purple-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-purple-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Users, null), " LE: Customer Volumetric Trend"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " Calculates the absolute average monthly kWh variance for ", /*#__PURE__*/React.createElement("em", null, "each individual customer"), " (Q1 2026 vs Q1 2025). This volumetric difference is then added to or subtracted from that customer's remaining budgeted months.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-blue-50/50 border border-blue-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-blue-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Zap, null), " LE: Rate Class Volumetric Trend"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " Calculates the absolute average monthly kWh variance for the ", /*#__PURE__*/React.createElement("em", null, "entire Rate Class"), " (Q1 2026 vs Q1 2025). This aggregate class variance is then spread proportionally across all customers based on their budget share.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-orange-50/50 border border-orange-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-orange-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Briefcase, null), " LE: Base Trend (Hybrid)"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " A blended approach. Uses ", /*#__PURE__*/React.createElement("em", null, "Customer Volumetric Trend"), " for RT10, RT20, RT60 and ", /*#__PURE__*/React.createElement("em", null, "Rate Class Volumetric Trend"), " for all other classes.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-indigo-50/50 border border-indigo-200 p-6 rounded-xl space-y-3"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-indigo-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Sliders, null), " LE: Advanced Scenario Builder"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Definition:"), " Allows manual definition of percentage multipliers (Industry, Month, RC) or specific volumetric allocations (Customers) applied to the remaining Base Budget.")), /*#__PURE__*/React.createElement("div", {
-      className: "bg-slate-50 border border-slate-200 p-6 rounded-xl space-y-3 md:col-span-2"
-    }, /*#__PURE__*/React.createElement("h3", {
-      className: "text-lg font-bold text-slate-800 flex items-center gap-2"
-    }, /*#__PURE__*/React.createElement(Icons.Grid, null), " Pivot & Movers: Top/Bottom Performers"), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Formula:"), " ", /*#__PURE__*/React.createElement("code", null, "Variance (GWh) = 2026 Target Scenario - 2025 Base Actuals")), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Timeframe:"), " 'FY' compares full 12 months. 'YTD' compares Jan to global month filter. 'MTD' compares only the specific global month."), /*#__PURE__*/React.createElement("p", {
-      className: "text-sm text-slate-700"
-    }, /*#__PURE__*/React.createElement("strong", null, "Note:"), " Aggregated classes (RT10, RT20, EV, BU) excluded from Movers list to focus on individually managed accounts."))))));
+  var renderUserGuideTab = function renderUserGuideTab() {
+    var guide = [
+      {icon: "\uD83D\uDE80", title: "Getting Started", items: [
+        ["First Load", "The app fetches actuals.csv and budget.csv from Supabase on open, then auto-allocates the budget to account level. Header shows Allocating then Budget Allocated when done."],
+        ["Files Required", "actuals.csv: columns JPS A/c, Name, Rate category, Updated Parish, Industry, Month, Sum of net_kwh_billed_consump. budget.csv: Month, Rate category, Updated Parish, Sum of Budget, JPS A/c, Name, Industry."],
+        ["Uploading Data", "Data Entry tab > Upload Data Files. Drag and drop or browse. Files go to Supabase and reload immediately for all team members."]
+      ]},
+      {icon: "\uD83D\uDCCA", title: "Overview & Monthly Trend", items: [
+        ["Overview Tab", "Full-year view: YTD actuals vs budget vs prior year by Rate Class. Use the Segment and Year filters in the top bar to drill into specific rate classes."],
+        ["Monthly Trend", "Month-by-month bars. Click any bar to filter the account table below. Shows individual account variance to budget."],
+        ["Filters", "Segment buttons (RT10, RT20 etc) filter all tabs simultaneously. Period controls MTD/QTD/YTD/Annual aggregation."]
+      ]},
+      {icon: "\uD83C\uDFAF", title: "LE Scenario Tabs", items: [
+        ["What is LE?", "Latest Estimate - a revised forecast using actual YTD data to project the rest of the year."],
+        ["LE: Customer Volumetric", "Each customer gets their own YTD growth rate applied to remaining budget. Most granular - best with 2+ months of actuals."],
+        ["LE: Rate Class", "Uses average growth rate per Rate Class. More stable when individual accounts have unusual patterns."],
+        ["LE: Base Trend", "Blended: Customer method for RT10/RT20/RT60; Rate Class for RT40/RT50/RT70. Recommended default."],
+        ["LE: Advanced", "Set growth % by Rate Class, Industry, and Month. Save named versions. Used for board presentations and sensitivity analysis."],
+        ["Current Month Strip", "Top of each LE tab shows 4 cards: Current Month Actual vs Prior Year vs Budget vs LE for instant tracking."]
+      ]},
+      {icon: "\uD83D\uDD2E", title: "Net Gen & 24M Forecast", items: [
+        ["Net Gen Tab", "Models the generation-to-sales pipeline. Set System Loss %, base year, and growth method. Seasonal index auto-calculated from 3 years of history."],
+        ["Hurricane Normalize", "Toggle to replace storm-affected 2025 Nov/Dec with the 2023/2024 average for a cleaner baseline."],
+        ["Rolling 24-Month", "Projects Apr 2026 through Mar 2028. First 3 months locked to actuals. Set separate growth % for each forecast year."],
+        ["1% Loss Card", "Revenue value of reducing system loss by 1pp - quantifies the financial case for T&D investment."]
+      ]},
+      {icon: "\u26A0\uFE0F", title: "Validation Tab", items: [
+        ["Dropped Accounts", "Accounts billed last year with zero billing this year. Sort by kWh to prioritise highest-volume at-risk customers."],
+        ["GID Deflections", "Accounts below 80% of prior-year YTD. Primary DG risk signal. Accounts below -40% highlighted in red."],
+        ["No History Groups", "Budget RC/Parish combos with no matching actuals. Review parish name consistency between your budget and actuals files."],
+        ["Anomalies", "Month-on-month swings above 25%. May indicate meter issues, seasonal patterns, or data errors."],
+        ["Sorting & Export", "Click any column header to sort. All four tables have Excel export buttons."]
+      ]},
+      {icon: "\uD83D\uDCC8", title: "Charts & Export", items: [
+        ["Expand Charts", "Click the Expand button (\u26F6) on any chart for a fullscreen overlay."],
+        ["Save as PNG", "Click the camera icon on any chart to download as PNG for presentations."],
+        ["Excel Export", "Click XLS on any chart or the Excel button on table headers to download data for Excel."]
+      ]},
+      {icon: "\uD83D\uDC65", title: "Collaboration & Audit", items: [
+        ["Real-Time Sync", "All changes sync instantly to all connected users. Toast notifications appear when teammates save data."],
+        ["Who is Online", "Coloured avatars in the header show current active team members."],
+        ["Saving Scenarios", "In any LE tab, Save Scenario preserves current growth assumptions under a named version visible to all."],
+        ["Audit Log", "Every action recorded in Supabase permanently: allocations, saves, uploads, deletes. Filterable and exportable."]
+      ]},
+      {icon: "\uD83D\uDD27", title: "Troubleshooting", items: [
+        ["Cloud Sync Error", "Supabase Dashboard > Settings > API > Allowed Origins: add https://jpsfp-a.github.io. Also verify all three tables have public SELECT/INSERT/UPDATE RLS policies."],
+        ["Allocation Not Running", "Auto-runs when actuals + budget are loaded. If stuck, upload the original budget CSV via Data Entry tab to reset."],
+        ["Net Gen Loading", "net_gen_historical table is empty or missing SELECT policy. Enter data via Data Entry tab."],
+        ["New Budget Year", "Upload new budget.csv via Data Entry. Budget year auto-detected. All labels and forecasts update automatically."]
+      ]}
+    ];
+    return /*#__PURE__*/React.createElement("div", {className: "p-4 h-full overflow-y-auto custom-scroll"},
+      /*#__PURE__*/React.createElement("div", {className: "max-w-4xl mx-auto space-y-3"},
+        /*#__PURE__*/React.createElement("div", {className: "bg-gradient-to-r from-slate-800 to-blue-900 rounded-xl p-4 text-white shadow-sm"},
+          /*#__PURE__*/React.createElement("h2", {className: "text-sm font-black"}, "\u26A1 JPS Sales Analytics \u2014 User Guide"),
+          /*#__PURE__*/React.createElement("p", {className: "text-blue-200 text-xs mt-1"}, "How to navigate and interpret the platform.")
+        ),
+        guide.map(function(sec) {
+          return /*#__PURE__*/React.createElement("div", {key: sec.title, className: "bg-white rounded-xl border shadow-sm overflow-hidden"},
+            /*#__PURE__*/React.createElement("div", {className: "px-4 py-2 bg-slate-800 text-white text-xs font-bold flex items-center gap-2"},
+              /*#__PURE__*/React.createElement("span", null, sec.icon), sec.title
+            ),
+            /*#__PURE__*/React.createElement("div", {className: "divide-y"},
+              sec.items.map(function(item) {
+                return /*#__PURE__*/React.createElement("div", {key: item[0], className: "px-4 py-2 flex gap-4 hover:bg-slate-50"},
+                  /*#__PURE__*/React.createElement("div", {className: "w-44 flex-shrink-0 font-bold text-slate-600 text-xs pt-0.5"}, item[0]),
+                  /*#__PURE__*/React.createElement("div", {className: "text-slate-600 text-xs leading-relaxed"}, item[1])
+                );
+              })
+            )
+          );
+        })
+      )
+    );
   };
+
+  var renderGlossaryTab = function renderGlossaryTab() {
+    var terms = [
+      {section: "Sales & Volume", items: [
+        {term: "kWh Billed", def: "Kilowatt-hours billed to customers. The primary volumetric sales metric."},
+        {term: "GWh", def: "Gigawatt-hour = 1,000,000 kWh. Used for annual and portfolio totals."},
+        {term: "Net Generation (MWh)", def: "Total electricity generated before system losses. Net Gen x (1 - Loss%) = Billed Sales."},
+        {term: "System Loss %", def: "Electricity lost in transmission and distribution. JPS target range: 22-26%."},
+        {term: "Billed Sales", def: "Net Generation minus system losses. Actual kWh invoiced to customers."},
+        {term: "Peak Demand (MW)", def: "Maximum instantaneous load in megawatts recorded in the billing period."},
+        {term: "Load Factor", def: "Average load / Peak load x 100%. Measures efficiency of generation capacity use."}
+      ]},
+      {section: "Rate Classes", items: [
+        {term: "RT10", def: "Residential Tariff. Standard residential service. Largest customer count."},
+        {term: "RT20", def: "General Service (Small Commercial). Small businesses on single-phase supply."},
+        {term: "RT40", def: "General Power Service. Medium commercial/industrial on three-phase supply."},
+        {term: "RT50", def: "Large Power Service. Large industrial customers with demand above 300 kVA."},
+        {term: "RT60", def: "Outdoor/Street Lighting. Public lighting infrastructure."},
+        {term: "RT70", def: "Extra Large Power. Largest industrial accounts including alumina and bauxite operations."},
+        {term: "BU", def: "Bulk/Unmetered supply. Typically resale customers or housing schemes."},
+        {term: "EV", def: "Electric Vehicle charging tariff."}
+      ]},
+      {section: "Forecasting & LE", items: [
+        {term: "LE (Latest Estimate)", def: "Revised forecast produced during the budget year using actual data. Replaces static budget with a forward-looking view."},
+        {term: "LE: Customer Volumetric", def: "Adjusts each customer's budget by their own YTD growth rate. Most granular method."},
+        {term: "LE: Rate Class", def: "Adjusts budget by the average growth rate of each Rate Class. Stable when customer data is incomplete."},
+        {term: "LE: Base Trend", def: "Blended: Customer method for RT10/RT20/RT60; Rate Class for RT40/RT50/RT70."},
+        {term: "LE: Advanced Scenario", def: "Multi-dimensional engine with growth % overrides by Rate Class, Industry, and Month. Most flexible."},
+        {term: "Granular Budget", def: "Budget allocated to individual account level using prior-year actuals as weighting."},
+        {term: "Budget Year", def: "The AOP year. Auto-detected from uploaded CSV — updates automatically with new budget."},
+        {term: "Prior Year", def: "Budget Year minus one. Reference period for growth calculations and YoY comparisons."}
+      ]},
+      {section: "Allocation Engine", items: [
+        {term: "Quarter-Average Allocation", def: "The engine uses the same calendar quarter from the prior year as the weighting basis. Captures seasonal patterns."},
+        {term: "RC/Parish Group", def: "Budget rows grouped by Rate Class + Parish before allocation. Each group total is split across customers proportionally."},
+        {term: "NO HISTORY", def: "An RC/Parish combination in the budget has zero matching actuals. Falls back through: exact match > RC-only > any RC actuals."},
+        {term: "Weight Basis", def: "Each customer's share of prior-year quarter actuals for their RC/Parish group, used as their proportional budget share."},
+        {term: "Industry Override", def: "Optional % adjustment on a customer's allocation based on industry classification. Set in Advanced LE builder."}
+      ]},
+      {section: "Validation & Risk", items: [
+        {term: "GID Deflection", def: "A customer whose YTD consumption is below 80% of the same period last year. May indicate DG switch, meter issue, or commercial loss."},
+        {term: "Dropped Account", def: "Account in prior-year actuals with zero billing this year. Could be disconnected, new GID, or data gap."},
+        {term: "MoM Anomaly", def: "Month-on-month swing greater than 25% for any account. Flags unusual billing patterns."},
+        {term: "DG (Distributed Generation)", def: "Customer-owned solar or other generation reducing grid purchases. Primary driver of volume deflection."},
+        {term: "Unlicensed DG", def: "Generation not registered with OUR. Identified when consumption falls sharply without a licensed connection."}
+      ]},
+      {section: "Financial & Regulatory", items: [
+        {term: "OUR", def: "Office of Utilities Regulation. Jamaican regulator that approves JPS tariff rates and revenue requirements."},
+        {term: "AOP", def: "Annual Operating Plan. The approved budget document."},
+        {term: "Tariff Rate (J$/kWh)", def: "Approved per-unit energy charge for each Rate Class. Used to translate kWh forecasts to revenue."},
+        {term: "FX Rate (J$/US$)", def: "Jamaica dollar to US dollar exchange rate for converting tariff revenue to USD."},
+        {term: "Demand Charge (J$/kVA)", def: "Fixed monthly charge based on peak demand for RT40, RT50, RT70."},
+        {term: "Customer Charge", def: "Fixed monthly service charge regardless of consumption."},
+        {term: "Revenue Recovery", def: "Gap between LE forecast revenue and budget revenue. Positive = LE exceeds budget."}
+      ]},
+      {section: "Data & System", items: [
+        {term: "actuals.csv", def: "Transaction-level kWh billing data. Columns: JPS A/c, Name, Rate category, Updated Parish, Industry, Month, Sum of net_kwh_billed_consump."},
+        {term: "budget.csv", def: "Budget allocations by RC, Parish, and Month. Columns: Month, Rate category, Updated Parish, Sum of Budget, JPS A/c, Name, Industry."},
+        {term: "dashboard_state", def: "Supabase table storing saved scenarios, tariff rates, FX rate, account maps, and comments. Synced in real-time."},
+        {term: "net_gen_historical", def: "Supabase table storing monthly Net Generation MWh and Peak Demand MW actuals by year."},
+        {term: "audit_log", def: "Supabase table recording all data changes: who, when, what."},
+        {term: "Realtime Sync", def: "All users see updates instantly via Supabase Realtime WebSocket on dashboard_state, audit_log, and net_gen_historical."}
+      ]}
+    ];
+    return /*#__PURE__*/React.createElement("div", {className: "p-4 h-full overflow-y-auto custom-scroll"},
+      /*#__PURE__*/React.createElement("div", {className: "max-w-4xl mx-auto space-y-3"},
+        /*#__PURE__*/React.createElement("div", {className: "bg-white rounded-xl border p-4 shadow-sm"},
+          /*#__PURE__*/React.createElement("h2", {className: "text-sm font-bold text-slate-800 flex items-center gap-2"},
+            /*#__PURE__*/React.createElement(Icons.BookOpen, null), " Glossary of Terms"
+          ),
+          /*#__PURE__*/React.createElement("p", {className: "text-xs text-slate-500 mt-1"},
+            "Complete reference for all metrics, terms and concepts in JPS Sales Analytics."
+          )
+        ),
+        terms.map(function(section) {
+          return /*#__PURE__*/React.createElement("div", {key: section.section, className: "bg-white rounded-xl border shadow-sm overflow-hidden"},
+            /*#__PURE__*/React.createElement("div", {className: "px-4 py-2 bg-slate-800 text-white font-bold text-xs uppercase tracking-wider"},
+              section.section
+            ),
+            /*#__PURE__*/React.createElement("div", {className: "divide-y"},
+              section.items.map(function(item) {
+                return /*#__PURE__*/React.createElement("div", {key: item.term, className: "px-4 py-2 flex gap-4 hover:bg-slate-50"},
+                  /*#__PURE__*/React.createElement("div", {className: "w-44 flex-shrink-0 font-bold text-slate-700 text-xs pt-0.5"}, item.term),
+                  /*#__PURE__*/React.createElement("div", {className: "text-slate-600 text-xs leading-relaxed"}, item.def)
+                );
+              })
+            )
+          );
+        })
+      )
+    );
+  };
+
   return /*#__PURE__*/React.createElement("div", {
     className: "flex flex-col h-full w-full bg-slate-100"
   }, showNamePrompt && /*#__PURE__*/React.createElement("div", {
@@ -8565,12 +8688,12 @@ function App() {
     className: "text-xl font-bold mb-2 mt-4"
   }, "Fetching Cloud Data..."), /*#__PURE__*/React.createElement("p", {
     className: "text-sm mb-6 max-w-md text-center"
-  }, "Auto-loading from your repository. If this persists, configure data sources manually."), /*#__PURE__*/React.createElement("button", {
+  }, "Auto-loading from your repository. If this persists, configure data sources manually."), /*#__PURE__*/React.createElement("button", {onClick: function(){setActiveTab('guide');}, className: "dashboard-tab " + (activeTab === 'guide' ? 'active' : '')}, /*#__PURE__*/React.createElement(Icons.HelpCircle, null), " User Guide"), /*#__PURE__*/React.createElement("button", {
     onClick: function onClick() {
       return setActiveTab('data');
     },
     className: "bg-slate-800 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-slate-900 transition"
-  }, "Go to Data Hub")) : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === 'data' && renderDataTab(), activeTab === 'overview' && renderOverviewTab(), activeTab === 'monthly' && renderMonthlyTab(), activeTab === 'allocation' && renderAllocationTab(), activeTab === 'leCust' && renderLeCustTab(), activeTab === 'leRC' && renderLeRCTab(), activeTab === 'leBase' && renderLeBaseTab(), activeTab === 'leCustom' && renderLeCustomTab(), activeTab === 'pivot' && renderPivotTab(), activeTab === 'variance' && renderVarianceTab(), activeTab === 'glossary' && renderGlossaryTab(), activeTab === 'comparison' && renderComparisonTab(), activeTab === 'netgen' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderNetGenTab()), activeTab === 'rolling18' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderRolling18Tab()), activeTab === 'customers' && renderCustomerTab(), activeTab === 'validation' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderValidationTab()), activeTab === 'auditlog' && renderAuditLogTab(), activeTab === 'dataentry' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderDataEntryTab())))))), isVersionModalOpen && /*#__PURE__*/React.createElement("div", {
+  }, "Go to Data Hub")) : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === 'data' && renderDataTab(), activeTab === 'overview' && renderOverviewTab(), activeTab === 'monthly' && renderMonthlyTab(), activeTab === 'allocation' && renderAllocationTab(), activeTab === 'leCust' && renderLeCustTab(), activeTab === 'leRC' && renderLeRCTab(), activeTab === 'leBase' && renderLeBaseTab(), activeTab === 'leCustom' && renderLeCustomTab(), activeTab === 'pivot' && renderPivotTab(), activeTab === 'variance' && renderVarianceTab(), activeTab === 'guide' && renderUserGuideTab(), activeTab === 'glossary' && renderGlossaryTab(), activeTab === 'comparison' && renderComparisonTab(), activeTab === 'netgen' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderNetGenTab()), activeTab === 'rolling18' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderRolling18Tab()), activeTab === 'customers' && renderCustomerTab(), activeTab === 'validation' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderValidationTab()), activeTab === 'auditlog' && renderAuditLogTab(), activeTab === 'dataentry' && /*#__PURE__*/React.createElement(ErrorBoundary, null, renderDataEntryTab())))))), isVersionModalOpen && /*#__PURE__*/React.createElement("div", {
     className: "fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 backdrop-blur-sm"
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-2xl shadow-xl w-full max-w-3xl flex flex-col overflow-hidden max-h-[80vh]"
@@ -8656,6 +8779,7 @@ function App() {
     }, /*#__PURE__*/React.createElement(Icons.Trash, null))));
   }))))));
 }
+
 var root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(/*#__PURE__*/React.createElement(App, null));
 // Hide loading splash once React mounts
