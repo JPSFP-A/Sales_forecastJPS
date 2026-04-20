@@ -1010,6 +1010,8 @@ function App() {
     _React$useState22 = _slicedToArray(_React$useState21, 2),
     isBudgetCommitted = _React$useState22[0],
     setIsBudgetCommitted = _React$useState22[1]; // always auto-committed
+  var _isAlloc = React.useState(false), _isAllocA = _slicedToArray(_isAlloc, 2),
+    isAllocating = _isAllocA[0], setIsAllocating = _isAllocA[1];
 
   // Dynamic budget year — auto-detected from uploaded CSV data
   var budgetYear = React.useMemo(function() {
@@ -1377,8 +1379,8 @@ function App() {
         while (1) switch (_context2.p = _context2.n) {
           case 0:
             silent = _args2.length > 0 && _args2[0] !== undefined ? _args2[0] : false;
-            url = supabaseConfig.url.trim();
-            key = supabaseConfig.key.trim();
+            url = (supabaseConfig.url || window.EMBEDDED_SUPABASE_URL || "").trim();
+            key = (supabaseConfig.key || window.EMBEDDED_SUPABASE_KEY || "").trim();
             if (!(!url || !key)) {
               _context2.n = 1;
               break;
@@ -2207,156 +2209,120 @@ function App() {
     }
   }, [rawBudget, rawActuals, isBudgetCommitted, monthMapping]);
 
-  // Auto-allocation: use quarter average of actuals as weight basis
-  // Eliminates NO HISTORY by falling back: same qtr → prior qtr → RC-only match
+  // Auto-allocation: pre-indexed for O(1) lookups (fast even with 35K rows)
   React.useEffect(function () {
     if (rawActuals.length === 0 || rawBudget.length === 0) return;
-                if (rawBudget[0] && rawBudget[0]['Source'] === 'Model Allocation') return;
+    if (rawBudget[0] && rawBudget[0]['Source'] === 'Model Allocation') return;
+    setIsAllocating(true);
+
+    // ── BUILD INDEXES ONCE ─────────────────────────────────────
+    // Key: "year|qtr|rc|parish" → [{acct, name, industry, kwh}]
+    var idxFull = {};   // year+qtr+rc+parish
+    var idxRC   = {};   // year+qtr+rc only
+    var idxRCAny = {};  // rc only (last resort)
+
+    rawActuals.forEach(function(a) {
+      var p = parseTimeStr(a.Month);
+      if (!p.year) return;
+      var rc     = (a['Rate category'] || 'Unassigned').trim();
+      var parish = (a['Updated Parish'] || 'Unassigned').trim();
+      var acct   = a['JPS A/c'];
+      var kwh    = Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump']));
+
+      var kFull = p.year + '|' + p.qtr + '|' + rc + '|' + parish;
+      var kRC   = p.year + '|' + p.qtr + '|' + rc;
+
+      if (!idxFull[kFull]) idxFull[kFull] = {};
+      if (!idxFull[kFull][acct]) idxFull[kFull][acct] = { acct: acct, name: a['Name'], industry: a['Industry'], kwh: 0 };
+      idxFull[kFull][acct].kwh += kwh;
+
+      if (!idxRC[kRC]) idxRC[kRC] = {};
+      if (!idxRC[kRC][acct]) idxRC[kRC][acct] = { acct: acct, name: a['Name'], industry: a['Industry'], kwh: 0 };
+      idxRC[kRC][acct].kwh += kwh;
+
+      if (!idxRCAny[rc]) idxRCAny[rc] = {};
+      if (!idxRCAny[rc][acct]) idxRCAny[rc][acct] = { acct: acct, name: a['Name'], industry: a['Industry'], kwh: 0 };
+      idxRCAny[rc][acct].kwh += kwh;
+    });
+    // ── END INDEX BUILD ────────────────────────────────────────
+
+    var getRefActuals = function(rc, parish, tYear, tQtr) {
+      // Try same quarter, prior years first (PY then PY-1)
+      for (var yo = 1; yo <= 2; yo++) {
+        var yr = tYear - yo;
+        var custs = idxFull[yr + '|' + tQtr + '|' + rc + '|' + parish];
+        if (custs && Object.keys(custs).length > 0)
+          return { custs: Object.values(custs), method: 'Q' + tQtr + ' ' + yr };
+      }
+      // RC-only fallback (drop parish)
+      for (var yo2 = 1; yo2 <= 2; yo2++) {
+        var yr2 = tYear - yo2;
+        var custs2 = idxRC[yr2 + '|' + tQtr + '|' + rc];
+        if (custs2 && Object.keys(custs2).length > 0)
+          return { custs: Object.values(custs2), method: 'Q' + tQtr + ' ' + yr2 + ' RC-only' };
+      }
+      // Last resort: any actuals for this RC
+      var custs3 = idxRCAny[rc];
+      if (custs3 && Object.keys(custs3).length > 0)
+        return { custs: Object.values(custs3), method: 'RC avg' };
+      return { custs: [], method: 'NONE' };
+    };
+
     var allResults = [];
-    var bMonths = _toConsumableArray(new Set(rawBudget.map(function (d) {
-      return d.Month;
-    }))).filter(Boolean);
-    bMonths.forEach(function (tMonth) {
+    var bMonths = _toConsumableArray(new Set(rawBudget.map(function(d) { return d.Month; }))).filter(Boolean);
+
+    bMonths.forEach(function(tMonth) {
       var tp = parseTimeStr(tMonth);
       if (!tp.year) return;
-      var tBud = rawBudget.filter(function (d) {
-        return d.Month === tMonth;
-      });
+
+      // Group budget rows by RC|Parish
+      var tBud = rawBudget.filter(function(d) { return d.Month === tMonth; });
       var bGroups = {};
-      tBud.forEach(function (b) {
-        var key = "".concat(b['Rate category'] || 'Unassigned', "|").concat(b['Updated Parish'] || 'Unassigned');
-        if (!bGroups[key]) bGroups[key] = {
-          amount: 0
-        };
-        bGroups[key].amount += cleanVal(b['Sum of Budget']);
+      tBud.forEach(function(b) {
+        var key = (b['Rate category'] || 'Unassigned').trim() + '|' + (b['Updated Parish'] || 'Unassigned').trim();
+        if (!bGroups[key]) bGroups[key] = 0;
+        bGroups[key] += cleanVal(b['Sum of Budget']);
       });
 
-      // Find reference actuals: same quarter, prior year first, then 2 years back
-      // Falls back progressively: exact qtr PY → any qtr PY → RC-only match
-      var getRefActuals = function getRefActuals(rc, parish) {
-        var tryQtr = function tryQtr(yr, qtr) {
-          return rawActuals.filter(function (a) {
-            var ap = parseTimeStr(a.Month);
-            return ap.year === yr && ap.qtr === qtr && (a['Rate category'] || 'Unassigned').trim() === rc && (a['Updated Parish'] || 'Unassigned').trim() === parish;
-          });
-        };
-        var tryQtrRcOnly = function tryQtrRcOnly(yr, qtr) {
-          return rawActuals.filter(function (a) {
-            var ap = parseTimeStr(a.Month);
-            return ap.year === yr && ap.qtr === qtr && (a['Rate category'] || 'Unassigned').trim() === rc;
-          });
-        };
+      Object.keys(bGroups).forEach(function(key) {
+        var parts = key.split('|');
+        var rc = parts[0], parish = parts[1];
+        var totB = bGroups[key];
+        var _ref = getRefActuals(rc, parish, tp.year, tp.qtr);
+        var custs = _ref.custs, method = _ref.method;
 
-        // Try same quarter, year -1 then year -2
-        for (var _i2 = 0, _arr = [tp.year - 1, tp.year - 2]; _i2 < _arr.length; _i2++) {
-          var yr = _arr[_i2];
-          var res = tryQtr(yr, tp.qtr);
-          if (res.length > 0) return {
-            acts: res,
-            method: "Q".concat(tp.qtr, " ").concat(yr)
-          };
-        }
-        // Try same quarter, RC only (drop parish match)
-        for (var _i3 = 0, _arr2 = [tp.year - 1, tp.year - 2]; _i3 < _arr2.length; _i3++) {
-          var _yr = _arr2[_i3];
-          var _res = tryQtrRcOnly(_yr, tp.qtr);
-          if (_res.length > 0) return {
-            acts: _res,
-            method: "Q".concat(tp.qtr, " ").concat(_yr, " RC-only")
-          };
-        }
-        // Last resort: any actuals for this RC
-        var anyActs = rawActuals.filter(function (a) {
-          return (a['Rate category'] || '').trim() === rc;
-        });
-        if (anyActs.length > 0) return {
-          acts: anyActs,
-          method: 'RC avg'
-        };
-        return {
-          acts: [],
-          method: 'NONE'
-        };
-      };
-      Object.keys(bGroups).forEach(function (key) {
-        var _key$split = key.split('|'),
-          _key$split2 = _slicedToArray(_key$split, 2),
-          rc = _key$split2[0],
-          parish = _key$split2[1];
-        var totB = bGroups[key].amount;
-        var _getRefActuals = getRefActuals(rc, parish),
-          refActs = _getRefActuals.acts,
-          method = _getRefActuals.method;
-        if (refActs.length === 0) {
-          allResults.push({
-            targetMonth: tMonth,
-            refMonth: method,
-            rc: rc,
-            parish: parish,
-            acct: 'UNALLOCATED',
-            name: 'NO HISTORY',
-            industry: 'Unallocated',
-            finalA: totB,
-            weight: 1,
-            override: '-'
-          });
+        if (custs.length === 0) {
+          allResults.push({ targetMonth: tMonth, refMonth: method, rc: rc, parish: parish,
+            acct: 'UNALLOCATED', name: 'NO HISTORY', industry: 'Unallocated',
+            finalA: totB, weight: 1, override: '-' });
           return;
         }
 
-        // Build customer weights from quarterly average
-        var custWeights = {};
-        refActs.forEach(function (a) {
-          var custKey = a['JPS A/c'];
-          if (!custWeights[custKey]) custWeights[custKey] = {
-            acct: custKey,
-            name: a['Name'],
-            industry: a['Industry'],
-            kwh: 0
-          };
-          custWeights[custKey].kwh += Math.max(0, cleanVal(a['Sum of net_kwh_billed_consump']));
-        });
-        var totalWt = Object.values(custWeights).reduce(function (s, c) {
-          return s + c.kwh;
-        }, 0);
+        var totalWt = custs.reduce(function(s, c) { return s + c.kwh; }, 0);
         if (totalWt === 0) {
-          allResults.push({
-            targetMonth: tMonth,
-            refMonth: method,
-            rc: rc,
-            parish: parish,
-            acct: 'UNALLOCATED',
-            name: 'ZERO HISTORY',
-            industry: 'Unallocated',
-            finalA: totB,
-            weight: 1,
-            override: '-'
-          });
+          allResults.push({ targetMonth: tMonth, refMonth: method, rc: rc, parish: parish,
+            acct: 'UNALLOCATED', name: 'ZERO HISTORY', industry: 'Unallocated',
+            finalA: totB, weight: 1, override: '-' });
           return;
         }
-        Object.values(custWeights).forEach(function (c) {
+
+        custs.forEach(function(c) {
           var w = c.kwh / totalWt;
           var finalVal = totB * w;
           var overrideStr = '-';
           if (allocOverrides[c.industry]) {
-            finalVal *= 1 + allocOverrides[c.industry] / 100;
-            overrideStr = "".concat(allocOverrides[c.industry], "%");
+            finalVal *= (1 + allocOverrides[c.industry] / 100);
+            overrideStr = allocOverrides[c.industry] + '%';
           }
-          allResults.push({
-            targetMonth: tMonth,
-            refMonth: method,
-            rc: rc,
-            parish: parish,
-            acct: c.acct,
-            name: c.name,
-            industry: c.industry,
-            finalA: finalVal,
-            weight: w,
-            override: overrideStr
-          });
+          allResults.push({ targetMonth: tMonth, refMonth: method, rc: rc, parish: parish,
+            acct: c.acct, name: c.name, industry: c.industry,
+            finalA: finalVal, weight: w, override: overrideStr });
         });
       });
     });
+
     setAllocationResults(allResults);
+    setIsAllocating(false);
   }, [allocOverrides, rawBudget, rawActuals, isBudgetCommitted]);
   var commitAllocation = function commitAllocation() {}; // Allocation is now fully automatic
 
@@ -2591,8 +2557,8 @@ function App() {
             ocToPush = overviewCmtOverride !== null ? overviewCmtOverride : overviewComments;
             mapToPush = accountNameMapOverride || accountNameMap;
             enrichToPush = customerEnrichmentOverride || customerEnrichment;
-            url = supabaseConfig.url.trim();
-            key = supabaseConfig.key.trim();
+            url = (supabaseConfig.url || window.EMBEDDED_SUPABASE_URL || '').trim();
+            key = (supabaseConfig.key || window.EMBEDDED_SUPABASE_KEY || '').trim();
             if (!(!url || !key)) {
               _context6.n = 1;
               break;
@@ -2623,7 +2589,7 @@ function App() {
               tariffRates: tariffRates,
               fxRate: fxRate
             };
-            supabaseClient = window.supabase.createClient(url, key);
+            supabaseClient = getSB() || window.supabase.createClient(url, key);
             _context6.n = 3;
             return supabaseClient.from('dashboard_state').upsert({
               id: 1,
@@ -2668,8 +2634,8 @@ function App() {
       return _regenerator().w(function (_context7) {
         while (1) switch (_context7.p = _context7.n) {
           case 0:
-            url = supabaseConfig.url.trim();
-            key = supabaseConfig.key.trim();
+            url = (supabaseConfig.url || window.EMBEDDED_SUPABASE_URL || "").trim();
+            key = (supabaseConfig.key || window.EMBEDDED_SUPABASE_KEY || "").trim();
             if (!(!url || !key)) {
               _context7.n = 1;
               break;
