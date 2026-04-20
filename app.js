@@ -31,18 +31,7 @@ function _getPrototypeOf(t) { return _getPrototypeOf = Object.setPrototypeOf ? O
 function _inherits(t, e) { if ("function" != typeof e && null !== e) throw new TypeError("Super expression must either be null or a function"); t.prototype = Object.create(e && e.prototype, { constructor: { value: t, writable: !0, configurable: !0 } }), Object.defineProperty(t, "prototype", { writable: !1 }), e && _setPrototypeOf(t, e); }
 function _setPrototypeOf(t, e) { return _setPrototypeOf = Object.setPrototypeOf ? Object.setPrototypeOf.bind() : function (t, e) { return t.__proto__ = e, t; }, _setPrototypeOf(t, e); }
 // Hooks accessed via React global to ensure availability after CDN load
-var _window$Recharts = window.Recharts,
-  LineChart = _window$Recharts.LineChart,
-  Line = _window$Recharts.Line,
-  BarChart = _window$Recharts.BarChart,
-  Bar = _window$Recharts.Bar,
-  Cell = _window$Recharts.Cell,
-  XAxis = _window$Recharts.XAxis,
-  YAxis = _window$Recharts.YAxis,
-  CartesianGrid = _window$Recharts.CartesianGrid,
-  Tooltip = _window$Recharts.Tooltip,
-  Legend = _window$Recharts.Legend,
-  ResponsiveContainer = _window$Recharts.ResponsiveContainer;
+// Recharts destructured inside App for guaranteed scope
 var ErrorBoundary = /*#__PURE__*/function (_React$Component) {
   function ErrorBoundary(props) {
     var _this;
@@ -879,6 +868,13 @@ var parseCSV = function parseCSV(text) {
   return data;
 };
 function App() {
+  // Recharts components — destructured inside App to guarantee scope
+  var _RC = window.Recharts || {};
+  var LineChart = _RC.LineChart, Line = _RC.Line, BarChart = _RC.BarChart,
+      Bar = _RC.Bar, Cell = _RC.Cell, XAxis = _RC.XAxis, YAxis = _RC.YAxis,
+      CartesianGrid = _RC.CartesianGrid, Tooltip = _RC.Tooltip,
+      Legend = _RC.Legend, ResponsiveContainer = _RC.ResponsiveContainer;
+
   // SINGLETON: one Supabase client, reused everywhere
   var _sbSingleton = null;
   var getSB = function() {
