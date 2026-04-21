@@ -1476,7 +1476,7 @@ function App() {
           case 6:
             _context2.p = 6;
             _t = _context2.v;
-            console.error(cloudSyncError ? "Sync Error: " + cloudSyncError.substring(0, 40) : "Cloud Sync Error", _t);
+            console.error("Cloud Sync Error — see User Guide tab", _t);
             if (!silent) console.error("Supabase boot fetch failed");
             setSupabaseStatus('error');
             return _context2.a(2, false);
@@ -8280,7 +8280,7 @@ function App() {
         ["Audit Log", "Every action recorded in Supabase permanently: allocations, saves, uploads, deletes. Filterable and exportable."]
       ]},
       {icon: "\uD83D\uDD27", title: "Troubleshooting", items: [
-        ["Cloud Sync Error", "Supabase Dashboard > Settings > API > Allowed Origins: add https://jpsfp-a.github.io. Also verify all three tables have public SELECT/INSERT/UPDATE RLS policies."],
+        ["Cloud Sync Error", "In Supabase Dashboard, go to: Project > Settings > Infrastructure > Network Restrictions. Remove all IP restrictions (or add 0.0.0.0/0 to allow all). This is a Cloudflare-level IP allowlist that blocks all browser requests. The setting is NOT in API Keys or CORS."],
         ["Allocation Not Running", "Auto-runs when actuals + budget are loaded. If stuck, upload the original budget CSV via Data Entry tab to reset."],
         ["Net Gen Loading", "net_gen_historical table is empty or missing SELECT policy. Enter data via Data Entry tab."],
         ["New Budget Year", "Upload new budget.csv via Data Entry. Budget year auto-detected. All labels and forecasts update automatically."]
