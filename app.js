@@ -868,6 +868,30 @@ var parseCSV = function parseCSV(text) {
   return data;
 };
 function App() {
+  // ── VERCEL PROXY (bypasses Supabase network restriction) ────────
+  var PROXY_URL = 'https://sales-forecast-b97hww8vd-jps-fpa.vercel.app/api/db';
+  
+  // All Supabase operations go through this function
+  var proxyCall = function(params, body) {
+    var url = PROXY_URL + '?' + Object.keys(params).map(function(k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+    var opts = { method: body ? 'POST' : 'GET', headers: {'Content-Type': 'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(url, opts).then(function(r) { return r.json(); });
+  };
+
+  // Keep getSB() for realtime subscriptions (doesn't go through proxy)
+  var _sbClient = null;
+  var getSB = function() {
+    if (_sbClient) return _sbClient;
+    var u = window.EMBEDDED_SUPABASE_URL || '';
+    var k = window.EMBEDDED_SUPABASE_KEY || '';
+    if (u && k) _sbClient = window.supabase.createClient(u, k);
+    return _sbClient;
+  };
+  // ──────────────────────────────────────────────────────────────
+
   // Recharts components — destructured inside App to guarantee scope
   var _RC = window.Recharts || {};
   var LineChart = _RC.LineChart, Line = _RC.Line, BarChart = _RC.BarChart,
@@ -1403,7 +1427,7 @@ function App() {
                   while (1) switch (_context.n) {
                     case 0:
                       _context.n = 1;
-                      return fetch(supabaseClient.storage.from('jps_data').getPublicUrl(filename).data.publicUrl, {cache: 'no-store'});
+                      return fetch('https://sales-forecast-b97hww8vd-jps-fpa.vercel.app/api/db?action=download&bucket=jps_data&filename='+encodeURIComponent(filename));
                     case 1:
                       _yield$supabaseClient = _context.v;
                       data = _yield$supabaseClient.data;
@@ -1456,11 +1480,11 @@ function App() {
               } else if (!silent) alert("budget.csv found, but appears to be empty.");
             } else if (!silent) alert("Could not find 'budget.csv' in the Supabase 'jps_data' bucket.");
             _context2.n = 5;
-            return supabaseClient.from('dashboard_state').select('payload').eq('id', 1).single();
+            return proxyCall({action:'select',table:'dashboard_state',cols:'payload',eq_col:'id',eq_val:'1',limit:'1'});
           case 5:
             _yield$supabaseClient2 = _context2.v;
-            configData = _yield$supabaseClient2.data;
-            configError = _yield$supabaseClient2.error;
+            configData = Array.isArray(_yield$supabaseClient2) ? (_yield$supabaseClient2[0] || null) : null;
+            configError = (_yield$supabaseClient2 && _yield$supabaseClient2.error) ? _yield$supabaseClient2 : null;
             if (configData && configData.payload) {
               parsed = configData.payload;
               if (Array.isArray(parsed)) setSavedVersions(parsed);else {
@@ -1528,7 +1552,7 @@ function App() {
                     while (1) switch (_context3.n) {
                       case 0:
                         _context3.n = 1;
-                        return fetch(supabaseClient.storage.from('jps_data').getPublicUrl(filename).data.publicUrl, {cache: 'no-store'});
+                        return fetch('https://sales-forecast-b97hww8vd-jps-fpa.vercel.app/api/db?action=download&bucket=jps_data&filename='+encodeURIComponent(filename));
                       case 1:
                         _yield$supabaseClient3 = _context3.v;
                         data = _yield$supabaseClient3.data;
@@ -1570,7 +1594,7 @@ function App() {
                 cloudSuccess = true;
               }
               _context4.n = 3;
-              return supabaseClient.from('dashboard_state').select('payload').eq('id', 1).single();
+              return proxyCall({action:'select',table:'dashboard_state',cols:'payload',eq_col:'id',eq_val:'1',limit:'1'});
             case 3:
               _yield$supabaseClient4 = _context4.v;
               configData = _yield$supabaseClient4.data;
@@ -1656,12 +1680,8 @@ function App() {
   // Load audit log when Audit Log tab is opened
   React.useEffect(function () {
     if (activeTab !== 'auditlog') return;
-    var sb = getSB(); if (!sb) return;
-    sb.from('audit_log').select('*').order('created_at', {
-      ascending: false
-    }).limit(500).then(function (_ref10) {
-      var data = _ref10.data,
-        error = _ref10.error;
+    proxyCall({action:'select',table:'audit_log',order:'created_at:desc',limit:'500'}).then(function (data) {
+      var error = data && data.error ? data.error : null;
       if (!error && data) {
         setAuditLog(data.map(function (r) {
           return {
@@ -1909,15 +1929,8 @@ function App() {
 
   // Fetch net gen historical from Supabase on boot
   React.useEffect(function () {
-    var sb = getSB(); if (!sb) return;
-    sb.from('net_gen_historical').select('*').order('year', {
-      ascending: true
-    }).order('month', {
-      ascending: true
-    }).then(function (_ref16) {
-      var data = _ref16.data,
-        error = _ref16.error;
-      if (error || !data || data.length === 0) {
+    proxyCall({action:'select',table:'net_gen_historical',order:'year:asc',limit:'1000'}).then(function (data) {
+      if (!data || data.error || data.length === 0) {
         console.warn('net_gen_historical fetch failed or empty:', error === null || error === void 0 ? void 0 : error.message);
         return;
       }
@@ -1942,13 +1955,8 @@ function App() {
   // Load net gen table when Data Entry tab is opened
   React.useEffect(function () {
     if (activeTab !== 'dataentry') return;
-    var sbDE = getSB(); if (!sbDE) return;
     setIsLoadingNgTable(true);
-    sbDE.from('net_gen_historical').select('*').order('year', {
-      ascending: false
-    }).order('month', {
-      ascending: false
-    }).then(function (_ref17) {
+    proxyCall({action:'select',table:'net_gen_historical',order:'year:desc',limit:'1000'}).then(function (_ref17) {
       var data = _ref17.data,
         error = _ref17.error;
       setIsLoadingNgTable(false);
@@ -2590,10 +2598,7 @@ function App() {
             };
             supabaseClient = getSB() || window.supabase.createClient(url, key);
             _context6.n = 3;
-            return supabaseClient.from('dashboard_state').upsert({
-              id: 1,
-              payload: payloadToSave
-            });
+            return proxyCall({action:'upsert',table:'dashboard_state',conflict:'id'},{id:1,payload:payloadToSave});
           case 3:
             _yield$supabaseClient5 = _context6.v;
             error = _yield$supabaseClient5.error;
@@ -2645,7 +2650,7 @@ function App() {
             _context7.p = 2;
             supabaseClient = window.supabase.createClient(url, key);
             _context7.n = 3;
-            return supabaseClient.from('dashboard_state').select('payload').eq('id', 1).single();
+            return proxyCall({action:'select',table:'dashboard_state',cols:'payload',eq_col:'id',eq_val:'1',limit:'1'});
           case 3:
             _yield$supabaseClient6 = _context7.v;
             configData = _yield$supabaseClient6.data;
@@ -3141,7 +3146,7 @@ function App() {
 
     // Persist to Supabase
     var sb = getSB(); if (!sb) return;
-    sb.from('audit_log').insert({
+    proxyCall({action:'insert',table:'audit_log'},{
       user_name: entry.user,
       action: entry.action,
       details: entry.details,
@@ -7110,13 +7115,11 @@ function App() {
             case 2:
               setIsSavingNG(true);
               _context1.n = 3;
-              return sb.from('net_gen_historical').upsert({
+              return proxyCall({action:'upsert',table:'net_gen_historical',conflict:'year,month'},{
                 year: entryYear,
                 month: entryMonth,
                 net_gen_mwh: parseFloat(entryNetGen),
                 peak_mw: parseFloat(entryPeak)
-              }, {
-                onConflict: 'year,month'
               });
             case 3:
               _yield$sb$from$upsert = _context1.v;
@@ -7141,11 +7144,7 @@ function App() {
               setEntryPeak('');
               // Refresh table
               _context1.n = 5;
-              return sb.from('net_gen_historical').select('*').order('year', {
-                ascending: false
-              }).order('month', {
-                ascending: false
-              });
+              return proxyCall({action:'select',table:'net_gen_historical',order:'year:desc',limit:'1000'});
             case 5:
               _yield$sb$from$select = _context1.v;
               data = _yield$sb$from$select.data;
@@ -7202,7 +7201,7 @@ function App() {
               return _context10.a(2);
             case 2:
               _context10.n = 3;
-              return sb.from('net_gen_historical').delete().eq('year', year).eq('month', month);
+              return getSB().from('net_gen_historical').delete().eq('year', year).eq('month', month);
             case 3:
               _yield$sb$from$delete = _context10.v;
               error = _yield$sb$from$delete.error;
@@ -7215,11 +7214,7 @@ function App() {
                 month: month
               });
               _context10.n = 4;
-              return sb.from('net_gen_historical').select('*').order('year', {
-                ascending: false
-              }).order('month', {
-                ascending: false
-              });
+              return proxyCall({action:'select',table:'net_gen_historical',order:'year:desc',limit:'1000'});
             case 4:
               _yield$sb$from$select2 = _context10.v;
               data = _yield$sb$from$select2.data;
@@ -7247,10 +7242,10 @@ function App() {
               return _context11.a(2);
             case 1:
               _context11.n = 2;
-              return sb.from('net_gen_historical').update({
+              return proxyCall({action:'update',table:'net_gen_historical',eq_col:'year',eq_val:editingRow.year},{
                 net_gen_mwh: parseFloat(editingRow.net_gen_mwh),
                 peak_mw: parseFloat(editingRow.peak_mw)
-              }).eq('year', editingRow.year).eq('month', editingRow.month);
+              });
             case 2:
               _yield$sb$from$update = _context11.v;
               error = _yield$sb$from$update.error;
@@ -7264,11 +7259,7 @@ function App() {
               });
               setEditingRow(null);
               _context11.n = 3;
-              return sb.from('net_gen_historical').select('*').order('year', {
-                ascending: false
-              }).order('month', {
-                ascending: false
-              });
+              return proxyCall({action:'select',table:'net_gen_historical',order:'year:desc',limit:'1000'});
             case 3:
               _yield$sb$from$select3 = _context11.v;
               data = _yield$sb$from$select3.data;
