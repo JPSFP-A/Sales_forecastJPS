@@ -8,7 +8,7 @@
 <meta http-equiv="Expires" content="0"/>
 <title>JPS Sales Analytics Platform</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- XLSX loaded lazily on first upload/download — saves ~1MB on initial page load -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
@@ -2745,6 +2745,8 @@ async function loadExcel(input){
   if(!file)return;
   const sb=getSB();
   if(!sb){toast('Supabase not connected — check Admin → DB Schema','err');return;}
+  // Ensure XLSX library is loaded (deferred for faster initial page load)
+  try{await loadXLSX();}catch(e){toast('Could not load Excel library: '+e.message,'err');return;}
   const mode=document.getElementById('uploadMode')?.value||'overwrite';
   const stEl=document.getElementById('adm_upload_status');
   const dsEl=document.getElementById('dataStatus');
@@ -2922,8 +2924,19 @@ async function loadExcel(input){
   reader.readAsBinaryString(file);
 }
 
+/* Lazy-load XLSX (~1MB) only when first needed — keeps initial page load fast */
+function loadXLSX(){
+  return new Promise((resolve,reject)=>{
+    if(typeof XLSX!=='undefined'){resolve();return;}
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=resolve;s.onerror=()=>reject(new Error('Failed to load Excel library'));
+    document.head.appendChild(s);
+  });
+}
+
 function dlTemplate(){
-  if(typeof XLSX==='undefined'){toast('Excel library not loaded yet — please wait a few seconds and try again','err');return;}
+  loadXLSX().then(()=>{
   const wb=XLSX.utils.book_new();
 
   // 1. Actuals — flat dump format, same columns for commercial and residential
@@ -2985,6 +2998,7 @@ function dlTemplate(){
 
   XLSX.writeFile(wb,'JPS_Data_Template.xlsx');
   toast('Template downloaded ✓ — check your Downloads folder','ok');
+  }).catch(e=>toast('Could not load Excel library: '+e.message,'err'));
 }
 
 /* ==========================================
@@ -6396,56 +6410,57 @@ async function syncSupabase(silent=false){
   }
   const log=[];
   try{
-    // ── Reference tables (load first — actuals join against these) ──
-    const indData=await sbTable('jps_industries',{});
+    // ── Fire ALL queries in parallel — massive speedup vs sequential awaits ──
+    const [
+      indData,kamData,amData,actData,
+      jbData,cbData,resBudData,
+      ng,nb,ev,pl
+    ] = await Promise.all([
+      sbTable('jps_industries',{}),
+      sbTable('jps_kam',{}),
+      sbTable('jps_account_master',{limit:50000}),
+      sbTable('jps_actuals',{limit:50000}),
+      sbTable('jps_budget',{limit:20000}),
+      sbTable('jps_commercial_budget',{limit:20000}),
+      sbTable('jps_residential_budget',{limit:5000}),
+      sbTable('net_gen_historical',{order:'year'}),
+      sbTable('jps_net_billers',{order:'year'}),
+      sbTable('jps_ev_accounts',{order:'year'}),
+      sbTable('jps_period_locks',{})
+    ]);
+
+    // ── Process results ────────────────────────────────────
     if(indData){sbIndustries=indData;log.push(`Industries: jps_industries (${indData.length} rows)`);}
     else log.push('Industries: ⚠ jps_industries not found — run schema SQL');
 
-    const kamData=await sbTable('jps_kam',{});
     if(kamData){sbKAM=kamData;log.push(`KAM: jps_kam (${kamData.length} rows)`);}
     else log.push('KAM: ⚠ jps_kam not found — run schema SQL');
 
-    const amData=await sbTable('jps_account_master',{limit:50000});
     if(amData){sbAccountMaster=amData;log.push(`Account Master: jps_account_master (${amData.length} accounts)`);}
     else log.push('Account Master: ⚠ jps_account_master not found — run schema SQL');
 
-    // ── Actuals ────────────────────────────────────────────
-    const actData=await sbTable('jps_actuals',{limit:50000});
     const actOk=!!actData;
     if(actOk){sbActuals=actData;log.push(`Actuals: jps_actuals (${actData.length} rows)`);}
     else log.push('Actuals: ⚠ jps_actuals not accessible — check RLS policies');
 
-    // ── Budget — read jps_budget (aggregate) + jps_commercial_budget (account-level) and merge ──
     sbBudget=[];
-    const jbData=await sbTable('jps_budget',{limit:20000});
     if(jbData&&jbData.length){sbBudget=[...sbBudget,...jbData];log.push(`Budget: jps_budget (${jbData.length} rows)`);}
     else log.push('Budget: jps_budget (0 rows — no data uploaded yet)');
-    const cbData=await sbTable('jps_commercial_budget',{limit:20000});
     if(cbData&&cbData.length){sbBudget=[...sbBudget,...cbData];log.push(`Comm Budget (acct-level): jps_commercial_budget (${cbData.length} rows)`);}
     const budOk=sbBudget.length>0;
 
-    // ── Residential Budget ─────────────────────────────────
-    const resBudData=await sbTable('jps_residential_budget',{limit:5000});
     if(resBudData){sbResBudget=resBudData;log.push(`Res Budget: jps_residential_budget (${resBudData.length} rows)`);}
     else log.push('Res Budget: jps_residential_budget (0 rows — no data uploaded yet)');
 
-    // ── Net Generation ─────────────────────────────────────
-    const ng=await sbTable('net_gen_historical',{order:'year'});
     if(ng){sbNetGen=ng;log.push(`Net Gen: net_gen_historical (${ng.length} rows)`);}
     else log.push('Net Gen: ⚠ net_gen_historical not accessible');
 
-    // ── Net Billers ────────────────────────────────────────
-    const nb=await sbTable('jps_net_billers',{order:'year'});
     if(nb){sbNetBillers=nb;log.push(`Net Billers: jps_net_billers (${nb.length} rows)`);}
     else log.push('Net Billers: ⚠ jps_net_billers not found (create table to populate)');
 
-    // ── EV Data ───────────────────────────────────────────
-    const ev=await sbTable('jps_ev_accounts',{order:'year'});
     if(ev){sbEvData=ev;log.push(`EV Data: jps_ev_accounts (${ev.length} rows)`);}
     else log.push('EV Data: ⚠ jps_ev_accounts not found (create table to populate)');
 
-    // ── Period Locks ──────────────────────────────────────
-    const pl=await sbTable('jps_period_locks',{});
     if(pl){PERIOD_LOCKS=pl;log.push(`Period Locks: jps_period_locks (${pl.length} locked)`);}
     else log.push('Period Locks: ⚠ jps_period_locks not found (run schema SQL in Admin)');
 
@@ -7641,7 +7656,7 @@ window.addEventListener('beforeunload',()=>{
 });
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
