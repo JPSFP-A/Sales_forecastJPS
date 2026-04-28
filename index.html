@@ -914,14 +914,13 @@ body{background:var(--navy);color:var(--text);font-family:-apple-system,BlinkMac
         </div>
 
         <!-- Commercial section -->
-        <div class="card help-card" data-tags="commercial rt40 rt50 rt70 customer drilldown pivot movers defection industry">
-          <div class="ch" style="cursor:pointer" onclick="toggleHelp(this)">🏢 Commercial Section — Customers, Pivot, Defection, R&amp;O <span style="font-size:10px;color:var(--text3);font-weight:400">▾</span></div>
+        <div class="card help-card" data-tags="commercial rt40 rt50 rt70 customer drilldown kam accuracy defection industry ai commentary">
+          <div class="ch" style="cursor:pointer" onclick="toggleHelp(this)">🏢 Commercial Section — Customers, KAM &amp; Commentary, Defection, R&amp;O <span style="font-size:10px;color:var(--text3);font-weight:400">▾</span></div>
           <div class="help-body" style="display:none;font-size:11px;color:var(--text2);line-height:1.9;padding-top:8px">
-            <p><strong style="color:var(--text)">Customers tab:</strong> The main commercial view. KPI cards show MTD commercial GWh, RT40/RT50 gap vs budget, top industry, and defector count. The bar chart is clickable — click any rate class bar to filter the customer table below to that segment. Use the search box and dropdowns to further filter. <em>Increasing ↑ / Declining ↓</em> trend filter compares current YTD to prior YTD.</p>
-            <p><strong style="color:var(--text)">Pivot / Movers tab:</strong> Shows which accounts gained or lost the most kWh compared to the same period in the prior year. Use the period selector (MTD / YTD / Rolling 12M) and rate class filter to focus your analysis. Top Gainers and Top Decliners panels rank accounts by absolute kWh change. The full mover list can be exported as CSV.</p>
+            <p><strong style="color:var(--text)">Customers tab:</strong> KPI cards show MTD commercial GWh, RT40/RT50 gap vs budget, top industry, and defector count. The GWh by Rate Class chart and AI Commentary panel are shown side-by-side — click <em>Generate Analysis</em> to produce a written narrative. Click any chart bar to filter the customer table to that rate class. Use search and dropdowns to filter further. <em>Increasing ↑ / Declining ↓</em> trend filter compares current YTD to prior YTD.</p>
+            <p><strong style="color:var(--text)">KAM &amp; Commentary tab:</strong> Shows the KAM Performance table with Forecast Accuracy % (100 − MAPE, comparing entered forecasts vs actuals for the current month). KAMs are ranked from most to least accurate. Click any KAM row to filter the customer table to that KAM's accounts. The AI commentary here focuses on KAM-level performance. Assign KAMs in Admin → KAM Assignment or upload a KAM Excel sheet.</p>
             <p><strong style="color:var(--text)">Defection tab:</strong> Flags customers whose 3-month rolling average kWh has dropped below 80% of the same 3-month window in the prior year. Severity grades: <span style="color:#ff4f4f">Critical &lt;50%</span>, <span style="color:orange">Severe 50–65%</span>, <span style="color:#ffd166">Moderate 65–80%</span>. Each flagged account requires a validated cause (Solar/DG, Hurricane, Closure, Unknown) before it is counted as a confirmed structural defector.</p>
             <p><strong style="color:var(--text)">Risk &amp; Opportunity tab:</strong> Manual pipeline of commercial risks and opportunities. Risks are negative expected kWh impact (e.g. planned DG install, site closure). Opportunities are positive impact (e.g. new connection, expanded load). Use this to track and manage the forward commercial outlook.</p>
-            <p><strong style="color:var(--text)">AI Commentary:</strong> Click <em>Generate Analysis</em> in the AI Commentary card at the top of Commercial to produce a written narrative of the current period's commercial performance. Copy it to clipboard for use in reports or management presentations.</p>
           </div>
         </div>
 
@@ -941,7 +940,7 @@ body{background:var(--navy);color:var(--text);font-family:-apple-system,BlinkMac
           <div class="ch" style="cursor:pointer" onclick="toggleHelp(this)">📈 LE Forecast &amp; Forecast Accuracy <span style="font-size:10px;color:var(--text3);font-weight:400">▾</span></div>
           <div class="help-body" style="display:none;font-size:11px;color:var(--text2);line-height:1.9;padding-top:8px">
             <p><strong style="color:var(--text)">Forecast Accuracy section:</strong> Compares entered forecasts to actuals. MAPE (Mean Absolute Percentage Error) is the primary accuracy metric — target &lt;5%. Accounts are flagged "On trend" or "Off trend" based on whether actual performance matches the forecast within tolerance.</p>
-            <p><strong style="color:var(--text)">LE Forecast section:</strong> The Latest Estimate view. Sub-tabs: <em>Overview</em> (summary), <em>Monthly Trend</em>, <em>LE Base</em> (account-level base assumptions), <em>LE Cust Vol</em> / <em>LE RC Vol</em> (volume by customer and rate class), <em>LE Advanced</em>, <em>Customer Risk</em>, <em>Variance</em>, and <em>Pivot / Movers</em>. The Pivot / Movers tab here shows the LE-specific scenario pivot matrix.</p>
+            <p><strong style="color:var(--text)">LE Forecast section:</strong> The Latest Estimate view. Sub-tabs: <em>Overview</em> (summary), <em>Monthly Trend</em>, <em>LE Base</em> (account-level base assumptions), <em>LE Cust Vol</em> / <em>LE RC Vol</em> (volume by customer and rate class), <em>LE Advanced</em>, <em>Customer Risk</em>, <em>Variance</em>, and <em>Pivot &amp; Movers</em> (LE-specific scenario pivot matrix).</p>
             <p><strong style="color:var(--text)">Entering a forecast:</strong> Navigate to Forecast Accuracy → 6-Month Forecast Entry. Select the account, enter the forecast kWh for each future month, and click Save. Forecasts are stored in Supabase and visible to all users.</p>
           </div>
         </div>
@@ -990,7 +989,7 @@ body{background:var(--navy);color:var(--text);font-family:-apple-system,BlinkMac
           <div class="help-body" style="display:none;font-size:11px;color:var(--text2);line-height:1.9;padding-top:8px">
             <p><strong style="color:var(--text)">Why are commercial kWh down vs budget?</strong><br>
             1. Check <em>Commercial → Customers</em> — which rate class is driving the gap? RT40, RT50, or RT70?<br>
-            2. Use <em>Commercial → Pivot / Movers</em> to identify the specific accounts with the largest declines.<br>
+            2. Go to <em>Data Validation</em> — run validation to see GWh Deflections (accounts &lt;80% of prior year) and Dropped Accounts.<br>
             3. Cross-reference with <em>Defection</em> — are the declining accounts flagged? What is the validated cause?<br>
             4. Check <em>Net Generation</em> — is DG growth absorbing load from specific rate classes?</p>
             <p><strong style="color:var(--text)">How to identify new solar installs causing defection?</strong><br>
@@ -1000,14 +999,44 @@ body{background:var(--navy);color:var(--text);font-family:-apple-system,BlinkMac
             <p><strong style="color:var(--text)">How to build the monthly narrative for management?</strong><br>
             1. Sync DB to load latest actuals.<br>
             2. Set the period to the month being reported.<br>
-            3. In Commercial, click <em>Generate Analysis</em> in the AI Commentary card.<br>
-            4. Copy the generated text, refine as needed, and paste into <em>Monthly Review → Commentary</em>.<br>
-            5. Lock the period in <em>Admin → Period Close</em> once signed off.</p>
+            3. In Commercial → Customers, click <em>Generate Analysis</em> in the AI Commentary card.<br>
+            4. For KAM-level narrative, go to <em>Commercial → KAM &amp; Commentary</em> and use the Generate Analysis button there.<br>
+            5. Copy, refine, and paste into <em>Monthly Review → Commentary</em>. Lock the period in <em>Admin → Period Close</em>.</p>
             <p><strong style="color:var(--text)">How to track a large account moving to self-generation?</strong><br>
             1. Note the account in <em>R&amp;O Pipeline</em> as a Risk with expected kWh impact and timeline.<br>
             2. Flag the account in the <em>Defection</em> register once the 3-month trigger fires.<br>
             3. Add KAM commentary to the customer note in <em>Commercial → Customer Detail</em>.<br>
-            4. Track actuals monthly in <em>Commercial → Pivot / Movers</em>.</p>
+            4. Monitor the account month-on-month in <em>Data Validation → MoM Anomalies</em>.</p>
+            <p><strong style="color:var(--text)">How to verify data quality after uploading actuals?</strong><br>
+            1. After upload, go to <em>Data Validation</em> and click <em>Run Validation</em>.<br>
+            2. Check <em>Dropped Accounts</em> — are any prior-year accounts missing? If unexpected, there may be an account number change in the source data.<br>
+            3. Check <em>GWh Deflections</em> — accounts at &lt;80% of prior year. Are these genuine declines or missing months?<br>
+            4. Check <em>MoM Anomalies</em> — swings &gt;25% could indicate a billing adjustment, estimated read, or real load event. Investigate before publishing analysis.</p>
+          </div>
+        </div>
+
+        <!-- Data Validation -->
+        <div class="card help-card" data-tags="validation data quality dropped accounts deflection anomaly mom wipe upload reload">
+          <div class="ch" style="cursor:pointer" onclick="toggleHelp(this)">🔍 Data Validation — Quality Checks After Upload <span style="font-size:10px;color:var(--text3);font-weight:400">▾</span></div>
+          <div class="help-body" style="display:none;font-size:11px;color:var(--text2);line-height:1.9;padding-top:8px">
+            <p>Run validation after every data upload to confirm completeness before publishing analysis. Navigate to <strong>Data Validation</strong> in the sidebar and click <em>Run Validation</em>.</p>
+            <p><strong style="color:var(--red)">Dropped Accounts:</strong> Accounts present in prior-year actuals that have zero rows in the current year. Could be closures, tariff transfers, or data gaps. Export to CSV and investigate any unexpected drops before reporting.</p>
+            <p><strong style="color:var(--amber)">GWh Deflections:</strong> Accounts where current YTD kWh is below 80% of the same YTD period in the prior year. Severity: Critical (&lt;50%) or Moderate (50–80%). Cross-reference with Defection Analysis to confirm cause.</p>
+            <p><strong style="color:var(--purple)">Month-on-Month Anomalies:</strong> Consecutive months where the same account's kWh swings more than 25%. Common causes: billing adjustment, estimated read, catch-up read, or real load event. Always investigate before using in management reporting.</p>
+            <p><strong style="color:var(--text)">Reloading data:</strong> Go to <strong>Admin → Upload Data</strong>. Use the <em>🗑 Delete Month</em> panel to wipe a specific period, or use <em>🗑 Wipe ALL Actuals</em> (requires typing confirmation code <strong>WIPE-ALL</strong>) to clear everything before a full reload. Always re-run Data Validation after reloading.</p>
+          </div>
+        </div>
+
+        <!-- Admin & Data Management -->
+        <div class="card help-card" data-tags="admin upload wipe delete month period lock users roles kam assignment audit">
+          <div class="ch" style="cursor:pointer" onclick="toggleHelp(this)">🔐 Admin — Data Management &amp; Controls <span style="font-size:10px;color:var(--text3);font-weight:400">▾</span></div>
+          <div class="help-body" style="display:none;font-size:11px;color:var(--text2);line-height:1.9;padding-top:8px">
+            <p><strong style="color:var(--text)">Upload Data tab:</strong> Upload an Excel workbook (.xlsx) with one or more of the supported sheet names (Actuals, Budget, Residential_Budget, KAM, Industries, Net_Generation, Net_Billers, EV_Accounts). Use Overwrite Month to replace a period, or Append/Upsert for incremental updates. Download the full template via the <em>⬇ Download Full Template</em> button.</p>
+            <p><strong style="color:var(--text)">Delete Month:</strong> Removes all actuals rows for a selected year and month. Use before re-uploading corrected data for a specific period.</p>
+            <p><strong style="color:var(--red)">Wipe ALL Actuals:</strong> Deletes every row across all years. Requires typing the confirmation code <strong>WIPE-ALL</strong> in the confirmation modal. Use only before a full data reload. This action writes an entry to the Audit Trail.</p>
+            <p><strong style="color:var(--text)">KAM Assignment tab:</strong> Assign Key Account Managers to accounts individually or in bulk. Changes save immediately. Alternatively, upload a KAM sheet in the Excel file. KAM assignments affect the Commercial tab filter dropdowns, KAM Performance table, and forecast accuracy ranking.</p>
+            <p><strong style="color:var(--text)">Period Close tab:</strong> Lock a month to prevent further edits to actuals and commentary for that period. Locked periods show a red banner on data-entry screens. Managers and Admins can lock/unlock periods.</p>
+            <p><strong style="color:var(--text)">Audit Trail tab:</strong> Every data upload, delete, wipe, period lock, and KAM change is logged here with timestamp, user, and action details. Non-repudiation record for compliance purposes.</p>
           </div>
         </div>
 
@@ -2324,7 +2353,7 @@ const GLOSSARY_DATA=[
   {term:'GWh',cat:'Metric',def:'Gigawatt-hour -- 1,000 MWh or 1,000,000 kWh. Used for segment and annual totals.'},
   {term:'MAPE',cat:'Metric',def:'Mean Absolute Percentage Error -- forecast accuracy metric. Lower is better. Target <5%.'},
   {term:'YoY',cat:'Metric',def:'Year-on-Year -- comparison to the same period in the prior year.'},
-  {term:'AOP',cat:'Process',def:'Annual Operating Plan -- the approved annual budget and forecast. Current: 2025–2027.'},
+  {term:'AOP',cat:'Process',def:'Annual Operating Plan — the approved annual budget and forecast set each year. Drives the Budget columns in all scorecards and KPIs.'},
   {term:'LE',cat:'Process',def:'Latest Estimate -- in-year revised forecast reflecting actual performance plus updated outlook.'},
   {term:'Zero Bill',cat:'Process',def:'Bill issued with zero consumption -- due to disconnection, meter fault, or outage. Widespread post-Hurricane Melissa.'},
   {term:'Defection',cat:'Market',def:'A customer whose 3-month rolling average kWh drops below 80% of the same 3-month average from the prior year. Graded: Critical <50%, Severe 50–65%, Moderate 65–80%.'},
@@ -2354,11 +2383,22 @@ const GLOSSARY_DATA=[
   // Analytics
   {term:'YoY Variance',cat:'Analytics',def:'The difference between the current period\'s metric and the same period in the prior year. Can be expressed in absolute terms (GWh) or percentage. Primary benchmark when budget data is unavailable.'},
   {term:'Rolling 12-Month',cat:'Analytics',def:'A 12-month window ending on the most recent available period. Smooths out seasonality and one-off events. More stable than YTD when comparing periods of different lengths.'},
-  {term:'Mover / Pivot',cat:'Analytics',def:'An account that has materially changed its consumption between two comparable periods. Gainers = positive movers; Decliners = negative movers. The Pivot / Movers tab in Commercial ranks accounts by absolute kWh change.'},
+  {term:'Mover',cat:'Analytics',def:'An account that has materially changed its consumption between two comparable periods. Gainers = positive movers; Decliners = negative movers. Use the Data Validation tab to identify material movers and anomalies.'},
   {term:'Cohort Analysis',cat:'Analytics',def:'Grouping customers by a common characteristic (acquisition year, rate class, industry, KAM) and tracking their collective performance over time. Useful for identifying whether defection is concentrated in a specific segment.'},
   {term:'Run-Rate',cat:'Analytics',def:'Annualised projection based on current MTD or YTD performance. E.g. if YTD kWh through February is X, run-rate full-year = X × (12/2). Used in LE Forecast to project year-end if current trends continue.'},
   {term:'MAPE',cat:'Analytics',def:'Mean Absolute Percentage Error — average of |actual − forecast| / actual across all accounts. Key forecast quality KPI. Target <5%. Accounts with MAPE >15% are flagged as "Off trend" requiring explanation.'},
   {term:'3-Month Rolling Average',cat:'Analytics',def:'Average of the most recent three months of data. Used in Defection logic — a customer is flagged when their 3-month rolling average kWh drops below 80% of the same 3-month average in the prior year.'},
+  // Data quality / validation
+  {term:'Dropped Account',cat:'Data Quality',def:'A commercial or residential account present in prior-year actuals but with zero rows in the current year. Could indicate a closure, transfer to another tariff, or a data upload gap. Shown in the Data Validation tab → Dropped Accounts.'},
+  {term:'GWh Deflection',cat:'Data Quality',def:'An account whose current-year YTD kWh is below 80% of the same period prior year — distinct from the 3-month-average Defection flag. Severity: Critical <50%, Moderate 50–80%. See Data Validation tab.'},
+  {term:'Month-on-Month Anomaly',cat:'Data Quality',def:'A consecutive-month kWh swing greater than 25% for the same account. May indicate a meter read error, billing adjustment, or real load event. Flagged in Data Validation tab → MoM Anomalies.'},
+  {term:'Data Validation',cat:'Data Quality',def:'Platform section that scans loaded actuals for quality issues: dropped accounts, GWh deflections, and month-on-month anomalies. Run after every data upload to confirm completeness before analysis.'},
+  // Platform features
+  {term:'KAM Forecast Accuracy',cat:'Platform',def:'Per-KAM MAPE calculated by comparing saved forecast values (entered in Forecast Accuracy tab) vs actuals for the current month. Expressed as Accuracy % = 100 − MAPE. KAMs are ranked best to worst. Visible on Commercial → KAM & Commentary tab.'},
+  {term:'AI Commentary',cat:'Platform',def:'Auto-generated narrative summary computed from loaded actuals. Available on Commercial (beside the GWh chart) and Commercial → KAM & Commentary tab. Covers YTD/MTD performance, rate-class breakdown, top accounts, and outlook. Use Generate Analysis button to refresh.'},
+  {term:'Period Filter',cat:'Platform',def:'The MTD / YTD / QTD / Annual buttons at the top of the screen. Changing the year selector rebuilds all CUSTOMERS, PARISHES, and INDUSTRIES arrays from the selected year\'s actuals — all charts and tables update automatically.'},
+  {term:'Wipe All Actuals',cat:'Platform',def:'Admin function that deletes every row from jps_actuals across all years. Requires typing the confirmation code WIPE-ALL. Use before a full data reload. Writes an audit log entry.'},
+  {term:'KAM Upload',cat:'Platform',def:'Upload an Excel file with a sheet named KAM containing columns jps_ac and kam to assign Key Account Managers. Can also assign one-by-one in Admin → KAM Assignment.'},
 ];
 
 const FC_SEGS=[
@@ -2971,14 +3011,26 @@ async function loadExcel(input){
 function loadXLSX(){
   return new Promise((resolve,reject)=>{
     if(typeof XLSX!=='undefined'){resolve();return;}
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=resolve;s.onerror=()=>reject(new Error('Failed to load Excel library'));
-    document.head.appendChild(s);
+    // Try primary CDN first, fall back to jsDelivr if it fails
+    const urls=[
+      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+    ];
+    let idx=0;
+    const tryNext=()=>{
+      if(idx>=urls.length){reject(new Error('Excel library unavailable — check your internet connection'));return;}
+      const s=document.createElement('script');
+      s.src=urls[idx++];
+      s.onload=()=>{if(typeof XLSX!=='undefined')resolve();else tryNext();};
+      s.onerror=tryNext;
+      document.head.appendChild(s);
+    };
+    tryNext();
   });
 }
 
 function dlTemplate(){
+  toast('Preparing template…','ok');
   loadXLSX().then(()=>{
   const wb=XLSX.utils.book_new();
 
@@ -3039,9 +3091,46 @@ function dlTemplate(){
   const evSample=[[2026,2,45,380]];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([...evHdr,...evSample]),'EV_Accounts');
 
-  XLSX.writeFile(wb,'JPS_Data_Template.xlsx');
-  toast('Template downloaded ✓ — check your Downloads folder','ok');
-  }).catch(e=>toast('Could not load Excel library: '+e.message,'err'));
+  try{
+    XLSX.writeFile(wb,'JPS_Data_Template.xlsx');
+    toast('Template downloaded ✓ — check your Downloads folder','ok');
+  }catch(we){
+    // writeFile failed (e.g. browser security) — fall back to CSV download of Actuals sheet
+    console.warn('XLSX writeFile failed, using CSV fallback:',we.message);
+    _dlTemplateCsvFallback();
+  }
+  }).catch(e=>{
+    console.warn('XLSX library load failed:',e.message);
+    // XLSX library unavailable — offer CSV fallback
+    _dlTemplateCsvFallback();
+  });
+}
+function _dlTemplateCsvFallback(){
+  // Generate the most important sheet (Actuals) as a CSV when XLSX is unavailable
+  const sheets={
+    'Actuals':         'year,month,jps_ac,name,consumption_bucket,kwh,revenue_jmd,parish,rate_class,demand_kva\n2026,1,100001,Sample Commercial Co,,1900000,45000000,Kingston,RT40,500\n2026,1,200001,,0-150,450,28000,Kingston,RT10,0',
+    'Budget':          'year,month,jps_ac,name,rate_class,parish,kwh_budget,revenue_budget,demand_budget\n2026,1,100001,Sample Commercial Co,RT40,Kingston,2000000,48000000,520',
+    'Residential_Budget':'year,month,rate_class,parish,consumption_bucket,kwh_budget,customer_count_budget\n2026,1,RT10,Kingston,0-150,12500000,8500',
+    'KAM':             'jps_ac,kam\n100001,Jane Smith\n100045,Michael Brown',
+    'Industries':      'jps_ac,industry\n100001,Manufacturing\n100045,Retail',
+    'Net_Generation':  'year,month,rate_class,count,kwh\n2026,1,ALL,0,320000000\n2026,1,Solar,245,185000000',
+    'Net_Billers':     'year,month,rate_class,count,kwh\n2026,1,RT10,1250,475000\n2026,1,RT20,380,142000',
+    'EV_Accounts':     'year,month,accounts,mwh\n2026,1,45,380',
+  };
+  // Download each as a separate CSV file (one at a time with short delay)
+  let i=0;
+  const keys=Object.keys(sheets);
+  const dlNext=()=>{
+    if(i>=keys.length){toast(`${keys.length} CSV template files downloaded ✓`,'ok');return;}
+    const name=keys[i],csv=sheets[name];
+    const a=document.createElement('a');
+    a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+    a.download=`JPS_Template_${name}.csv`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    i++;setTimeout(dlNext,400);
+  };
+  toast('Excel library unavailable — downloading CSV templates instead','w');
+  setTimeout(dlNext,300);
 }
 
 /* ==========================================
@@ -5448,32 +5537,54 @@ async function doDeleteMonthAdm(){
   }
 }
 
-async function doWipeAllActuals(){
+function doWipeAllActuals(){
   if(!can('lock_period')){toast('Admin only','err');return;}
-  const sb=getSB();if(!sb){toast('Supabase not connected','err');return;}
-  if(!confirm('⚠ WIPE ALL ACTUALS?\n\nThis will permanently delete EVERY row in jps_actuals across all years and months.\n\nType OK to continue.'))return;
-  const second=window.prompt('Type WIPE to confirm — this cannot be undone.');
-  if((second||'').trim().toUpperCase()!=='WIPE'){toast('Wipe cancelled','w');return;}
-  const msg=document.getElementById('wipeAllMsg');
-  if(msg){msg.textContent='Wiping…';msg.style.display='';}
-  try{
-    // Delete in batches by year to avoid row-count timeouts
-    let total=0;
-    for(const yr of[2023,2024,2025,2026,2027]){
-      const{error,count}=await sb.from('jps_actuals').delete({count:'exact'}).eq('year',yr);
-      if(error&&!error.message.includes('no rows'))console.warn('Wipe yr',yr,error.message);
-      total+=(count||0);
+  // Uses in-app modal with typed confirmation code (avoids blocked browser dialog APIs)
+  const CODE='WIPE-ALL';
+  openModal('🗑 Confirm — Wipe ALL Actuals',`
+    <div style="background:rgba(232,64,64,.1);border:1px solid rgba(232,64,64,.35);border-radius:7px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-weight:700;color:var(--red);margin-bottom:6px;font-size:12px">⚠ THIS CANNOT BE UNDONE</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">
+        This will permanently delete <strong>every row</strong> in <code>jps_actuals</code> across all years and months.
+        Use only before a full data reload.
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Type <strong style="color:var(--red);letter-spacing:1px">${CODE}</strong> to confirm:</div>
+    <input id="wipe_code_inp" class="si" placeholder="Type ${CODE} here…" autocomplete="off"
+      style="width:100%;font-size:13px;letter-spacing:1px;text-transform:uppercase"
+      oninput="const ok=this.value.trim().toUpperCase()==='${CODE}';
+        document.getElementById('modal_save_btn').style.opacity=ok?'1':'0.35';
+        document.getElementById('modal_save_btn').style.pointerEvents=ok?'':'none';"/>
+  `,async ()=>{
+    const entered=(document.getElementById('wipe_code_inp')?.value||'').trim().toUpperCase();
+    if(entered!==CODE){toast('Incorrect code — wipe cancelled','err');closeModal();return;}
+    closeModal();
+    const msg=document.getElementById('wipeAllMsg');
+    const sb=getSB();if(!sb){toast('Supabase not connected','err');return;}
+    if(msg){msg.textContent='Wiping…';msg.style.display='';msg.style.color='var(--amber)';}
+    try{
+      let total=0;
+      for(const yr of[2022,2023,2024,2025,2026,2027]){
+        const{error,count}=await sb.from('jps_actuals').delete({count:'exact'}).eq('year',yr);
+        if(error&&!error.message.toLowerCase().includes('no rows'))console.warn('Wipe yr',yr,error.message);
+        total+=(count||0);
+      }
+      await writeAudit('WIPE_ALL_ACTUALS',{rows_deleted:total});
+      if(msg){msg.textContent=`✓ Wiped ${total} rows`;msg.style.color='var(--green)';}
+      toast(`All actuals wiped — ${total} rows deleted`,'ok');
+      await syncSupabase(true);
+      buildCharts();
+      renderSection(document.querySelector('.sec.on')?.id);
+    }catch(e){
+      if(msg){msg.textContent='Error: '+e.message;msg.style.color='var(--red)';}
+      toast('Wipe failed: '+e.message,'err');
     }
-    await writeAudit('WIPE_ALL_ACTUALS',{rows_deleted:total});
-    if(msg){msg.textContent=`✓ Wiped ${total} rows`;msg.style.color='var(--green)';}
-    toast(`All actuals wiped (${total} rows deleted)`,'ok');
-    await syncSupabase(true);
-    buildCharts();
-    renderSection(document.querySelector('.sec.on')?.id);
-  }catch(e){
-    if(msg){msg.textContent='Error: '+e.message;msg.style.color='var(--red)';}
-    toast('Wipe failed: '+e.message,'err');
-  }
+  });
+  // Start with save button disabled until correct code entered
+  setTimeout(()=>{
+    const btn=document.getElementById('modal_save_btn');
+    if(btn){btn.textContent='🗑 Wipe ALL Actuals';btn.style.background='var(--red)';btn.style.color='#fff';btn.style.opacity='0.35';btn.style.pointerEvents='none';}
+  },30);
 }
 
 /* ── KAM Assignment (Admin) ── */
@@ -7999,7 +8110,7 @@ function renderVldAnomalies(){
 }
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.0.15';
+const APP_VERSION = '1.0.16';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
