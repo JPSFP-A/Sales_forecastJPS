@@ -383,7 +383,7 @@ body{background:var(--navy);color:var(--text);font-family:-apple-system,BlinkMac
       <span class="tbadge tba" id="periodLabel">-- · MTD</span>
       <span class="tbadge tbr" id="kpi_ytd_yoy">-- YoY</span>
       <span class="tbadge tbt" id="dataStatus">⚡ Sample Data</span>
-      <span class="sb-badge sb-offline" id="sbStatus" onclick="syncSupabase()" title="Click to sync from Supabase">○ Offline</span>
+      <span class="sb-badge sb-syncing" id="sbStatus" onclick="syncSupabase()" title="Click to sync from Supabase">↻ Connecting…</span>
       <span id="appVersion" style="font-size:9px;color:var(--text3);opacity:0.6"></span>
       <div id="onlineUsersPanel" style="display:flex;align-items:center"></div>
       <div class="ua" id="uAvatar" onclick="toggleMenu()">--</div>
@@ -6400,7 +6400,11 @@ function buildDashboardData(){
   });
 }
 
+let _sbSyncing=false; // mutex — prevents double-sync
+
 async function syncSupabase(silent=false){
+  if(_sbSyncing){return;} // already in progress — skip
+  _sbSyncing=true;
   updateSbStatus('syncing');
   const sb=getSB();
   if(!sb){
@@ -6533,6 +6537,8 @@ async function syncSupabase(silent=false){
     sbConnected=false;
     updateSbStatus('offline');
     if(!silent)toast('Sync failed: '+e.message,'err');
+  }finally{
+    _sbSyncing=false; // always release mutex
   }
 }
 
@@ -7656,7 +7662,7 @@ window.addEventListener('beforeunload',()=>{
 });
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.0.10';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
@@ -7665,16 +7671,23 @@ const APP_VERSION = '1.0.9';
   else stamp();
 })();
 
-// Session restore — only run if we get a valid profile with a real role back
+// Session restore — starts data sync immediately once session is confirmed,
+// then fetches profile in parallel so UI is never stuck waiting on sequential calls
 (async function restoreSession(){
   try{
-    const sb=getSB(); if(!sb) return;
+    const sb=getSB(); if(!sb){ updateSbStatus('offline'); return; }
     const {data:{session}}=await sb.auth.getSession();
-    if(!session?.user) return;
+    if(!session?.user){ updateSbStatus('offline'); return; }
     const userId=session.user.id;
-    const {data:profile,error}=await sb.from('profiles').select('*').eq('id',userId).single();
-    // Only restore if we got a profile with a proper role — never default to 'view' which disables all buttons
+    // Kick off data sync AND profile fetch at the same time — no waiting in line
+    const [syncResult, profileResult] = await Promise.allSettled([
+      syncSupabase(true),
+      sb.from('profiles').select('*').eq('id',userId).single()
+    ]);
+    const {data:profile,error}=profileResult.value||{};
+    // Only apply login if we got a real profile with a real role
     if(error||!profile||!profile.sales_role) return;
+    // _applyLogin → initAll → syncSupabase, but mutex prevents double-sync
     _applyLogin({
       id:userId, email:session.user.email,
       name:profile.name||session.user.email.split('@')[0],
@@ -7682,7 +7695,7 @@ const APP_VERSION = '1.0.9';
       fpa_role:profile.role||'viewer',
       territory:profile.territory||'All',
     });
-  }catch(e){ console.warn('Session restore:',e.message); }
+  }catch(e){ console.warn('Session restore:',e.message); updateSbStatus('offline'); }
 })();
 
 </script>
