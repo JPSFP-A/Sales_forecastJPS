@@ -6301,7 +6301,20 @@ async function sbStorage(bucket,file){
 
 function buildDashboardData(){
   if(!sbActuals.length)return;
+
+  // Normalise ONCE — reused for all downstream calculations (was called twice before)
   const rows=fcNormActuals(sbActuals);
+
+  // ── Pre-build O(1) lookup: rcIdx[rc][year*100+month] = total kWh ──
+  // Replaces 28 separate .filter() scans over 50k rows in SCORECARD_DATA loop
+  const rcIdx={};
+  rows.forEach(r=>{
+    if(!rcIdx[r.rc])rcIdx[r.rc]={};
+    const key=r.year*100+r.month;
+    rcIdx[r.rc][key]=(rcIdx[r.rc][key]||0)+r.kwh;
+  });
+  // Helper: sum kWh for rc+year across months 1..toMonth using the index (O(toMonth) not O(n))
+  const _rcSum=(rc,year,fromM,toM)=>{const m=rcIdx[rc]||{};let s=0;for(let i=fromM;i<=toM;i++)s+=(m[year*100+i]||0);return s;};
 
   // CUSTOMERS — one row per account
   const custMap={};
@@ -6324,21 +6337,20 @@ function buildDashboardData(){
   }
   CUSTOMERS=Object.values(custMap).filter(c=>c.y25>0||c.y26>0).sort((a,b)=>b.y25-a.y25);
 
-  // PARISHES — grouped by parish, 2026 vs 2025, with commercial split
-  const COMM_RCS=['RT40','RT50','RT60','RT70','BU'];
+  // PARISHES — single pass (was 2 passes before)
+  const COMM_RCS_SET=new Set(['RT40','RT50','RT60','RT70','BU']);
   const parMap={};
   rows.forEach(r=>{
     const p=r.parish||'Unknown';
     if(!parMap[p])parMap[p]={name:p,curr:0,prev:0,rc:0,rp:0};
-    const gwh=r.kwh/1e6;
-    if(r.year===2026){parMap[p].curr+=gwh;if(COMM_RCS.includes(r.rc))parMap[p].rc+=gwh;}
-    if(r.year===2025){parMap[p].prev+=gwh;if(COMM_RCS.includes(r.rc))parMap[p].rp+=gwh;}
+    const gwh=r.kwh/1e6,isComm=COMM_RCS_SET.has(r.rc);
+    if(r.year===2026){parMap[p].curr+=gwh;if(isComm)parMap[p].rc+=gwh;}
+    if(r.year===2025){parMap[p].prev+=gwh;if(isComm)parMap[p].rp+=gwh;}
   });
   PARISHES=Object.values(parMap).sort((a,b)=>b.curr-a.curr);
 
-  // INDUSTRIES — grouped by industry segment
-  const indRcMap={};
-  const indMap={};
+  // INDUSTRIES — single pass
+  const indRcMap={},indMap={};
   rows.forEach(r=>{
     const i=r.industry||'Other';
     if(!indMap[i]){indMap[i]={name:i,y25:0,y26:0,note:''};indRcMap[i]=new Set();}
@@ -6350,43 +6362,38 @@ function buildDashboardData(){
   Object.values(indMap).forEach(i=>{i.rc=[...indRcMap[i.name]].join('/');});
   INDUSTRIES=Object.values(indMap).filter(i=>i.y25>0||i.y26>0).sort((a,b)=>b.y25-a.y25);
 
-  // Refresh FC_SEGS base values from actual annual data
+  // FC_SEGS base values
   FC_SEGS.forEach(s=>{s.base=CUSTOMERS.filter(c=>c.rate===s.seg).reduce((sum,c)=>sum+c.y26,0)||0;});
 
-  // Enrich CUSTOMERS with KAM and industry from their respective lookup tables
-  if(sbKAM.length){
-    const kamMap={};
-    sbKAM.forEach(k=>kamMap[String(k.jps_ac||'').trim()]=k.kam||'');
-    CUSTOMERS.forEach(c=>{if(kamMap[String(c.num)])c.kam=kamMap[String(c.num)];});
-  }
-  if(sbIndustries.length){
-    const indMap={};
-    sbIndustries.forEach(i=>indMap[String(i.jps_ac||'').trim()]=i.industry||'');
-    CUSTOMERS.forEach(c=>{if(indMap[String(c.num)])c.industry=indMap[String(c.num)];});
-  }
+  // Enrich CUSTOMERS with KAM + industry lookups
+  if(sbKAM.length){const m={};sbKAM.forEach(k=>m[String(k.jps_ac||'').trim()]=k.kam||'');CUSTOMERS.forEach(c=>{if(m[String(c.num)])c.kam=m[String(c.num)];});}
+  if(sbIndustries.length){const m={};sbIndustries.forEach(i=>m[String(i.jps_ac||'').trim()]=i.industry||'');CUSTOMERS.forEach(c=>{if(m[String(c.num)])c.industry=m[String(c.num)];});}
 
+  // ── SCORECARD_DATA — now O(1) per cell via pre-built rcIdx ──
+  // Previously: 28 .filter() calls over 50k rows = ~1.4M comparisons
+  // Now: index lookups — negligible CPU
   const RES_RCS=['RT10','RT20'];
-  const normA=fcNormActuals(sbActuals);
   const mIdx2=curMonth-1;
+  // Pre-build residential budget index too
+  const resBudIdx={};
+  if(sbResBudget.length){
+    sbResBudget.forEach(b=>{
+      const rc=b.rate_class,y=Number(b.year),m=Number(b.month),v=Number(b.kwh_budget)||0;
+      if(!resBudIdx[rc])resBudIdx[rc]={};
+      resBudIdx[rc][y*100+m]=(resBudIdx[rc][y*100+m]||0)+v;
+    });
+  }
+  const _rbSum=(rc,year,fromM,toM)=>{const m=resBudIdx[rc]||{};let s=0;for(let i=fromM;i<=toM;i++)s+=(m[year*100+i]||0);return s;};
 
-  // Refresh SCORECARD_DATA — commercial uses account-level budget,
-  // residential uses aggregate jps_residential_budget table
   SCORECARD_DATA.forEach(r=>{
     if(RES_RCS.includes(r.seg)){
-      // ── Residential: actuals from sbActuals aggregated by rate class ──
-      const actRows=normA.filter(a=>a.rc===r.seg);
-      r.mtd_act=actRows.filter(a=>a.year===curYear&&a.month===curMonth).reduce((s,a)=>s+a.kwh,0)/1e6;
-      r.ytd_act=actRows.filter(a=>a.year===curYear&&a.month<=curMonth).reduce((s,a)=>s+a.kwh,0)/1e6;
-      r.mtd_ly =actRows.filter(a=>a.year===curYear-1&&a.month===curMonth).reduce((s,a)=>s+a.kwh,0)/1e6;
-      r.ytd_ly =actRows.filter(a=>a.year===curYear-1&&a.month<=curMonth).reduce((s,a)=>s+a.kwh,0)/1e6;
-      // Budget from jps_residential_budget
-      if(sbResBudget.length){
-        const rb=sbResBudget.filter(b=>b.rate_class===r.seg&&Number(b.year)===curYear);
-        r.mtd_bud=rb.filter(b=>Number(b.month)===curMonth).reduce((s,b)=>s+(Number(b.kwh_budget)||0),0)/1e6;
-        r.ytd_bud=rb.filter(b=>Number(b.month)<=curMonth).reduce((s,b)=>s+(Number(b.kwh_budget)||0),0)/1e6;
-      }
+      r.mtd_act=_rcSum(r.seg,curYear,curMonth,curMonth)/1e6;
+      r.ytd_act=_rcSum(r.seg,curYear,1,curMonth)/1e6;
+      r.mtd_ly =_rcSum(r.seg,curYear-1,curMonth,curMonth)/1e6;
+      r.ytd_ly =_rcSum(r.seg,curYear-1,1,curMonth)/1e6;
+      r.mtd_bud=_rbSum(r.seg,curYear,curMonth,curMonth)/1e6;
+      r.ytd_bud=_rbSum(r.seg,curYear,1,curMonth)/1e6;
     } else {
-      // ── Commercial: account-level from CUSTOMERS ──
       const custs=CUSTOMERS.filter(c=>c.rate===r.seg);
       r.mtd_act=custs.reduce((s,c)=>s+(c.m[mIdx2]||0),0);
       r.mtd_bud=custs.reduce((s,c)=>s+(c.bud/12),0);
@@ -6511,19 +6518,24 @@ async function syncSupabase(silent=false){
       }
     }
 
+    // Build dashboard data synchronously (now fast with index-based SCORECARD computation)
     try{buildDashboardData();}catch(be){console.error('buildDashboardData error:',be);}
     renderSidebarFilters();
     populateKamDropdowns();
 
-    // Hydrate user-generated data (notes, narratives, R&O, defection actions, etc.) from DB
+    // Hydrate user-generated data from DB
     try{await loadAllUserData();}catch(ue){console.warn('loadAllUserData error:',ue);}
 
+    // Defer chart rendering — yield to browser so UI paints first, then render charts
     leEngine=null;
     const activeId=document.querySelector('.sec.on')?.id;
-    try{
-      if(activeId==='le')renderLE();
-      if(activeId==='ng')renderNetGen();
-    }catch(re){console.error('Re-render error after sync:',re);}
+    setTimeout(()=>{
+      try{
+        renderSection(activeId||'ov');
+        if(activeId==='le')renderLE();
+        if(activeId==='ng')renderNetGen();
+      }catch(re){console.error('Re-render error after sync:',re);}
+    },0);
 
     const el=document.getElementById('adm_upload_status');
     if(el&&sbActuals.length)el.textContent=`Live · ${sbActuals.length.toLocaleString()} actuals rows`;
@@ -7662,7 +7674,7 @@ window.addEventListener('beforeunload',()=>{
 });
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.0.10';
+const APP_VERSION = '1.0.11';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
