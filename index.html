@@ -5470,16 +5470,11 @@ function editDefNote(num, name) {
    P5: RESIDENTIAL INTELLIGENCE
 ===================================================== */
 
-const BRACKETS = ['0-150','150-300','300-500','500-750','750-1000','1000+'];
-const BRACKET_TREND = {
-  '0-150':    [0,0,0,0,0,0],
-  '150-300':  [0,0,0,0,0,0],
-  '300-500':  [0,0,0,0,0,0],
-  '500-750':  [0,0,0,0,0,0],
-  '750-1000': [0,0,0,0,0,0],
-  '1000+':    [0,0,0,0,0,0]
-};
-const BRACKET_COLORS = ['#00c2a8','#00957f','#378ADD','#185FA5','#f5a623','#7F77DD'];
+// Buckets derived dynamically from sbActuals — no hardcoded list
+const BRACKET_COLORS = ['#00c2a8','#00957f','#378ADD','#185FA5','#f5a623','#7F77DD','#e84040','#f5a623'];
+function getResBuckets(){
+  return [...new Set(sbActuals.filter(r=>['RT10','RT20'].includes(String(r.rate_class||''))&&(r.consumption_bucket||'').trim()).map(r=>(r.consumption_bucket||'').trim()))].filter(Boolean).sort();
+}
 
 const DG_BY_PARISH = [];
 
@@ -5543,107 +5538,175 @@ function renderResIntelKPIs() {
 function renderResIntelSection(id) {
   if (id === 'ri_bracket') {
     renderBracketTable();
+
+    // --- Bracket trend chart: last 6 months, dynamic from sbActuals ---
     destroyChart('c_ri_bracket');
     const cb = document.getElementById('c_ri_bracket');
-    if (cb) chartInstances['c_ri_bracket'] = new Chart(cb, {
-      type: 'line',
-      data: {
-        labels: ['Sep','Oct','Nov','Dec','Jan','Feb'],
-        datasets: BRACKETS.map((b,i) => ({
-          label: b + ' kWh',
-          data: BRACKET_TREND[b],
-          borderColor: BRACKET_COLORS[i],
-          backgroundColor: 'transparent',
-          tension: 0.35,
-          pointRadius: 3,
-          borderDash: i > 3 ? [4,2] : [],
-        }))
-      },
-      options: { responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display:true, labels:{color:TC,font:{size:9},boxWidth:10} } },
-        scales:{ x:{ticks:{color:TC,font:{size:10}},grid:{color:CC}}, y:{ticks:{color:TC,font:{size:10}},grid:{color:CC}} }
-      }
-    });
+    if (cb) {
+      const bkts = getResBuckets();
+      const resRCsT = ['RT10','RT20'];
+      const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const trendMonths = Array.from({length:6},(_,i)=>{
+        let m=curMonth-5+i, y=curYear; if(m<=0){m+=12;y--;}
+        return {y, m, lbl: MN[m-1]};
+      });
+      chartInstances['c_ri_bracket'] = new Chart(cb, {
+        type: 'line',
+        data: {
+          labels: trendMonths.map(t=>t.lbl),
+          datasets: bkts.map((b,i) => ({
+            label: b + ' kWh',
+            data: trendMonths.map(t =>
+              sbActuals.filter(r=>resRCsT.includes(String(r.rate_class||''))&&Number(r[YEAR_COL])===t.y&&Number(r.month)===t.m&&(r.consumption_bucket||'').trim()===b)
+                .reduce((s,r)=>s+Number(r.kwh||0),0)/1e6
+            ),
+            borderColor: BRACKET_COLORS[i % BRACKET_COLORS.length],
+            backgroundColor: 'transparent',
+            tension: 0.35,
+            pointRadius: 3,
+            borderDash: i > 3 ? [4,2] : [],
+          }))
+        },
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ display:true, labels:{color:TC,font:{size:9},boxWidth:10} } },
+          scales:{ x:{ticks:{color:TC,font:{size:10}},grid:{color:CC}}, y:{ticks:{color:TC,font:{size:10}},grid:{color:CC}} }
+        }
+      });
+    }
 
+    // --- Customer count by bracket: curYear vs curYear-1, from sbActuals ---
     destroyChart('c_ri_count');
     const cc = document.getElementById('c_ri_count');
-    if (cc) chartInstances['c_ri_count'] = new Chart(cc, {
-      type: 'bar',
-      data: {
-        labels: BRACKETS,
-        datasets: [
-          { label:'2025', data:[0,0,0,0,0,0], backgroundColor:'rgba(55,138,221,0.5)', borderRadius:2 },
-          { label:'2026', data:[0,0,0,0,0,0], backgroundColor:'rgba(0,194,168,0.5)', borderRadius:2 },
-        ]
-      },
-      options: { ...co(), scales:{ x:{ticks:{color:TC,font:{size:10}},grid:{color:CC}}, y:{ticks:{color:TC,callback:v=>(v/1000).toFixed(0)+'K'},grid:{color:CC}} } }
-    });
+    if (cc) {
+      const bkts = getResBuckets();
+      const resRCsC = ['RT10','RT20'];
+      const sumCust = yr => bkts.map(b =>
+        sbActuals.filter(r=>resRCsC.includes(String(r.rate_class||''))&&Number(r[YEAR_COL])===yr&&Number(r.month)===curMonth&&(r.consumption_bucket||'').trim()===b)
+          .reduce((s,r)=>s+Number(r.customer_count||0),0)
+      );
+      chartInstances['c_ri_count'] = new Chart(cc, {
+        type: 'bar',
+        data: {
+          labels: bkts,
+          datasets: [
+            { label: String(curYear-1), data: sumCust(curYear-1), backgroundColor:'rgba(55,138,221,0.5)', borderRadius:2 },
+            { label: String(curYear),   data: sumCust(curYear),   backgroundColor:'rgba(0,194,168,0.5)',  borderRadius:2 },
+          ]
+        },
+        options: { ...co(), scales:{ x:{ticks:{color:TC,font:{size:10}},grid:{color:CC}}, y:{ticks:{color:TC,callback:v=>(v/1000).toFixed(0)+'K'},grid:{color:CC}} } }
+      });
+    }
   }
 
   if (id === 'ri_dg') {
+    // --- DG comparison table: from sbActuals + sbNetBillers ---
     const dt = document.getElementById('ri_dg_comp_tbl');
-    if (dt) dt.innerHTML = `<table class="dt">
-      <thead><tr><th>Category</th><th>Avg Consumption</th><th>Avg NB Consumption</th><th>Avg NB Export</th><th>NB vs Std (%)</th><th>NB grid reliance</th></tr></thead>
-      <tbody>
-        <tr><td>Residential (RT10)</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
-        <tr><td>General Services (RT20)</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
-        <tr><td>LV Power (RT40)</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
-      </tbody></table>`;
+    if (dt) {
+      const dgSegs = [
+        {label:'Residential (RT10)', rc:'RT10'},
+        {label:'General Services (RT20)', rc:'RT20'},
+      ];
+      const dgRows = dgSegs.map(({label,rc}) => {
+        const stdRows = sbActuals.filter(r=>String(r.rate_class||'')===rc&&Number(r[YEAR_COL])===curYear&&Number(r.month)===curMonth);
+        const stdKwh  = stdRows.reduce((s,r)=>s+Number(r.kwh||0),0);
+        const stdCust = stdRows.reduce((s,r)=>s+Number(r.customer_count||0),0);
+        const avgStd  = stdCust>0?(stdKwh/stdCust).toFixed(1):'--';
+        const nbRows  = sbNetBillers.filter(r=>String(r.rate_class||'')===rc&&Number(r.year||r[YEAR_COL])===curYear&&Number(r.month)===curMonth);
+        const nbKwhIn = nbRows.reduce((s,r)=>s+Number(r.kwh_in||r.kwh||0),0);
+        const nbExport= nbRows.reduce((s,r)=>s+Number(r.kwh_export||r.kwh_out||0),0);
+        const nbCount = nbRows.reduce((s,r)=>s+Number(r.count||r.customer_count||0),0);
+        const avgNb   = nbCount>0?(nbKwhIn/nbCount).toFixed(1):'--';
+        const avgExp  = nbCount>0?(nbExport/nbCount).toFixed(1):'--';
+        const reliance= (nbKwhIn>0)?((nbKwhIn/(nbKwhIn+nbExport))*100).toFixed(1)+'%':'--';
+        const nbVsStd = (parseFloat(avgNb)>0&&parseFloat(avgStd)>0)?((parseFloat(avgNb)/parseFloat(avgStd)-1)*100).toFixed(1)+'%':'--';
+        return `<tr><td>${label}</td><td>${avgStd} kWh</td><td>${avgNb} kWh</td><td>${avgExp} kWh</td><td>${nbVsStd}</td><td>${reliance}</td></tr>`;
+      });
+      dt.innerHTML = `<table class="dt">
+        <thead><tr><th>Category</th><th>Avg Consumption</th><th>Avg NB Consumption</th><th>Avg NB Export</th><th>NB vs Std (%)</th><th>NB grid reliance</th></tr></thead>
+        <tbody>${dgRows.join('')}</tbody></table>`;
+    }
 
+    // --- DG growth chart: years derived from sbNetBillers ---
     destroyChart('c_ri_dg_growth');
     const cg = document.getElementById('c_ri_dg_growth');
-    if (cg) chartInstances['c_ri_dg_growth'] = new Chart(cg, {
-      type: 'line',
-      data: {
-        labels: ['2021','2022','2023','2024','2025','2026 YTD'],
-        datasets: [
-          { label:'Net Billers (index)',     data:[0,0,0,0,0,0], borderColor:'#e84040', backgroundColor:'rgba(232,64,64,0.07)', tension:.35, fill:true, pointRadius:4 },
-          { label:'Total Customers (index)', data:[0,0,0,0,0,0], borderColor:'#378ADD', backgroundColor:'transparent', tension:.35, borderDash:[4,2], pointRadius:4 },
-        ]
-      },
-      options: { responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display:true, labels:{color:TC,font:{size:10},boxWidth:10} } },
-        scales:{ x:{ticks:{color:TC},grid:{color:CC}}, y:{ticks:{color:TC},grid:{color:CC}} }
-      }
-    });
+    if (cg) {
+      const nbYears = [...new Set(sbNetBillers.map(r=>Number(r.year||r[YEAR_COL])))].filter(Boolean).sort();
+      const dgLabels = nbYears.length ? nbYears.map(y=>y===curYear?String(y)+' YTD':String(y)) : [String(curYear)];
+      const nbCounts   = nbYears.map(y=>[...new Set(sbNetBillers.filter(r=>Number(r.year||r[YEAR_COL])===y).map(r=>r.jps_ac))].length);
+      const custCounts = nbYears.map(y=>{
+        const maxMo=y===curYear?curMonth:12;
+        return [...new Set(sbActuals.filter(r=>['RT10','RT20'].includes(String(r.rate_class||''))&&Number(r[YEAR_COL])===y&&Number(r.month)<=maxMo).map(r=>r.jps_ac))].length;
+      });
+      chartInstances['c_ri_dg_growth'] = new Chart(cg, {
+        type: 'line',
+        data: {
+          labels: dgLabels,
+          datasets: [
+            { label:'Net Billers',     data: nbCounts,   borderColor:'#e84040', backgroundColor:'rgba(232,64,64,0.07)', tension:.35, fill:true, pointRadius:4 },
+            { label:'Total Customers', data: custCounts, borderColor:'#378ADD', backgroundColor:'transparent', tension:.35, borderDash:[4,2], pointRadius:4 },
+          ]
+        },
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ display:true, labels:{color:TC,font:{size:10},boxWidth:10} } },
+          scales:{ x:{ticks:{color:TC},grid:{color:CC}}, y:{ticks:{color:TC},grid:{color:CC}} }
+        }
+      });
+    }
 
+    // --- DG by parish chart: from sbActuals + sbNetBillers for curYear ---
     destroyChart('c_ri_dg_par');
     const cp = document.getElementById('c_ri_dg_par');
-    if (cp) chartInstances['c_ri_dg_par'] = new Chart(cp, {
-      type: 'bar',
-      data: {
-        labels: DG_BY_PARISH.map(d=>d.p),
-        datasets: [{ label:'DG %', data: DG_BY_PARISH.map(d=>d.pct), backgroundColor: DG_BY_PARISH.map(d=>d.pct>0.1?'rgba(232,64,64,0.6)':'rgba(245,166,35,0.5)'), borderRadius:2 }]
-      },
-      options: { ...co(), scales:{ x:{ticks:{color:TC,font:{size:10},maxRotation:35},grid:{color:CC}}, y:{ticks:{color:TC,callback:v=>(v*100).toFixed(2)+'%'},grid:{color:CC}} } }
-    });
+    if (cp) {
+      const parishes = [...new Set(sbActuals.filter(r=>['RT10','RT20'].includes(String(r.rate_class||''))&&Number(r[YEAR_COL])===curYear&&Number(r.month)===curMonth&&r.parish).map(r=>r.parish))].sort();
+      const dgPct = parishes.map(par=>{
+        const custSet=[...new Set(sbActuals.filter(r=>['RT10','RT20'].includes(String(r.rate_class||''))&&Number(r[YEAR_COL])===curYear&&Number(r.month)===curMonth&&r.parish===par).map(r=>r.jps_ac))].length;
+        const nbSet =[...new Set(sbNetBillers.filter(r=>Number(r.year||r[YEAR_COL])===curYear&&r.parish===par).map(r=>r.jps_ac))].length;
+        return custSet>0?nbSet/custSet:0;
+      });
+      chartInstances['c_ri_dg_par'] = new Chart(cp, {
+        type: 'bar',
+        data: {
+          labels: parishes,
+          datasets: [{ label:'DG %', data: dgPct, backgroundColor: dgPct.map(p=>p>0.1?'rgba(232,64,64,0.6)':'rgba(245,166,35,0.5)'), borderRadius:2 }]
+        },
+        options: { ...co(), scales:{ x:{ticks:{color:TC,font:{size:10},maxRotation:35},grid:{color:CC}}, y:{ticks:{color:TC,callback:v=>(v*100).toFixed(2)+'%'},grid:{color:CC}} } }
+      });
+    }
   }
 
   if (id === 'ri_parish') {
     const tbl = document.getElementById('ri_par_def_tbl');
     if (tbl) {
-      const parishDef = PARISHES.map(p => {
-        const curr3 = p.rc * 1000;
-        const prior3 = p.rp * 1000;
-        const ratio = prior3 > 0 ? curr3/prior3 : 1;
-        const sev = ratio < 0.5 ? 'Critical' : ratio < 0.65 ? 'Severe' : ratio < 0.80 ? 'Moderate' : 'Normal';
-        return { ...p, ratio: (ratio*100).toFixed(1), sev };
+      // Compute real residential kWh from sbActuals — 3-month rolling average
+      const resRCsP = ['RT10','RT20'];
+      const mk3 = (baseYear) => Array.from({length:3},(_,i)=>{let m=curMonth-i,y=baseYear;if(m<=0){m+=12;y--;}return{y,m};});
+      const curr3months = mk3(curYear);
+      const prior3months= mk3(curYear-1);
+      const parishes = [...new Set(sbActuals.filter(r=>resRCsP.includes(String(r.rate_class||''))&&r.parish).map(r=>r.parish))].sort();
+      if(!parishes.length){tbl.innerHTML='<div style="color:var(--text3);padding:16px;font-size:12px">No residential actuals loaded — upload data to populate this table.</div>';return;}
+      const sumResKwh = (par,mList) => mList.reduce((s,{y,m})=>s+sbActuals.filter(r=>resRCsP.includes(String(r.rate_class||''))&&r.parish===par&&Number(r[YEAR_COL])===y&&Number(r.month)===m).reduce((a,r)=>a+Number(r.kwh||0),0),0)/3;
+      const sumAllKwh = (par,mList) => mList.reduce((s,{y,m})=>s+sbActuals.filter(r=>r.parish===par&&Number(r[YEAR_COL])===y&&Number(r.month)===m).reduce((a,r)=>a+Number(r.kwh||0),0),0)/3;
+      const parishDef = parishes.map(par => {
+        const curr3v = sumResKwh(par, curr3months);
+        const prior3v= sumResKwh(par, prior3months);
+        const ratio  = prior3v > 0 ? curr3v/prior3v : 1;
+        const sev    = ratio < 0.5 ? 'Critical' : ratio < 0.65 ? 'Severe' : ratio < 0.80 ? 'Moderate' : 'Normal';
+        const currAll= sumAllKwh(par, curr3months);
+        const prevAll= sumAllKwh(par, prior3months);
+        const sc = {Critical:'def-critical',Severe:'def-severe',Moderate:'def-moderate',Normal:''}[sev];
+        return `<tr>
+          <td style="font-weight:600">${par}</td>
+          <td>${fmtK(curr3v)}</td><td style="color:var(--text3)">${fmtK(prior3v)}</td>
+          <td><span class="heat ${hc((ratio-1)*100)}">${(ratio*100).toFixed(1)}%</span></td>
+          <td><span class="def-severity ${sc}">${sev}</span></td>
+          <td>${vbar(currAll,prevAll)}</td>
+          <td>${vbar(curr3v,prior3v)}</td>
+          <td>${sev!=='Normal'?'&#9888;':'&#9679;'}</td>
+        </tr>`;
       });
       tbl.innerHTML = `<table class="dt" id="ripar_dt">
         <thead><tr><th>Parish</th><th>3m Avg Current (kWh)</th><th>3m Avg Prior Yr (kWh)</th><th>YoY Ratio</th><th>Defection Signal</th><th>Overall Var%</th><th>Res. Var%</th><th>Flag</th></tr></thead>
-        <tbody>${parishDef.map(p => {
-          const ov = pct(p.curr, p.prev), rv = pct(p.rc, p.rp);
-          const sc = {Critical:'def-critical',Severe:'def-severe',Moderate:'def-moderate',Normal:''}[p.sev];
-          return `<tr>
-            <td style="font-weight:600">${p.name}</td>
-            <td>${fmtK(p.rc)}</td><td style="color:var(--text3)">${fmtK(p.rp)}</td>
-            <td><span class="heat ${hc(parseFloat(p.ratio)-100)}">${p.ratio}%</span></td>
-            <td><span class="def-severity ${sc}">${p.sev}</span></td>
-            <td>${vbar(p.curr,p.prev)}</td>
-            <td>${vbar(p.rc,p.rp)}</td>
-            <td>${p.sev!=='Normal'?'&#9888;':'&#9679;'}</td>
-          </tr>`;
-        }).join('')}</tbody></table>`;
+        <tbody>${parishDef.join('')}</tbody></table>`;
       makeSortable('ripar_dt');
     }
   }
@@ -9083,7 +9146,7 @@ function renderVldAnomalies(){
 }
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.0.42';
+const APP_VERSION = '1.0.43';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
