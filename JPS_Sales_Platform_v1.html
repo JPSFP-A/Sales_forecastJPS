@@ -284,8 +284,8 @@ body{background:var(--navy);color:var(--text);font-family:-apple-system,BlinkMac
   --teal:#0096a7;--teal2:#007a8c;--teal3:rgba(0,150,167,0.12);
   --amber:#c97a00;--red:#c62828;--green:#1b7a45;--blue:#1a5fb4;
   --purple:#4a44ab;
-  --text:#1e293b;--text2:#475569;--text3:#94a3b8;
-  --border:rgba(0,0,0,0.10);--card:#ffffff;
+  --text:#1e293b;--text2:#374151;--text3:#64748b;
+  --border:rgba(0,0,0,0.15);--card:#ffffff;
 }
 [data-theme="light"] body{background:var(--navy)}
 [data-theme="light"] .suite-nav{background:#e8ecf1;border-bottom-color:rgba(0,0,0,0.10)}
@@ -390,7 +390,7 @@ document.getElementById('schema_stale_banner').style.display='none';
 <div class="sidebar" id="sidebar">
   <div class="sb-logo">
     <h2>⚡ JPS Analytics</h2>
-    <p>Sales Platform v1.1.1</p>
+    <p>Sales Platform v1.1.2</p>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Analysis</div>
@@ -2329,20 +2329,21 @@ function toast(msg, type){
 async function detectYearCol(sb){
   if(!sb) return;
 
-  // Priority 0: call jps_normalize_schema() via RPC — once per session.
-  // This function handles BOTH cal_year rename AND FP&A raw-dump rename,
-  // then sends NOTIFY pgrst,'reload schema' to flush PostgREST's schema cache.
-  if(!_schemaFixApplied){
+  // Priority 0: jps_normalize_schema RPC — only call if schema migration is pending.
+  // Skip if already applied this session OR if actuals data already confirms year column.
+  // (Was incorrectly called on every sync, wasting a round-trip when RPC doesn't exist)
+  if(!_schemaFixApplied&&sbActuals.length===0){
     try{
       const{data:rpcData,error:rpcErr}=await sb.rpc('jps_normalize_schema');
       if(!rpcErr){
         _schemaFixApplied=true;
         YEAR_COL='year';
         console.log('[JPS] jps_normalize_schema OK:',rpcData,'— YEAR_COL=year');
-        await new Promise(r=>setTimeout(r,500));
+        await new Promise(r=>setTimeout(r,300));
         return;
       }
     }catch(e){}
+    _schemaFixApplied=true; // mark as attempted regardless — don't retry every load
     // RPC not found or failed — SCHEMA_SQL not yet run; fall through to probe
   }
 
@@ -8507,8 +8508,9 @@ async function sbTable(tbl,opts={}){
     const{data,error}=await q;
     return(!error&&Array.isArray(data))?data:null;
   }
-  // Paginated fetch — 10000-row pages minimise round-trips
-  const PAGE=10000;
+  // Paginated fetch — 50000-row pages minimise round-trips (was 10k = 87 trips, now ~14 trips)
+  const PAGE=50000;
+  const maxRows=opts.limit&&opts.limit>2000?opts.limit:Infinity; // honour large explicit limits
   let all=[],from=0;
   for(;;){
     let q=sb.from(tbl).select(opts.cols||'*').range(from,from+PAGE-1);
@@ -8518,6 +8520,7 @@ async function sbTable(tbl,opts={}){
     if(error||!Array.isArray(data)||!data.length)break;
     all=all.concat(data);
     from+=data.length;           // advance by actual rows received (handles max_rows cap)
+    if(all.length>=maxRows)break; // stop at caller-specified max
     if(from>1000000)break;       // safety cap
   }
   return all.length?all:null;
@@ -10144,7 +10147,7 @@ function renderVldDefReg(){
 }
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
