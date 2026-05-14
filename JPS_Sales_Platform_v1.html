@@ -390,7 +390,7 @@ document.getElementById('schema_stale_banner').style.display='none';
 <div class="sidebar" id="sidebar">
   <div class="sb-logo">
     <h2>⚡ JPS Analytics</h2>
-    <p>Sales Platform v1.1.2</p>
+    <p>Sales Platform v1.1.3</p>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Analysis</div>
@@ -8754,12 +8754,44 @@ function _applyDataCache(c){
   return true;
 }
 
-let _sbSyncing=false; // mutex — prevents double-sync
+let _sbSyncing=false;      // mutex — prevents double-sync
 let _yearColConfirmed=false; // skip detectYearCol after first successful sync
+let _rt20PyLoaded=false;   // true once phase-2 RT20 prior-year data is in sbActuals
+let _rt20PyLoading=false;  // prevents concurrent phase-2 fetches
+
+// Phase-2: background load RT20 prior-year data from jps_rt20_py
+// Fires after phase-1 sync renders — user sees dashboard immediately,
+// PY comparisons populate ~2s later without blocking the UI
+async function loadRT20PYBackground(){
+  if(_rt20PyLoaded||_rt20PyLoading||!getSB())return;
+  _rt20PyLoading=true;
+  const statusEl=document.getElementById('adm_upload_status');
+  if(statusEl)statusEl.textContent='Loading PY data…';
+  try{
+    const cols='id,year,month,jps_ac,name,rate_class,parish,consumption_bucket,kwh,revenue_jmd,demand_kva,customer_count';
+    const pyData=await sbTable('jps_rt20_py',{cols});
+    if(pyData&&pyData.length>0){
+      sbActuals=[...sbActuals,...pyData];
+      _rt20PyLoaded=true;
+      try{buildDashboardData();}catch(e){console.warn('[PY] buildDashboardData:',e);}
+      const activeId=document.querySelector('.sec.on')?.id;
+      setTimeout(()=>{
+        try{renderSection(activeId||'ov');}catch(e){console.warn('[PY] renderSection:',e);}
+      },0);
+      if(statusEl)statusEl.textContent=`Live · ${sbActuals.length.toLocaleString()} actuals rows`;
+      console.log('[JPS] Phase-2 RT20 PY loaded:',pyData.length,'rows — PY comparisons active');
+    }
+  }catch(e){
+    console.warn('[JPS] RT20 PY background load failed:',e.message);
+  }finally{
+    _rt20PyLoading=false;
+  }
+}
 
 async function syncSupabase(silent=false){
   if(_sbSyncing){return;} // already in progress — skip
   _sbSyncing=true;
+  _rt20PyLoaded=false; // reset so phase-2 re-runs on each manual sync
   updateSbStatus('syncing');
   const sb=getSB();
   if(!sb){
@@ -8946,8 +8978,13 @@ async function syncSupabase(silent=false){
     if(!silent){
       const warn=log.filter(l=>l.includes('⚠'));
       if(warn.length) toast('Sync complete — some tables empty:\n'+warn.join('\n'),'w');
-      else toast(`Sync complete ✓  ${sbActuals.length.toLocaleString()} actuals · ${sbBudget.length.toLocaleString()} budget rows`,'ok');
+      else toast(`Sync ✓ Phase 1 complete · ${sbActuals.length.toLocaleString()} rows · Loading PY…`,'ok');
     }
+
+    // Phase 2: load RT20 prior-year data in background (non-blocking)
+    // Fires after UI has already painted with phase-1 data
+    setTimeout(()=>loadRT20PYBackground(),200);
+
   }catch(e){
     sbConnected=false;
     updateSbStatus('offline');
@@ -10147,7 +10184,7 @@ function renderVldDefReg(){
 }
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
