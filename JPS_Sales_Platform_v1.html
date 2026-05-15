@@ -390,7 +390,7 @@ document.getElementById('schema_stale_banner').style.display='none';
 <div class="sidebar" id="sidebar">
   <div class="sb-logo">
     <h2>⚡ JPS Analytics</h2>
-    <p>Sales Platform v1.1.3</p>
+    <p>Sales Platform v1.1.4</p>
   </div>
   <div class="nav-sec">
     <div class="nav-lbl">Analysis</div>
@@ -2948,7 +2948,7 @@ function renderCmDefection(){
   const sev=document.getElementById('cm_df_sev')?.value||'';
   const rc=document.getElementById('cm_df_rc')?.value||'';
   const cause=document.getElementById('cm_df_cause')?.value||'';
-  const CM_RCS=new Set(['RT40','RT50','RT60-ST','RT70']);
+  const CM_RCS=new Set(['RT20','RT40','RT50','RT60-ST','RT70']);
   const defs=computeDefectors().filter(d=>
     CM_RCS.has(d.rate)&&
     (!q||(d.name.toLowerCase().includes(q)||d.num.includes(q)))&&
@@ -3114,7 +3114,7 @@ function generateCommentary(section){
 
     if(section==='cm'){
       const cy=curYear,py=cy-1;
-      const _cmRCsCmt=new Set(['RT40','RT50','RT60-ST','RT70']);
+      const _cmRCsCmt=new Set(['RT20','RT40','RT50','RT60-ST','RT70']);
       const comm=sbActuals.filter(r=>!r.consumption_bucket&&_cmRCsCmt.has(String(r.rate_class||'').trim()));
       const sum=(yr,mos)=>comm.filter(r=>Number(r.year)===yr&&mos.includes(Number(r.month))).reduce((s,r)=>s+Number(r.kwh||0),0);
       const ytdMos=Array.from({length:curMonth},(_,i)=>i+1);
@@ -3181,7 +3181,7 @@ function generateCommentary(section){
     } else if(section==='cmk'){
       // KAM-focused commentary
       const cy=curYear,py=cy-1;
-      const _cmkRCs=new Set(['RT40','RT50','RT60-ST','RT70']);
+      const _cmkRCs=new Set(['RT20','RT40','RT50','RT60-ST','RT70']);
       const comm=sbActuals.filter(r=>!r.consumption_bucket&&_cmkRCs.has(String(r.rate_class||'').trim()));
       const kamMap={};sbKAM.forEach(k=>kamMap[String(k.jps_ac||'').trim()]=k.kam||'');
       const ytdMos=Array.from({length:curMonth},(_,i)=>i+1);
@@ -3256,14 +3256,14 @@ function generateCommentary(section){
         lines.push('');
       }
       // Top commercial customers
-      const topCusts=CUSTOMERS.filter(c=>!['RT10','RT20'].includes(c.rate)).sort((a,b)=>b.yCY-a.yCY).slice(0,3);
+      const topCusts=CUSTOMERS.filter(c=>!['RT10'].includes(c.rate)).sort((a,b)=>b.yCY-a.yCY).slice(0,3);
       if(topCusts.length){
         lines.push(`TOP COMMERCIAL ACCOUNTS (${cy} to date)`);
         topCusts.forEach((c,i)=>lines.push(`  ${i+1}. ${c.name}: ${fmtE(c.yCY*1e6,1)}`));
         lines.push('');
       }
       // Biggest mover
-      const movers=CUSTOMERS.filter(c=>!['RT10','RT20'].includes(c.rate)&&c.yPY>0&&c.yCY>0).map(c=>({...c,delta:c.yCY-c.yPY})).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
+      const movers=CUSTOMERS.filter(c=>!['RT10'].includes(c.rate)&&c.yPY>0&&c.yCY>0).map(c=>({...c,delta:c.yCY-c.yPY})).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
       if(movers.length){const top=movers[0];lines.push(`KEY MOVER: ${top.name} ${top.delta>=0?'gained':'lost'} ${fmtE(Math.abs(top.delta)*1e6,1)} vs prior year.`);}
     }
 
@@ -4033,7 +4033,7 @@ function buildCharts(){
   });
   mkChart('c_donut',{type:'doughnut',data:{labels:donutRCs,datasets:[{data:donutData,backgroundColor:['#00c2a8','#00957f','#378ADD','#185FA5','#f5a623','#5a7a96'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'60%'}});
 
-  const cm1RCs=['RT40','RT50','RT70','RT60-ST'];
+  const cm1RCs=['RT20','RT40','RT50','RT70','RT60-ST'];
   const _cm1PM=getPM(),_cm1PMSet=new Set(_cm1PM),_cm1PH=getPH();
   // Period comparison — sum period months for BOTH years
   const _cm1P=(yr)=>cm1RCs.map(rc=>sbActuals.filter(r=>String(r.rate_class||'')==rc&&Number(r[YEAR_COL])===yr&&_cm1PMSet.has(Number(r.month||0))).reduce((s,r)=>s+Number(r.kwh||0),0)/1e6);
@@ -4142,7 +4142,7 @@ function renderPfCust(){
     });
   }
 
-  const CM_RCS_PF=new Set(['RT40','RT50','RT60-ST','RT70']);
+  const CM_RCS_PF=new Set(['RT20','RT40','RT50','RT60-ST','RT70']);
   let d=CUSTOMERS.map(c=>({
     ...c,
     cur:getPeriodY26(c),
@@ -4210,7 +4210,7 @@ function renderPfInd(){
   makeSortable('pfi_dt');
 }
 function renderPfRC(){
-  const rcDefs={RT10:'Low-use Residential','RT20':'Gen. Service / SME',RT40:'LV Commercial',RT50:'MV Commercial',RT70:'Large Industrial',ST:'Street Lights',EV:'Electric Vehicle'};
+  const rcDefs={RT10:'Low-use Residential',RT20:'Gen. Service / SME (Commercial)',RT40:'LV Commercial',RT50:'MV Commercial',RT70:'Large Industrial',ST:'Street Lights',EV:'Electric Vehicle'};
   const rcList=['RT10','RT20','RT40','RT50','RT70','RT60-ST'];
   const py=curYear-1, cy=curYear;
   const pm=getPM(),pmSet=new Set(pm),ph=getPH();
@@ -4241,7 +4241,7 @@ function renderPfRC(){
 function renderPfPar(){
   const pm=getPM(),pmSet=new Set(pm),ph=getPH();
   const py=curYear-1,cy=curYear;
-  const COMM_RCS=new Set(['RT40','RT50','RT60-ST','RT70','BU']);
+  const COMM_RCS=new Set(['RT20','RT40','RT50','RT60-ST','RT70','BU']);
   // Build from sbActuals filtered to period months
   const parMap={};
   sbActuals.forEach(r=>{
@@ -4397,7 +4397,7 @@ function renderKamPerformance(){
   }
   const cy=curYear,py=cy-1;
   const pm=getPM(),pmSet=new Set(pm),ph=getPH();
-  const _kamRCs=new Set(['RT40','RT50','RT60-ST','RT70']);
+  const _kamRCs=new Set(['RT20','RT40','RT50','RT60-ST','RT70']);
   const comm=sbActuals.filter(r=>!r.consumption_bucket&&_kamRCs.has(String(r.rate_class||'').trim()));
   const kamMap={};sbKAM.forEach(k=>kamMap[String(k.jps_ac||'').trim()]=k.kam||'');
   // Build per-KAM totals for the selected period
@@ -4489,7 +4489,7 @@ function renderCmIndTbl(){
   // Build period-filtered industry map from sbActuals (same approach as renderPfInd)
   const _indLkp={};
   if(sbIndustries&&sbIndustries.length)sbIndustries.forEach(x=>{_indLkp[String(x.jps_ac||'').trim()]=x.industry||'';});
-  const CM_RCS=new Set(['RT40','RT50','RT60-ST','RT70']);
+  const CM_RCS=new Set(['RT20','RT40','RT50','RT60-ST','RT70']);
   const indMap={},indRcMap={};
   sbActuals.forEach(r=>{
     const yr=Number(r[YEAR_COL]||r.year||0),mo=Number(r.month||0);
@@ -4537,7 +4537,7 @@ function renderCmComment(){
    RESIDENTIAL
 ========================================== */
 function renderRsKPIs(){
-  const resRCs=['RT10','RT20'];
+  const resRCs=['RT10'];
   const rsKv=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
 
   // Period months
@@ -4586,7 +4586,7 @@ function renderRsKPIs(){
 }
 function renderRsPar(){
   const q=(document.getElementById('rs_q')?.value||'').toLowerCase();
-  const resRCs=['RT10','RT20'];
+  const resRCs=['RT10'];
 
   // Populate bracket dropdown dynamically from actual data
   const bktSel=document.getElementById('rs_bracket');
@@ -4650,6 +4650,12 @@ function renderRsPar(){
   // Sort by absolute YoY variance (largest impact first)
   rows.sort((a,b)=>Math.abs(b.curr-b.prev)-Math.abs(a.curr-a.prev));
 
+  // Totals across all visible rows
+  const totCurr=rows.reduce((s,r)=>s+r.curr,0);
+  const totPrev=rows.reduce((s,r)=>s+r.prev,0);
+  const totCount=rows.reduce((s,r)=>s+(countAgg[`${r.parish}|||${r.bracket}`]||r.count),0);
+  const totPct=pct(totCurr,totPrev);
+
   document.getElementById('rs_count').textContent=rows.length+' rows';
   document.getElementById('rs_par_tbl').innerHTML=`<table class="dt" id="rspar_dt">
     <thead><tr><th>Parish</th><th>Bracket (kWh)</th><th>Customers</th><th>${ph} kWh (${curYear})</th><th>${ph} kWh (${curYear-1})</th><th>Var%</th><th>Signal</th></tr></thead>
@@ -4659,7 +4665,16 @@ function renderRsPar(){
       <td>${fmtK(r.curr)}</td><td style="color:var(--text3)">${fmtK(r.prev)}</td>
       <td>${vbar(r.curr,r.prev)}</td>
       <td><span class="heat ${hc(p)}">${p>=0?'+':''}${p.toFixed(1)}%</span></td>
-    </tr>`;}).join('')}</tbody></table>`;
+    </tr>`;}).join('')}</tbody>
+    <tfoot><tr style="font-weight:700;border-top:2px solid var(--border);background:var(--navy3)">
+      <td colspan="2">Total</td>
+      <td>${totCount>0?totCount.toLocaleString():'--'}</td>
+      <td>${fmtK(totCurr)}</td>
+      <td style="color:var(--text3)">${fmtK(totPrev)}</td>
+      <td>${vbar(totCurr,totPrev)}</td>
+      <td><span class="heat ${hc(totPct)}">${totPct>=0?'+':''}${totPct.toFixed(1)}%</span></td>
+    </tr></tfoot>
+    </table>`;
   makeSortable('rspar_dt');
 }
 
@@ -4744,7 +4759,7 @@ function validateDefector(num,name){
 function renderFcKPIs(){
   const months=getFcMonths();
   let entered=0,onTrend=0,offTrend=0;
-  CUSTOMERS.filter(c=>c.rate!=='RT10'&&c.rate!=='RT20').forEach(c=>{
+  CUSTOMERS.filter(c=>c.rate!=='RT10').forEach(c=>{
     months.forEach(m=>{
       const v=S.get(`${m.key}_${c.num}`,null);
       if(v){entered++;
@@ -4757,7 +4772,7 @@ function renderFcKPIs(){
   });
   // Compute MAPE from saved forecast entries vs actual sbActuals rows
   let mapeTotal=0, mapeCount=0;
-  CUSTOMERS.filter(c=>c.rate!=='RT10'&&c.rate!=='RT20').forEach(c=>{
+  CUSTOMERS.filter(c=>c.rate!=='RT10').forEach(c=>{
     months.forEach(m=>{
       const fc=S.get(`${m.key}_${c.num}`,null);
       if(fc==null)return;
@@ -4773,7 +4788,7 @@ function renderFcKPIs(){
   document.getElementById('fc_on').textContent=onTrend;
   document.getElementById('fc_off').textContent=offTrend;
   document.getElementById('fc_mape').textContent=mapeVal;
-  document.getElementById('fc_pending').textContent=Math.max(0,CUSTOMERS.filter(c=>c.rate!=='RT10'&&c.rate!=='RT20').length*months.length-entered);
+  document.getElementById('fc_pending').textContent=Math.max(0,CUSTOMERS.filter(c=>c.rate!=='RT10').length*months.length-entered);
   document.getElementById('kpi_accuracy').textContent=accuracyVal;
   document.getElementById('fc_period_kpi').textContent=`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][curMonth-1]} ${curYear}`;
 }
@@ -5221,8 +5236,8 @@ function exportReview(){
 function renderOverviewKPIs(){
   if(!CUSTOMERS.length)return;
   const pm=getPM(),pmSet=new Set(pm),ph=getPH();
-  const resRCs=['RT10','RT20'];
-  const comRCs=['RT40','RT50','RT70','RT60-ST'];
+  const resRCs=['RT10'];
+  const comRCs=['RT20','RT40','RT50','RT70','RT60-ST'];
   // Period-filtered sums — use sbActuals directly so all rate classes (incl. RT20) are counted
   const mtd=sbActuals.filter(r=>Number(r[YEAR_COL]||r.year||0)===curYear&&pmSet.has(Number(r.month||0))).reduce((s,r)=>s+Number(r.kwh||0)/1e6,0);
   const ytd=mtd;
@@ -5255,7 +5270,7 @@ function renderOverviewKPIs(){
   sv('kpi_ytd_yoy',(vYoY>=0?'+':'')+vYoY.toFixed(1)+'% YoY');
   sc('kpi_ytd_yoy',vYoY>=0?'tbadge tbg':'tbadge tbr');
   // ── Total customer count: commercial (distinct accounts) + residential (sum customer_count) ──
-  const commRCs=new Set(['RT40','RT50','RT60-ST','RT70','BU']);
+  const commRCs=new Set(['RT20','RT40','RT50','RT60-ST','RT70','BU']);
   const commActCount=CUSTOMERS.filter(c=>commRCs.has(c.rate)).length;
   const resActCount=sbActuals.filter(r=>['RT10','RT20'].includes(String(r.rate_class||''))&&Number(r[YEAR_COL])===curYear&&Number(r.month)===curMonth&&(r.consumption_bucket||'').trim()&&(r.consumption_bucket||'').trim()!=='< Zero').reduce((s,r)=>s+Number(r.customer_count||0),0);
   const commBudRows2=sbBudget.filter(b=>!(b.consumption_bucket||'').trim());
@@ -5280,7 +5295,7 @@ function renderOverviewKPIs(){
 function renderCommercialKPIs(){
   if(!CUSTOMERS.length)return;
   const pm=getPM(),pmSet=new Set(pm),ph=getPH();
-  const comRCs=['RT40','RT50','RT70','RT60-ST'];
+  const comRCs=['RT20','RT40','RT50','RT70','RT60-ST'];
   const comCusts=CUSTOMERS.filter(c=>comRCs.includes(c.rate));
   // Period sums from CUSTOMERS.m[] (current year) and sbBudget (budget)
   const _periSum=custs=>custs.reduce((s,c)=>s+pm.reduce((a,m)=>a+(c.m[m-1]||0),0),0);
@@ -5484,7 +5499,7 @@ function renderExecSummary() {
   const esGap0  = esAct0 - esBud0;
   const esYoY0  = esLY0>0?((esAct0-esLY0)/esLY0*100):null;
   const esYtdYoY= esYtdLY0>0?((esYtd0-esYtdLY0)/esYtdLY0*100):null;
-  const esComRCs= ['RT40','RT50','RT70','RT60-ST'];
+  const esComRCs= ['RT20','RT40','RT50','RT70','RT60-ST'];
   const esCmMtd = sbActuals.filter(r=>esComRCs.includes(String(r.rate_class||''))&&Number(r[YEAR_COL])===curYear&&pmSet.has(Number(r.month||0))).reduce((s,r)=>s+Number(r.kwh||0),0)/1e6;
   const esCmBud = sbBudget.filter(r=>esComRCs.includes(String(r.rate_class||''))&&Number(r.year||0)===curYear&&pmSet.has(Number(r.month||0))).reduce((s,r)=>s+Number(r.kwh_budget||0),0)/1e6;
   const esCmGap = esCmMtd - esCmBud;
@@ -5528,7 +5543,7 @@ function renderExecSummary() {
   }
 
   // Top movers
-  const sorted = CUSTOMERS.filter(c=>!['RT10','RT20'].includes(c.rate)).sort((a,b) => Math.abs(b.yCY-b.yPY) - Math.abs(a.yCY-a.yPY)).slice(0,5);
+  const sorted = CUSTOMERS.filter(c=>!['RT10'].includes(c.rate)).sort((a,b) => Math.abs(b.yCY-b.yPY) - Math.abs(a.yCY-a.yPY)).slice(0,5);
   if(el('es_top_movers')) {
     el('es_top_movers').innerHTML = sorted.map(c => {
       const v = c.yCY - c.yPY, pos = v >= 0;
@@ -6246,7 +6261,7 @@ function renderResIntel() {
 
 function renderResIntelKPIs() {
   const kv=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
-  const resRCs=['RT10','RT20'];
+  const resRCs=['RT10'];
 
   // Period months — respect curPeriod selector
   const qStart=Math.floor((curMonth-1)/3)*3+1;
@@ -6437,7 +6452,7 @@ function renderResIntelSection(id) {
 function renderBracketTable() {
   const tbl = document.getElementById('ri_bracket_tbl');
   if (!tbl) return;
-  const resRCs=['RT10','RT20'];
+  const resRCs=['RT10'];
   // Period months — respect curPeriod
   const qStart=Math.floor((curMonth-1)/3)*3+1;
   const periodMonths=curPeriod==='MTD'?[curMonth]
@@ -8586,7 +8601,7 @@ function buildDashboardData(){
   CUSTOMERS=Object.values(custMap).filter(c=>c.yPY>0||c.yCY>0).sort((a,b)=>b.yPY-a.yPY);
 
   // PARISHES — single pass
-  const COMM_RCS_SET=new Set(['RT40','RT50','RT60-ST','RT70','BU']);
+  const COMM_RCS_SET=new Set(['RT20','RT40','RT50','RT60-ST','RT70','BU']);
   const parMap={};
   rows.forEach(r=>{
     const p=r.parish||'Unknown';
@@ -10151,7 +10166,7 @@ function renderVldDefReg(){
   const q=(document.getElementById('vld_def_reg_q')?.value||'').toLowerCase();
   const sevF=document.getElementById('vld_def_reg_sev')?.value||'';
   const rcF=document.getElementById('vld_def_reg_rc')?.value||'';
-  const CM_RCS=new Set(['RT40','RT50','RT60-ST','RT70']);
+  const CM_RCS=new Set(['RT20','RT40','RT50','RT60-ST','RT70']);
   let defs=computeDefectors().filter(d=>CM_RCS.has(d.rate));
   if(q)defs=defs.filter(d=>d.name.toLowerCase().includes(q)||d.num.includes(q));
   if(sevF)defs=defs.filter(d=>d.sev===sevF);
@@ -10184,7 +10199,7 @@ function renderVldDefReg(){
 }
 
 /* ── App version ────────────────────────────────────────────────────── */
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.1.4';
 
 // Stamp version into navbar once DOM is ready
 (function stampVersion(){
