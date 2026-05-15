@@ -549,7 +549,7 @@ document.getElementById('schema_stale_banner').style.display='none';
           <div class="leg" id="trend_legend">
             <span><span class="ld" style="background:#00c2a8"></span><span id="trend_lbl_act">-- Actual</span></span>
             <span><span class="ld" style="background:#378ADD;border-style:dashed"></span><span id="trend_lbl_bud">-- Budget</span></span>
-            <span><span class="ld" style="background:rgba(255,255,255,.3)"></span><span id="trend_lbl_ly">-- Actual</span></span>
+            <span><span class="ld" style="background:var(--text3)"></span><span id="trend_lbl_ly">-- Actual</span></span>
           </div>
           <div class="cw" style="height:230px"><canvas id="c_trend"></canvas></div>
         </div>
@@ -3919,7 +3919,9 @@ function exportTableCSV(tableId,filename){
    CHARTS
 ========================================== */
 const CC='rgba(255,255,255,0.05)',TC='#5a7a96';
-function co(ex={}){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:TC,font:{size:10}},grid:{color:CC}},y:{ticks:{color:TC,font:{size:10}},grid:{color:CC}}},...ex};}
+function getCC(){const v=getComputedStyle(document.documentElement).getPropertyValue('--border').trim();return v||CC;}
+function getTC(){const v=getComputedStyle(document.documentElement).getPropertyValue('--text2').trim();return v||TC;}
+function co(ex={}){const _CC=getCC(),_TC=getTC();return{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:_TC,font:{size:10}},grid:{color:_CC}},y:{ticks:{color:_TC,font:{size:10}},grid:{color:_CC}}},...ex};}
 function destroyChart(id){if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];}}
 function mkChart(id,cfg){
   const el=document.getElementById(id);
@@ -4013,7 +4015,7 @@ function buildCharts(){
     datasets:[
       {label:`${curYear} Actual`,data:trendAct26,backgroundColor:'rgba(0,194,168,0.6)',borderColor:'#00c2a8',borderWidth:1,borderRadius:2,order:1},
       {label:`${curYear} Budget`,data:trendBud26,type:'line',borderColor:'#378ADD',borderDash:[5,3],backgroundColor:'transparent',tension:.35,pointRadius:3,order:0},
-      {label:`${curYear-1} Actual`,data:trendAct25,type:'line',borderColor:'rgba(255,255,255,0.25)',backgroundColor:'transparent',tension:.35,pointRadius:2,order:0},
+      {label:`${curYear-1} Actual`,data:trendAct25,type:'line',borderColor:getComputedStyle(document.documentElement).getPropertyValue('--text3').trim()||'rgba(255,255,255,0.35)',backgroundColor:'transparent',tension:.35,pointRadius:2,order:0},
     ]},options:{...co(),onClick:(e,el)=>{
       if(el.length){const idx=el[0].index;document.getElementById('trend_drill_info').textContent=`Filtered: Month ${idx+1} -- showing customers for this period`;}
     }}});
@@ -6433,7 +6435,7 @@ function renderResIntelSection(id) {
         labels: CDD_DATA.months,
         datasets: [
           { label:'CDD Actual', data:CDD_DATA.cdd_actual, backgroundColor:'rgba(245,166,35,0.6)', borderRadius:2, yAxisID:'y' },
-          { label:'CDD Normal', data:CDD_DATA.cdd_normal, backgroundColor:'rgba(255,255,255,0.15)', borderRadius:2, yAxisID:'y' },
+          { label:'CDD Normal', data:CDD_DATA.cdd_normal, backgroundColor:document.documentElement.getAttribute('data-theme')==='light'?'rgba(100,116,139,0.35)':'rgba(255,255,255,0.15)', borderRadius:2, yAxisID:'y' },
           { label:'RT10 GWh', data:CDD_DATA.kwh_raw, type:'line', borderColor:'#00c2a8', backgroundColor:'transparent', tension:.35, pointRadius:4, yAxisID:'y1' },
         ]
       },
@@ -9317,7 +9319,7 @@ function renderLEOverview(){
 
   mkChart('c_le_ov_main',{type:'line',data:{labels:mos.map(m=>LE_MO[m-1]),datasets},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtE(ctx.raw,2)}`}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
 
   const rcs=[...new Set(sbLE.map(d=>d.rate_class).filter(Boolean))].sort();
@@ -9328,7 +9330,7 @@ function renderLEOverview(){
     {label:'Budget',    data:budByRC,backgroundColor:'rgba(52,152,219,.5)'}
   ]},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtE(ctx.raw,2)}`}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
 
   const rcTbl=document.getElementById('le_rc_tbl');
@@ -9344,7 +9346,7 @@ function renderLEOverview(){
     labels:[`FY${FC_PY} Actual`,`FY${FC_BUD_YEAR} LE`,`FY${FC_BUD_YEAR} Budget`],
     datasets:[{label:'kWh',data:[actFY0,leFY,budFY0],backgroundColor:['rgba(52,152,219,.6)','rgba(245,166,35,.7)','rgba(46,204,113,.6)']}]
   },options:co({plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>fmtE(ctx.raw,2)}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
 }
 
@@ -9376,7 +9378,7 @@ function renderLEMonthly(){
 
   mkChart('c_le_monthly',{type:'line',data:{labels:mos.map(m=>LE_MO[m-1]),datasets},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtE(ctx.raw,2)}`}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
 
   const tbl=document.getElementById('le_monthly_tbl');
@@ -9431,7 +9433,7 @@ function renderLEAdjustPreview(){
     {label:'Budget',     data:mos.map(m=>budSum(bud,[m])),borderColor:'#3498db',backgroundColor:'transparent',tension:.3,pointRadius:2,fill:false,borderDash:[4,3]}
   ]},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtE(ctx.raw,2)}`}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
   const allMos=[1,2,3,4,5,6,7,8,9,10,11,12];
   const kr=document.getElementById('le_adj_krow');
@@ -9498,7 +9500,7 @@ function renderLECompare(){
 
   mkChart('c_le_compare',{type:'line',data:{labels:mos.map(m=>LE_MO[m-1]),datasets},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtE(ctx.raw,2)}`}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
 
   const rcs=[...new Set(sbLE.map(d=>d.rate_class).filter(Boolean))].sort();
@@ -9540,7 +9542,7 @@ function renderLELosses(){
     {label:'Losses (LE)',  type:'bar', data:mos.map(m=>leM(m).losses_kwh||0),    backgroundColor:'rgba(231,76,60,.5)',order:2}
   ]},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtE(ctx.raw,2)}`}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
 
   const fDates=[...new Set(sbLossesForecast.map(d=>d.forecast_date))].sort();
@@ -9553,7 +9555,7 @@ function renderLELosses(){
     {label:'12m Fcst', data:mos.map(m=>pct(fcRows,m)),borderColor:'#9b59b6',backgroundColor:'transparent',borderDash:[2,2],tension:.3,pointRadius:2,fill:false,spanGaps:false}
   ]},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>ctx.raw!=null?`${ctx.dataset.label}: ${ctx.raw.toFixed(2)}%`:'--'}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>v.toFixed(1)+'%'},grid:{color:getCC()}}}}
   )});
 
   const tbl=document.getElementById('le_loss_tbl');
@@ -9620,7 +9622,7 @@ function renderLEVariance(){
     {label:'Budget',data:top.map(r=>r.bud),backgroundColor:'rgba(52,152,219,.5)'}
   ]},options:co({
     plugins:{legend:{display:true,labels:{color:'#5a7a96',font:{size:10}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${fmtE(ctx.raw,2)}`}}},
-    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:'rgba(255,255,255,0.05)'}}}}
+    scales:{y:{ticks:{color:'#5a7a96',font:{size:10},callback:v=>fmtE(v,0)},grid:{color:getCC()}}}}
   )});
   const tbl=document.getElementById('le_var_tbl');
   if(!tbl)return;
